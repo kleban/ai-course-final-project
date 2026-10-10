@@ -14,6 +14,7 @@ from .charts import (
     histogram_bins,
     histogram_svg,
     number_text,
+    scatter_svg,
 )
 from .contracts import Failure, ProjectView, Success
 from .service import ProjectService
@@ -22,6 +23,7 @@ GROUPS = {
     "common": "Спільні: шрифт, розміри, кольори, осі",
     "heatmap": "Теплова карта",
     "histogram": "Гістограма",
+    "scatter": "Розсіювання",
 }
 FIELDS: dict[str, list[tuple[str, str, str, Any]]] = {
     # (name, control, title, bounds) - only parameters of implemented charts are shown.
@@ -51,6 +53,11 @@ FIELDS: dict[str, list[tuple[str, str, str, Any]]] = {
         ("histogram_bins", "int", "Інтервалів за замовчуванням (5–60)", (5, 60)),
         ("histogram_median", "bool", "Лінія медіани", None),
         ("histogram_opacity", "float", "Непрозорість стовпців (0,2–1)", (0.2, 1, 0.05)),
+    ],
+    "scatter": [
+        ("scatter_size", "int", "Радіус точки (1–10)", (1, 10)),
+        ("scatter_opacity", "float", "Непрозорість точок (0,05–1)", (0.05, 1, 0.05)),
+        ("scatter_outline", "bool", "Контур точок", None),
     ],
 }
 INVALID = "Перевірте HEX-кольори, розміри тексту, поріг 0…1 і непрозорість 0,2…1."
@@ -91,11 +98,11 @@ def options_editor(options: ChartOptions, changed, groups: tuple[str, ...]) -> A
     def read() -> ChartOptions:
         values = options.model_dump()
         values.update({k: c.value for k, c in controls.items()})
-        for key in ("title_size", "label_size", "decimals", "histogram_bins"):
+        for key in ("title_size", "label_size", "decimals", "histogram_bins", "scatter_size"):
             value = values[key]
             if value is not None and float(value).is_integer():
                 values[key] = int(value)
-        for key in ("threshold", "histogram_opacity"):
+        for key in ("threshold", "histogram_opacity", "scatter_opacity"):
             if isinstance(values[key], int) and not isinstance(values[key], bool):
                 values[key] = float(values[key])
         return ChartOptions.model_validate(values)
@@ -110,6 +117,7 @@ def show_chart(svg: str, hint: str) -> None:
 
 
 HEATMAP_HINT = "Оберіть клітинку мишею або клавішею Tab: тут з’являться r, n і виключення."
+SCATTER_HINT = "Кожна точка — рядок з обома значеннями; накладання видно за прозорістю."
 HISTOGRAM_HINT = "Оберіть стовпець мишею або клавішею Tab: тут з’являться межі й частота."
 
 FORMULAS = {
@@ -133,6 +141,17 @@ FORMULAS = {
                 r"p_{\mathrm{missing}}=100\frac{m}{N}",
                 "m — кількість пропусків поля за метаданими; N — усі рядки. "
                 "Нескінченності не є пропусками.",
+            ),
+        ],
+    ),
+    "scatter": (
+        "Розсіювання показує всі рядки, де є обидва значення (попарне вилучення, як у Pearson). "
+        "Без вибірки, видалення викидів чи обрізання осей; r — з ядра статистики 03.",
+        [
+            (
+                r"r=\frac{\sum_{i=1}^{n}(x_i-\bar{x})(y_i-\bar{y})}{\sqrt{\sum_{i=1}^{n}(x_i-\bar{x})^2\sum_{i=1}^{n}(y_i-\bar{y})^2}}",
+                "n — кількість точок; r визначено при n ≥ 3 і варіації обох полів. "
+                "Кореляція не доводить причинності й не описує нелінійні зв’язки.",
             ),
         ],
     ),
@@ -179,7 +198,11 @@ def formulas(kind: str) -> None:
         ).classes("muted")
 
 
-CHARTS = {"heatmap": "Теплова карта кореляцій", "histogram": "Гістограма"}
+CHARTS = {
+    "heatmap": "Теплова карта кореляцій",
+    "histogram": "Гістограма",
+    "scatter": "Розсіювання",
+}
 
 
 def charts_screen(
@@ -230,7 +253,9 @@ def charts_screen(
         for c in meta.data.document.columns
         if c.kind == "number" and c.role not in ("id", "ignore")
     }
-    if kind == "histogram":
+    if kind == "scatter":
+        scatter_body(service, project_id, selected, eligible, configuration.data)
+    elif kind == "histogram":
         histogram_body(service, project_id, selected, eligible, configuration.data)
     else:
         heatmap_body(service, project_id, selected, eligible, configuration.data)
@@ -469,6 +494,89 @@ def histogram_body(
     render()
 
 
+def scatter_body(
+    service: ProjectService,
+    project_id: str,
+    selected: str,
+    eligible: dict[str, str],
+    configuration: ChartConfiguration,
+) -> None:
+    from .screen import button, error_text
+
+    if len(eligible) < 2:
+        ui.label("Для розсіювання потрібні два придатні числові поля.")
+        return
+    names = list(eligible)
+    with ui.element("div").classes("chart-options"):
+        x = ui.select(eligible, value=names[0], label="Вісь X").props("outlined square")
+        y = ui.select(eligible, value=names[1], label="Вісь Y").props("outlined square")
+    theme_line(configuration)
+    title = (
+        ui.input("Заголовок (необов’язково)")
+        .props("outlined square maxlength=180")
+        .classes("w-full")
+    )
+    with ui.expansion("Тимчасове оформлення графіка").classes("w-full"):
+        read_options = options_editor(
+            configuration.effective(), lambda: None, ("common", "scatter")
+        )
+    message = ui.label("").classes("error-message").props('role="alert"')
+    state: dict[str, Any] = {"result": None}
+
+    @ui.refreshable
+    def render() -> None:
+        result = state["result"]
+        if result is None:
+            ui.label("Оберіть поля X і Y й натисніть «Побудувати».").classes("section-lead")
+            return
+        decimals = result.options.decimals
+        ui.label(f"Увесь набір · {result.row_count:,} рядків".replace(",", " ")).classes(
+            "stat-summary"
+        )
+        ui.label("Тема при побудові: " + THEMES[result.theme])
+        for warning in result.warnings:
+            ui.label(warning).classes("metadata-warning")
+        r_text = "—" if result.r is None else number_text(result.r, decimals)
+        ui.label(
+            f"Точок n = {result.n:,} · виключено рядків {result.row_count - result.n:,} · "
+            f"Pearson r = {r_text}".replace(",", " ")
+        ).classes("chart-facts")
+        if result.reason:
+            ui.label(result.reason).classes("metadata-warning")
+        if result.svg:
+            show_chart(result.svg, SCATTER_HINT)
+        formulas("scatter")
+
+    def build() -> None:
+        if x.value == y.value:
+            message.set_text("Оберіть два різні поля.")
+            return
+        try:
+            options = read_options()
+        except ValidationError:
+            message.set_text(INVALID)
+            return
+        result = service.scatter(
+            project_id,
+            {
+                "dataset_id": selected,
+                "x": x.value,
+                "y": y.value,
+                "options": options.model_dump(),
+                "title": title.value or "",
+            },
+        )
+        if isinstance(result, Failure):
+            message.set_text(error_text(result))
+            return
+        state["result"] = result.data
+        message.set_text("")
+        render.refresh()
+
+    button("Побудувати", build, "formula", "primary")
+    render()
+
+
 def chart_settings_screen(service: ProjectService) -> None:
     from .screen import Shell, button, error_line, error_text, page_header
 
@@ -480,7 +588,7 @@ def chart_settings_screen(service: ProjectService) -> None:
             "settings",
             "Графіки й теми",
             "Спільні для сервісу. Попередній перегляд не змінює збережені налаштування. "
-            "Доступні параметри реалізованих графіків: теплової карти й гістограми; "
+            "Доступні параметри реалізованих графіків: теплової карти, гістограми й розсіювання; "
             "інші додамо разом із графіками.",
         )
         response = service.chart_configuration()
@@ -505,6 +613,9 @@ def chart_settings_screen(service: ProjectService) -> None:
             ui.label("Попередній перегляд · демонстраційні значення, не ваші дані").classes(
                 "section-lead"
             )
+            if sample["kind"] == "scatter":
+                show_chart(demo_scatter(options), SCATTER_HINT)
+                return
             if sample["kind"] == "histogram":
                 show_chart(demo_histogram(options), HISTOGRAM_HINT)
                 return
@@ -526,7 +637,9 @@ def chart_settings_screen(service: ProjectService) -> None:
         @ui.refreshable
         def editor() -> None:
             read_state["read"] = options_editor(
-                options_state["value"], preview.refresh, ("common", "heatmap", "histogram")
+                options_state["value"],
+                preview.refresh,
+                ("common", "heatmap", "histogram", "scatter"),
             )
 
         def choose(e) -> None:
@@ -607,3 +720,12 @@ def demo_histogram(options: ChartOptions) -> str:
         ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
     )
     return histogram_svg(binned, {"name": "Поле A", "label": "", "unit": ""}, options)
+
+
+def demo_scatter(options: ChartOptions) -> str:
+    """Deterministic demonstration points for the settings preview, not user data."""
+    pairs = [[float(i % 37), float((i * 7) % 23 + i % 37 * 0.6)] for i in range(120)]
+    column = {"label": "", "unit": ""}
+    return scatter_svg(
+        pairs, {**column, "name": "Поле A"}, {**column, "name": "Поле B"}, None, options
+    )

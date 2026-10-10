@@ -34,6 +34,8 @@ from .contracts import (
     ProjectView,
     RowsPage,
     RowsQuery,
+    ScatterQuery,
+    ScatterView,
     StatisticsPage,
     StatisticsQuery,
     Success,
@@ -69,6 +71,12 @@ def router(service: ProjectService) -> APIRouter:
     )
     def heatmap(project_id: str, query: HeatmapQuery):
         return response(service.heatmap(project_id, query.model_dump(mode="json")))
+
+    @api.post(
+        "/projects/{project_id}/charts/scatter", response_model=Success[ScatterView] | Failure
+    )
+    def scatter(project_id: str, query: ScatterQuery):
+        return response(service.scatter(project_id, query.model_dump(mode="json")))
 
     @api.post(
         "/projects/{project_id}/charts/histogram", response_model=Success[HistogramView] | Failure

@@ -22,3 +22,5 @@
 .chart-item:focus {outline:none;}
 .chart-item:focus rect + rect {stroke:#000;stroke-width:2;stroke-dasharray:4 2;}
 .chart-field, .chart-choice .q-select {min-width:260px;}
+.scatter {display:block;max-width:none;}
+.chart-type {flex-wrap:wrap;max-width:100%;}

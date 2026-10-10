@@ -355,3 +355,105 @@ def histogram_svg(
         )
     parts.append("</svg>")
     return "".join(parts)
+
+
+# ---------------------------------------------------------------- scatter (stage 04, 056)
+# Idea from SRC-004 slides_4_types.js:137 (points + Pearson); every pairwise complete row
+# is a point: no sampling, outlier removal, log scale or trimmed range.
+
+
+def padded_range(values: list[float]) -> tuple[float, float]:
+    low, high = min(values), max(values)
+    if low == high:  # constant axis: explicit padding for readability
+        pad = abs(low) * 0.05 or 0.5
+        return low - pad, high + pad
+    return low, high
+
+
+def scatter_svg(
+    pairs: list[list[float]],
+    x_column: dict[str, Any],
+    y_column: dict[str, Any],
+    r: float | None,
+    options: ChartOptions,
+    title: str = "",
+) -> str:
+    width, height = 820, 520
+    left, right, top, bottom = 100, 30, 70, 90
+    plot_w, plot_h = width - left - right, height - top - bottom
+    x_name, y_name = field_label(x_column), field_label(y_column)
+    r_text = "—" if r is None else f"{r:.{options.decimals}f}"
+    heading = title or f"{y_name} і {x_name}"
+    description = (
+        f"Діаграма розсіювання: X — {x_name}, Y — {y_name}; точок n={len(pairs)}; "
+        f"Pearson r={r_text}."
+    )
+    x_low, x_high = padded_range([p[0] for p in pairs])
+    y_low, y_high = padded_range([p[1] for p in pairs])
+
+    def sx(value: float) -> float:
+        return left + (value - x_low) / (x_high - x_low) * plot_w
+
+    def sy(value: float) -> float:
+        return top + plot_h - (value - y_low) / (y_high - y_low) * plot_h
+
+    tick_size = max(11, options.label_size - 2)
+    grid = "#E3E5E8"
+    parts = [
+        f'<svg class="scatter" xmlns="http://www.w3.org/2000/svg" width="{width}" '
+        f'height="{height}" viewBox="0 0 {width} {height}" role="img" '
+        f'aria-label="{escape(description, quote=True)}" style="font-family:{options.font};'
+        f'background:{options.background}">',
+        f"<desc>{escape(description)}</desc>",
+        f'<text x="20" y="35" font-size="{options.title_size}" fill="{options.text}">'
+        f"{escape(heading)}</text>",
+    ]
+
+    def text(x: float, y: float, value: str, anchor: str = "middle", size: int = 0) -> str:
+        return (
+            f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="{anchor}" '
+            f'font-size="{size or tick_size}" fill="{options.text}">{escape(value)}</text>'
+        )
+
+    for tick in nice_ticks(x_low, x_high, 6):
+        if options.grid_x:
+            parts.append(
+                f'<line x1="{sx(tick):.1f}" x2="{sx(tick):.1f}" y1="{top}" '
+                f'y2="{top + plot_h}" stroke="{grid}" />'
+            )
+        parts.append(text(sx(tick), top + plot_h + 22, number_text(tick, options.decimals)))
+    for tick in nice_ticks(y_low, y_high, 5):
+        if options.grid_y:
+            parts.append(
+                f'<line x1="{left}" x2="{left + plot_w}" y1="{sy(tick):.1f}" '
+                f'y2="{sy(tick):.1f}" stroke="{grid}" />'
+            )
+        parts.append(text(left - 10, sy(tick) + 4, number_text(tick, options.decimals), "end"))
+    stroke = f' stroke="{options.text}" stroke-width="0.5"' if options.scatter_outline else ""
+    parts.append(
+        f'<g class="scatter-points" fill="{options.accent}" '
+        f'fill-opacity="{options.scatter_opacity:g}"{stroke}>'
+    )
+    radius = options.scatter_size
+    parts.extend(f'<circle cx="{sx(x):.1f}" cy="{sy(y):.1f}" r="{radius}"/>' for x, y in pairs)
+    parts.append("</g>")
+    parts.append(
+        f'<line x1="{left}" x2="{left + plot_w}" y1="{top + plot_h}" y2="{top + plot_h}" '
+        f'stroke="{options.text}" /><line x1="{left}" x2="{left}" y1="{top}" '
+        f'y2="{top + plot_h}" stroke="{options.text}" />'
+    )
+    if options.frame:
+        parts.append(
+            f'<rect x="{left}" y="{top}" width="{plot_w}" height="{plot_h}" fill="none" '
+            f'stroke="{options.text}" />'
+        )
+    if options.axis_labels:
+        parts.append(text(left + plot_w / 2, height - 30, x_name, size=options.label_size))
+        parts.append(
+            f'<text x="22" y="{top + plot_h / 2:.1f}" text-anchor="middle" '
+            f'font-size="{options.label_size}" fill="{options.text}" '
+            f'transform="rotate(-90 22 {top + plot_h / 2:.1f})">{escape(y_name)}</text>'
+        )
+    parts.append(text(left + plot_w, 35, f"n = {len(pairs)} · r = {r_text}", "end"))
+    parts.append("</svg>")
+    return "".join(parts)

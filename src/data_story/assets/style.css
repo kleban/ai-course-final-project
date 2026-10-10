@@ -398,5 +398,5 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .block-link.planned { cursor:default; color:var(--axis); font-style:italic; }
 .block-link.planned:hover { background:transparent; }
 .block-link.planned .ico { color:var(--axis); }
-.eda-tools { margin:4px 0 12px; }
+.eda-tools { margin:4px 0 12px; flex-wrap:wrap; max-width:100%; }
 .q-drawer--mini .block-num { display:none; }

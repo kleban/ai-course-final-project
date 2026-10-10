@@ -349,6 +349,41 @@ class HistogramQuery(StrictModel):
         return self
 
 
+class ScatterQuery(StrictModel):
+    """Two different numeric fields; all pairwise complete rows are drawn."""
+
+    dataset_id: UUID
+    x: Annotated[str, Field(strict=True, min_length=1)]
+    y: Annotated[str, Field(strict=True, min_length=1)]
+    options: ChartOptions | None = None
+    title: Annotated[str, Field(strict=True, max_length=180)] = ""
+
+    @model_validator(mode="after")
+    def different(self) -> "ScatterQuery":
+        if self.x == self.y:
+            raise ValueError("Оберіть два різні поля.")
+        return self
+
+
+class ScatterView(StrictModel):
+    dataset_id: UUID
+    project_id: UUID
+    sha256: str
+    row_count: int
+    metadata_state: str
+    warnings: list[str]
+    x: StatisticsField
+    y: StatisticsField
+    n: int
+    r: FiniteFloat | None
+    reason: str | None
+    x_range: list[FiniteFloat]
+    y_range: list[FiniteFloat]
+    theme: Theme
+    options: ChartOptions
+    svg: str
+
+
 class HistogramView(StrictModel):
     dataset_id: UUID
     project_id: UUID

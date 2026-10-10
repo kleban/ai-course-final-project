@@ -1,7 +1,8 @@
-"""Stage 04 browser acceptance (heatmap, histogram, settings) on a separate test server."""
+"""Stage 04 browser acceptance (heatmap, histogram, scatter, settings) on a test server."""
 
 import json
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -10,7 +11,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 B = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8895"
-SHOTS = ROOT / "design" / "reviews" / "052-histogram"
+SHOTS = ROOT / "design" / "reviews" / "056-scatter"
 SHOTS.mkdir(parents=True, exist_ok=True)
 results, errors, external = [], [], []
 
@@ -101,6 +102,9 @@ with sync_playwright() as pw:
         and page.locator(".histogram .median-line").count() == 0,
     )
     page.screenshot(path=str(SHOTS / "settings-histogram.png"), full_page=True)
+    page.get_by_role("button", name="Розсіювання", exact=True).click()
+    page.locator(".scatter circle").first.wait_for()
+    ok("settings scatter preview", page.locator(".scatter circle").count() == 120)
     page.get_by_role("button", name="Відновити початкові налаштування", exact=True).click()
     page.wait_for_timeout(800)
     page.screenshot(path=str(SHOTS / "settings.png"), full_page=True)
@@ -215,6 +219,20 @@ with sync_playwright() as pw:
             [e["payload"]["status"] for e in histogram_events].count("success") == 2
             and [e["payload"]["status"] for e in histogram_events].count("error") == 1,
         )
+    page.goto(B + f"/?project={project}&dataset={dataset}&view=eda&tool=scatter")
+    page.get_by_role("button", name="Побудувати", exact=True).click()
+    started = time.monotonic()
+    page.locator(".scatter circle").first.wait_for(timeout=60000)
+    elapsed = time.monotonic() - started
+    ok(
+        "scatter all Melbourne pairs drawn",
+        page.locator(".scatter circle").count() == 13580
+        and page.get_by_text("Точок n = 13 580", exact=False).count() == 1,
+    )
+    ok("scatter r from statistics", "Pearson r = 0.50" in page.locator(".chart-facts").inner_text())
+    ok(f"scatter built in {elapsed:.1f}s (< 15s)", elapsed < 15)
+    page.evaluate("scrollTo(0,0)")
+    page.screenshot(path=str(SHOTS / "scatter.png"), full_page=True)
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_timeout(500)
     ok(
@@ -230,7 +248,7 @@ with sync_playwright() as pw:
     ok("no browser errors", not errors)
     browser.close()
 
-(ROOT / "tmp" / "charts052-results.json").write_text(
+(ROOT / "tmp" / "charts056-results.json").write_text(
     json.dumps(
         {"results": results, "errors": errors, "external": external}, ensure_ascii=False, indent=2
     ),

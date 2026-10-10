@@ -37,6 +37,7 @@ def calculate(
     view: View,
     fields: list[str] | None = None,
     values_for: str | None = None,
+    with_pairs: bool = False,
 ) -> dict[str, Any]:
     """Calculate one view from a snapshot; invalid field rules do not hide other fields.
 
@@ -223,6 +224,10 @@ def calculate(
                 result["r"].append(r_row)
                 result["n"].append(n_row)
                 result["reasons"].append(reasons)
+        if with_pairs and len(selected) == 2:
+            # Scatter (stage 04): exactly the pairs Pearson used, no sampling or trimming.
+            pairs = pd.concat([numeric[selected[0]], numeric[selected[1]]], axis=1).dropna()
+            result["pairs"] = pairs.astype(float).values.tolist()
     return result
 
 
@@ -241,6 +246,7 @@ class StatisticsStore:
         fields: list[str] | None = None,
         *,
         values_for: str | None = None,
+        with_pairs: bool = False,
         operation: str = "statistics.calculated",
         audit_extra: dict[str, Any] | None = None,
         finish: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
@@ -285,7 +291,9 @@ class StatisticsStore:
                 else "none",
                 metadata_updated_at=metadata.updated_at,
             )
-            result = calculate(frame, dataset.profile, metadata, view, fields, values_for)
+            result = calculate(
+                frame, dataset.profile, metadata, view, fields, values_for, with_pairs
+            )
             result.update(project_id=project_id, dataset_id=dataset_id, sha256=audit["sha256"])
             audit.update(
                 {key: result[key] for key in ("metadata_state", "metadata_updated_at", "row_count")}

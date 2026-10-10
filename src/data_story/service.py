@@ -15,6 +15,7 @@ from .charts import (
     heatmap_svg,
     histogram_bins,
     histogram_svg,
+    scatter_svg,
 )
 from .configuration import InstructionStore
 from .contracts import (
@@ -44,6 +45,8 @@ from .contracts import (
     ProjectView,
     RowsPage,
     RowsQuery,
+    ScatterQuery,
+    ScatterView,
     StatisticsField,
     StatisticsPage,
     StatisticsQuery,
@@ -485,6 +488,52 @@ class ProjectService:
 
         return execute(action)
 
+    def scatter(self, project_id: str, raw: object) -> Success[ScatterView] | Failure:
+        def action() -> ScatterView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(ScatterQuery, raw)
+            configuration = self.chart_config.get()
+            options = query.options or configuration.effective()
+            result = self.statistics_store.calculate(
+                validated,
+                str(query.dataset_id),
+                "correlations",
+                [query.x, query.y],
+                with_pairs=True,
+                operation="chart.built",
+                audit_extra={
+                    "chart": "scatter",
+                    "theme": configuration.theme,
+                    "temporary_options": query.options is not None,
+                    "options": options.model_dump(),
+                    "title": query.title,
+                },
+            )
+            pairs = result.pop("pairs", [])
+            x, y = _descriptor(result, query.x), _descriptor(result, query.y)
+            r, reason = result["r"][1][0], result["reasons"][1][0]
+            if not pairs:
+                reason = "Немає жодного рядка з обома значеннями: графік не будується."
+            return ScatterView(
+                **{
+                    k: result[k]
+                    for k in ("dataset_id", "project_id", "sha256", "row_count", "metadata_state")
+                },
+                warnings=result["warnings"] + contrast_warnings(options),
+                x=StatisticsField(**x),
+                y=StatisticsField(**y),
+                n=len(pairs),
+                r=r,
+                reason=reason,
+                x_range=[min(p[0] for p in pairs), max(p[0] for p in pairs)] if pairs else [],
+                y_range=[min(p[1] for p in pairs), max(p[1] for p in pairs)] if pairs else [],
+                theme=configuration.theme,
+                options=options,
+                svg=scatter_svg(pairs, x, y, r, options, query.title) if pairs else "",
+            )
+
+        return execute(action)
+
     def histogram(self, project_id: str, raw: object) -> Success[HistogramView] | Failure:
         def action() -> HistogramView:
             validated = str(validate_input(ProjectId, {"id": project_id}).id)
@@ -547,6 +596,11 @@ class ProjectService:
             )
 
         return execute(action)
+
+
+def _descriptor(result: dict[str, Any], name: str) -> dict[str, Any]:
+    column = next(c for c in result["columns"] if c["name"] == name)
+    return {k: column[k] for k in ("name", "label", "unit", "kind", "role")}
 
 
 def bin_values(result: dict[str, Any], bins: int | None, width: float | None) -> dict[str, Any]:
