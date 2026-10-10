@@ -59,6 +59,8 @@ EVENT_TITLES = {
     "chart.built": ("Побудовано графік", "formula"),
     "preparation.previewed": ("Перегляд підготовки", "methods"),
     "preparation.saved": ("Збережено план підготовки", "check"),
+    "preparation.applied": ("Створено підготовлений набір", "methods"),
+    "training.prepared": ("Підготовлено вибірки для регресії", "methods"),
 }
 FORMAT_TITLES = {"csv": "CSV"}
 
@@ -414,15 +416,27 @@ def projects_screen(
             trail.append(("Метадані", None))
     if active and view == "eda":
         trail.append(("Оглядовий аналіз", None))
-    if active and view == "preparation":
+    if active and view in ("preparation", "training"):
         trail.append(("Підготовка даних", None))
-    current = view if view in ("eda", "preparation") else "data" if active else "projects"
+    current = (
+        "preparation"
+        if view == "training"
+        else view
+        if view in ("eda", "preparation")
+        else "data"
+        if active
+        else "projects"
+    )
     shell = Shell(service, current, active, trail)
     with ui.column().classes("page"):
         if isinstance(active_result, Failure):
             error_line(active_result)
         if active and view == "eda":
             eda_screen(service, active, dataset_id, chart)
+        elif active and view == "training":
+            from .training_screen import training_screen
+
+            training_screen(service, active, dataset_id)
         elif active and view == "preparation":
             from .preparation_screen import preparation_screen
 
@@ -612,10 +626,12 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "chart.built",
                 "preparation.previewed",
                 "preparation.saved",
+                "preparation.applied",
+                "training.prepared",
             ):
                 view_title = (
                     EVENT_TITLES[event.operation][0]
-                    if event.operation.startswith("preparation.")
+                    if event.operation.startswith(("preparation.", "training."))
                     else STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
                 )
                 title = f"{view_title}: {event.payload.get('dataset_name', '')} · " + (
@@ -630,6 +646,8 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "chart.built",
                 "preparation.previewed",
                 "preparation.saved",
+                "preparation.applied",
+                "training.prepared",
             ):
                 with ui.element("details").classes("howto stat-audit"):
                     with ui.element("summary"):
@@ -639,6 +657,10 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                         ("rows_before", "Рядків до підготовки"),
                         ("rows_after", "Рядків після підготовки"),
                         ("rows_removed", "Вилучено рядків"),
+                        ("train_count", "Навчальних рядків"),
+                        ("test_count", "Тестових рядків"),
+                        ("feature_count", "Ознак після кодування"),
+                        ("seed", "Параметр поділу"),
                         ("actions", "Операції"),
                         ("plan_id", "План підготовки"),
                         ("fields", "Поля"),
@@ -743,6 +765,8 @@ def datasets_section(service: ProjectService, active: ProjectView, listing) -> N
                 with ui.element("div").classes("name"):
                     icon("copy" if item.copied_from else "data")
                     ui.label(item.name)
+                    if item.source.get("prepared_from"):
+                        ui.label("підготовлено").classes("tag")
                     if item.copied_from:
                         ui.label("копія").classes("tag").props(
                             'title="Незалежна копія набору з іншого проєкту"'
@@ -841,6 +865,11 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
         f"кодування {source.get('encoding', '?')}",
         f"роздільник: {delimiter.get(source.get('delimiter', ''), source.get('delimiter', '?'))}",
     ]
+    if source.get("prepared_from"):
+        details.append("підготовлений набір · оригінал збережено")
+        ui.label(
+            f"План підготовки: {source.get('preparation_plan_id')} · SHA-256 джерела: {source.get('source_sha256')}"
+        ).classes("section-lead")
     if data.copied_from:
         origin = service.dataset(str(data.copied_from))
         if isinstance(origin, Success):

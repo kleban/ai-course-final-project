@@ -60,15 +60,19 @@ from .contracts import (
     StatisticsQuery,
     StatisticsRow,
     Success,
+    TrainingQuery,
 )
 from .dataset_copy import DatasetCopier
 from .datasets import DatasetError, DatasetNotFound, DatasetStore
 from .metadata import MetadataError, MetadataStore, issues
 from .preparation import PreparationError
 from .preparation_store import PreparationStore
+from .prepared_datasets import PreparedDatasets
 from .project_types import PROJECT_TYPES
 from .projects import ProjectNotFound, ProjectStore
 from .statistics import StatisticsError, StatisticsStore
+from .training_data import TrainingChoices
+from .training_store import TrainingStore
 
 T = TypeVar("T")
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
@@ -152,6 +156,8 @@ class ProjectService:
         self.statistics_store = StatisticsStore(self.datasets)
         self.chart_config = ChartConfigurationStore(store.database)
         self.preparation_store = PreparationStore(self.datasets)
+        self.prepared_datasets = PreparedDatasets(self.datasets)
+        self.training_store = TrainingStore(self.datasets)
 
     def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action() -> dict:
@@ -179,6 +185,28 @@ class ProjectService:
             lambda: self.preparation_store.plans(
                 str(validate_input(ProjectId, {"id": project_id}).id)
             )
+        )
+
+    def preparation_apply(self, project_id: str, plan_id: str) -> Success[DatasetView] | Failure:
+        def action() -> DatasetView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            plan = str(validate_input(ProjectId, {"id": plan_id}).id)
+            return DatasetView.from_dataset(self.prepared_datasets.create(validated, plan))
+
+        return execute(action)
+
+    def training_prepare(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(TrainingQuery, raw)
+            choices = TrainingChoices.model_validate(request.model_dump(exclude={"dataset_id"}))
+            return self.training_store.create(validated, str(request.dataset_id), choices)
+
+        return execute(action)
+
+    def training_runs(self, project_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.training_store.list(str(validate_input(ProjectId, {"id": project_id}).id))
         )
 
     def create(self, raw: object) -> Success[ProjectView] | Failure:

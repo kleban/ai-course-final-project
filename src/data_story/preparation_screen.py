@@ -45,6 +45,11 @@ def preparation_screen(
             f"/?project={project_id}&dataset={e.value}&view=preparation"
         ),
     ).props("outlined square")
+    button(
+        "Вибірки для регресії",
+        partial(ui.navigate.to, f"/?project={project_id}&dataset={selected}&view=training"),
+        "next",
+    )
     metadata = service.metadata(selected)
     if isinstance(metadata, Failure):
         error_line(metadata)
@@ -191,6 +196,13 @@ def preparation_screen(
             if state["rules"]:
                 button("Підтвердити й зберегти план", save, "check")
 
+    def apply(plan_id: str) -> None:
+        response = service.preparation_apply(project_id, plan_id)
+        if isinstance(response, Failure):
+            message.set_text(response.error.message)
+        else:
+            ui.navigate.to(f"/?project={project_id}&dataset={response.data.id}")
+
     @ui.refreshable
     def saved() -> None:
         ui.label("Збережені плани підготовки").classes("section-title")
@@ -215,6 +227,7 @@ def preparation_screen(
                 )
 
                 button("Використати цей план", partial(restore, doc["rules"]), "copy")
+                button("Створити підготовлений набір", partial(apply, item["id"]), "data")
 
     plan()
     button("Переглянути результат", preview, "compare")

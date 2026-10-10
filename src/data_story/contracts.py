@@ -19,6 +19,7 @@ from .metadata import MetadataDocument
 from .preparation import MissingRule
 from .project_types import DEFAULT_TYPE, ProjectTypeKey, require_enabled
 from .statistics import View
+from .training_data import TrainingChoices
 from .validation import DESCRIPTION_LIMIT, NAME_LIMIT, PURPOSE_LIMIT, text
 
 T = TypeVar("T")
@@ -106,6 +107,8 @@ class EventView(StrictModel):
         "chart.built",
         "preparation.previewed",
         "preparation.saved",
+        "preparation.applied",
+        "training.prepared",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -454,3 +457,7 @@ class PreparationQuery(StrictModel):
 
 class PreparationSave(PreparationQuery):
     preview_token: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class TrainingQuery(TrainingChoices):
+    dataset_id: UUID = Field(strict=False)

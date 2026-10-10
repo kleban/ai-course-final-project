@@ -158,7 +158,15 @@ def read_table(
         if not text.strip():
             raise DatasetError("Файл порожній.")
         meta.setdefault("delimiter", _delimiter(text))
-        frame = pd.read_csv(io.StringIO(text), sep=meta["delimiter"], nrows=nrows)
+        options = {}
+        if "prepared_csv" in meta:
+            options = {
+                "dtype": meta["prepared_csv"]["dtypes"],
+                "keep_default_na": False,
+                "na_values": [meta["prepared_csv"]["na_token"]],
+                "float_precision": "round_trip",
+            }
+        frame = pd.read_csv(io.StringIO(text), sep=meta["delimiter"], nrows=nrows, **options)
     except DatasetError:
         raise
     except pd.errors.EmptyDataError as error:

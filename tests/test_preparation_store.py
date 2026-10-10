@@ -13,7 +13,18 @@ from fastapi.testclient import TestClient
 from data_story.contracts import Failure, Success
 from data_story.projects import ProjectStore
 from data_story.service import ProjectService
-from data_story.storage import _V1, _V2, _V3, _V4, _V5, _V6, _V7, connect, ensure_schema
+from data_story.storage import (
+    _V1,
+    _V2,
+    _V3,
+    _V4,
+    _V5,
+    _V6,
+    _V7,
+    SCHEMA_VERSION,
+    connect,
+    ensure_schema,
+)
 from data_story.web import install_error_handlers, router
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -157,7 +168,9 @@ class PreparationStoreTests(unittest.TestCase):
         connection.close()
         ensure_schema(database)
         with connect(database) as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 8)
+            self.assertEqual(
+                connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+            )
             self.assertEqual(
                 connection.execute("SELECT name FROM projects").fetchone()[0], "Existing"
             )

@@ -43,6 +43,7 @@ from .contracts import (
     StatisticsPage,
     StatisticsQuery,
     Success,
+    TrainingQuery,
 )
 from .datasets import MAX_BYTES
 from .metadata import SOURCE_BYTES
@@ -71,6 +72,21 @@ def router(service: ProjectService) -> APIRouter:
     )
     def preparation_plans(project_id: str):
         return response(service.preparation_plans(project_id))
+
+    @api.post(
+        "/projects/{project_id}/preparation/plans/{plan_id}/apply",
+        response_model=Success[DatasetView] | Failure,
+    )
+    def preparation_apply(project_id: str, plan_id: str):
+        return response(service.preparation_apply(project_id, plan_id))
+
+    @api.post("/projects/{project_id}/training", response_model=Success[dict] | Failure)
+    def training_prepare(project_id: str, query: TrainingQuery):
+        return response(service.training_prepare(project_id, query.model_dump(mode="json")))
+
+    @api.get("/projects/{project_id}/training", response_model=Success[list[dict]] | Failure)
+    def training_runs(project_id: str):
+        return response(service.training_runs(project_id))
 
     @api.get("/configuration/charts", response_model=Success[ChartConfiguration] | Failure)
     def chart_configuration():
