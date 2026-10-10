@@ -689,25 +689,22 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
                     ui.label(number(column.max)).classes("num")
                 ui.label(number(column.mean)).classes("num")
 
-    table = service.table(dataset_id)
     ui.label("Таблиця даних").classes("section-title")
-    if isinstance(table, Failure):
-        error_line(table)
-        return
-    total = len(table.data.rows)
+    total = data.row_count
     counter = ui.label("").classes("section-lead")
 
     def show_count(shown: int) -> None:
-        if shown == total:
+        if shown >= total:
             counter.set_text(
-                f"Усі {number(total)} рядків. Сортування — клік на заголовку, фільтр — поле "
-                "під заголовком стовпця. Дати показано як ДД.ММ.РРРР, порожні клітинки — «—»."
+                f"Усі {number(total)} рядків, сторінками. Сортування — клік на заголовку, "
+                "фільтр — поле під заголовком стовпця. Дати показано як ДД.ММ.РРРР, "
+                "порожні клітинки — «—»."
             )
         else:
-            counter.set_text(f"За фільтрами показано {number(shown)} з {number(total)} рядків.")
+            counter.set_text(f"За фільтрами знайдено {number(shown)} з {number(total)} рядків.")
 
     show_count(total)
-    data_grid(table.data, show_count)
+    data_grid(dataset_id, [(c.name, c.kind) for c in data.columns], show_count)
 
 
 # ---------------------------------------------------------------- метадані (етап 02b)

@@ -10,6 +10,7 @@ import io
 import json
 import os
 import shutil
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePath
@@ -82,12 +83,19 @@ class Preview:
 
 
 @dataclass(frozen=True)
-class Table:
-    """All rows with typed values for the interactive grid: numbers stay numbers,
-    recognised dates become ISO text, everything else is text; missing values are None."""
+class Page:
+    """One page of rows for the grid after server-side filtering and sorting.
+    Keys are c0, c1, … by column position; numbers stay numbers, dates are ISO text."""
 
-    columns: list[dict[str, str]]
-    rows: list[list[Any]]
+    rows: list[dict[str, Any]]
+    total: int
+    all_rows: int
+
+
+PAGE_LIMIT = 500
+TYPED_CACHE_SIZE = 4
+# dataset id -> (typed frame, kinds, date formats); a few recent sets stay parsed in memory
+_typed_cache: OrderedDict[str, tuple[pd.DataFrame, list[str], list[str | None]]] = OrderedDict()
 
 
 def _now() -> str:
@@ -380,30 +388,145 @@ class DatasetStore:
         values = [[_cell(v) for v in record] for record in frame.itertuples(index=False)]
         return Preview(list(frame.columns), values, dataset.row_count)
 
-    def table(self, dataset_id: str) -> Table:
+    def _typed(self, dataset_id: str) -> tuple[pd.DataFrame, list[str], list[str | None]]:
+        """The whole file parsed once with types from the profile; reused for every page."""
         dataset = self.get(dataset_id)
+        key = f"{dataset.id}:{dataset.sha256}"
+        if key in _typed_cache:
+            _typed_cache.move_to_end(key)
+            return _typed_cache[key]
         path = (self.files_root / dataset.stored_path).resolve()
         if not path.is_relative_to(self.files_root) or not path.is_file():
             raise DatasetNotFound("Файл набору даних відсутній у сховищі.")
         frame, _ = read_table(path.read_bytes(), dataset.file_format, meta=dataset.profile)
         described = {c["name"]: c for c in dataset.profile.get("columns", [])}
-        columns: list[dict[str, str]] = []
-        data: list[list[Any]] = []
-        for name in frame.columns:
+        typed: dict[str, pd.Series] = {}
+        kinds: list[str] = []
+        formats: list[str | None] = []
+        for index, name in enumerate(frame.columns):
             item = described.get(name, {})
-            kind = item.get("kind", "text")
+            kind, fmt = item.get("kind", "text"), item.get("date_format")
             series = frame[name]
-            if kind == "date" and item.get("date_format"):
-                fmt = item["date_format"]
-                parsed = pd.to_datetime(
+            if kind == "date" and fmt:
+                series = pd.to_datetime(
                     series.astype("string").str.strip(), format=fmt, errors="coerce"
                 )
-                values: list[Any] = [None if pd.isna(v) else _date_text(v, fmt) for v in parsed]
             elif kind == "number":
-                values = [_typed_number(v) for v in series]
+                series = pd.to_numeric(series, errors="coerce")
             else:
-                kind = "text" if kind != "bool" else kind
-                values = [_cell(v) for v in series]
-            columns.append({"name": name, "kind": kind})
-            data.append(values)
-        return Table(columns, [list(row) for row in zip(*data, strict=True)] if data else [])
+                kind, fmt = "text", None
+                series = series.astype("string")
+            typed[f"c{index}"] = series
+            kinds.append(kind)
+            formats.append(fmt)
+        result = (pd.DataFrame(typed), kinds, formats)
+        _typed_cache[key] = result
+        while len(_typed_cache) > TYPED_CACHE_SIZE:
+            _typed_cache.popitem(last=False)
+        return result
+
+    def page(
+        self,
+        dataset_id: str,
+        start: int = 0,
+        limit: int = 100,
+        sort: list[dict[str, str]] | None = None,
+        filters: dict[str, dict[str, Any]] | None = None,
+    ) -> Page:
+        """Only the requested rows leave the server; filtering and sorting happen here."""
+        if start < 0 or not 1 <= limit <= PAGE_LIMIT:
+            raise DatasetError(f"Сторінка: від 1 до {PAGE_LIMIT} рядків, початок не менше 0.")
+        frame, kinds, formats = self._typed(dataset_id)
+        mask = pd.Series(True, index=frame.index)
+        for column, model in (filters or {}).items():
+            index = _column_index(column, len(kinds))
+            mask &= _filter_mask(frame[column], kinds[index], model)
+        selected = frame[mask]
+        if sort:
+            columns, ascending = [], []
+            for item in sort:
+                _column_index(item.get("colId", ""), len(kinds))
+                if item.get("sort") not in ("asc", "desc"):
+                    raise DatasetError("Сортування: очікується asc або desc.")
+                columns.append(item["colId"])
+                ascending.append(item["sort"] == "asc")
+            selected = selected.sort_values(
+                columns, ascending=ascending, na_position="last", kind="stable"
+            )
+        chunk = selected.iloc[start : start + limit]
+        rows = []
+        for record in chunk.itertuples(index=False, name=None):
+            row: dict[str, Any] = {}
+            for index, value in enumerate(record):
+                if kinds[index] == "date":
+                    fmt = formats[index] or "%Y-%m-%d"
+                    row[f"c{index}"] = None if pd.isna(value) else _date_text(value, fmt)
+                elif kinds[index] == "number":
+                    row[f"c{index}"] = _typed_number(value)
+                else:
+                    row[f"c{index}"] = None if pd.isna(value) else str(value)
+            rows.append(row)
+        return Page(rows, int(mask.sum()), int(len(frame)))
+
+
+def _column_index(column: str, count: int) -> int:
+    if not column.startswith("c") or not column[1:].isdigit() or int(column[1:]) >= count:
+        raise DatasetError(f"Невідомий стовпець: {column}.")
+    return int(column[1:])
+
+
+def _filter_mask(series: pd.Series, kind: str, model: dict[str, Any]) -> pd.Series:
+    """AG Grid filter model -> boolean mask (text, number and date filters, AND/OR)."""
+    if not isinstance(model, dict):
+        raise DatasetError("Фільтр: неправильний формат.")
+    if "conditions" in model:
+        parts = [_filter_mask(series, kind, c) for c in model["conditions"]]
+        if not parts:
+            return pd.Series(True, index=series.index)
+        combined = parts[0]
+        for part in parts[1:]:
+            combined = combined | part if model.get("operator") == "OR" else combined & part
+        return combined
+    kind_of_filter = {"text": "text", "number": "number", "date": "date"}
+    if kind_of_filter.get(model.get("filterType", "")) != kind:
+        raise DatasetError("Фільтр не відповідає типу стовпця.")
+    how = model.get("type")
+    if how == "blank":
+        return series.isna()
+    if how == "notBlank":
+        return series.notna()
+    try:
+        if kind == "text":
+            text = series.str.lower()
+            value = str(model.get("filter", "")).lower()
+            tests = {
+                "contains": lambda: text.str.contains(value, regex=False),
+                "notContains": lambda: ~text.str.contains(value, regex=False),
+                "equals": lambda: text == value,
+                "notEqual": lambda: text != value,
+                "startsWith": lambda: text.str.startswith(value),
+                "endsWith": lambda: text.str.endswith(value),
+            }
+        else:
+            if kind == "number":
+                values = series
+                low = float(model["filter"])
+                high = float(model.get("filterTo", low))
+            else:
+                values = series.dt.normalize()
+                low = pd.Timestamp(str(model["dateFrom"])[:10])
+                high = pd.Timestamp(str(model.get("dateTo") or model["dateFrom"])[:10])
+            tests = {
+                "equals": lambda: values == low,
+                "notEqual": lambda: values != low,
+                "lessThan": lambda: values < low,
+                "lessThanOrEqual": lambda: values <= low,
+                "greaterThan": lambda: values > low,
+                "greaterThanOrEqual": lambda: values >= low,
+                "inRange": lambda: (values >= low) & (values <= high),
+            }
+    except (KeyError, TypeError, ValueError) as error:
+        raise DatasetError("Фільтр: неправильне значення.") from error
+    if how not in tests:
+        raise DatasetError(f"Фільтр: невідома умова {how}.")
+    return tests[how]().fillna(how in ("notContains", "notEqual")).astype(bool)

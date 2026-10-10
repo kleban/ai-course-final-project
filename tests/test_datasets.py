@@ -136,53 +136,99 @@ class DatasetTests(unittest.TestCase):
         self.assertEqual(kinds["район"], "text")
 
 
-class TableTests(unittest.TestCase):
-    """Typed rows for the interactive grid (AG Grid)."""
+class PageTests(unittest.TestCase):
+    """Server-side pages for the grid: only requested rows, filtered and sorted here."""
 
-    def test_rows_are_typed_and_dates_are_iso(self):
+    @classmethod
+    def setUpClass(cls):
         temporary_root = ROOT / "tmp" / "tests"
         temporary_root.mkdir(parents=True, exist_ok=True)
-        content = "дата;ціна;район;площа\n3/12/2016;100;Центр;45.5\n28/01/2016;;;\n".encode()
-        with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
-            database = Path(directory) / "story.sqlite3"
-            project = ProjectStore(database).create("Таблиця")
-            store = DatasetStore(database)
-            table = store.table(store.add(project.id, "t.csv", content).id)
-        self.assertEqual(
-            table.columns,
-            [
-                {"name": "дата", "kind": "date"},
-                {"name": "ціна", "kind": "number"},
-                {"name": "район", "kind": "text"},
-                {"name": "площа", "kind": "number"},
-            ],
-        )
-        self.assertEqual(
-            table.rows, [["2016-12-03", 100, "Центр", 45.5], ["2016-01-28", None, None, None]]
-        )
-        self.assertIsInstance(table.rows[0][1], int)
+        cls.directory = tempfile.TemporaryDirectory(dir=temporary_root)
+        database = Path(cls.directory.name) / "story.sqlite3"
+        project = ProjectStore(database).create("Сторінки")
+        cls.store = DatasetStore(database)
+        content = (
+            "дата;ціна;район;площа\n"
+            "3/12/2016;100;Центр;45.5\n"
+            "28/01/2016;;;\n"
+            "15/06/2016;300;Поділ;60\n"
+            "01/02/2017;200;центр;80\n"
+        ).encode()
+        cls.dataset = cls.store.add(project.id, "t.csv", content)
 
-    def test_grid_options_match_column_kinds(self):
-        from data_story.contracts import DatasetTable
+    @classmethod
+    def tearDownClass(cls):
+        cls.directory.cleanup()
+
+    def page(self, **kwargs):
+        return self.store.page(self.dataset.id, **kwargs)
+
+    def test_rows_are_typed_and_sliced(self):
+        page = self.page(start=1, limit=2)
+        self.assertEqual((page.total, page.all_rows, len(page.rows)), (4, 4, 2))
+        self.assertEqual(page.rows[0], {"c0": "2016-01-28", "c1": None, "c2": None, "c3": None})
+        self.assertEqual(page.rows[1], {"c0": "2016-06-15", "c1": 300, "c2": "Поділ", "c3": 60})
+        self.assertIsInstance(page.rows[1]["c1"], int)
+        self.assertEqual(self.page(start=10, limit=5).rows, [])
+
+    def test_sort_numbers_and_dates_with_missing_last(self):
+        prices = [r["c1"] for r in self.page(sort=[{"colId": "c1", "sort": "desc"}]).rows]
+        self.assertEqual(prices, [300, 200, 100, None])
+        dates = [r["c0"] for r in self.page(sort=[{"colId": "c0", "sort": "asc"}]).rows]
+        self.assertEqual(dates, ["2016-01-28", "2016-06-15", "2016-12-03", "2017-02-01"])
+
+    def test_text_number_date_and_blank_filters(self):
+        def total(model):
+            return self.page(filters=model).total
+
+        text = {"filterType": "text", "type": "contains", "filter": "ЦЕН"}
+        self.assertEqual(total({"c2": text}), 2)
+        self.assertEqual(total({"c2": {**text, "type": "notContains"}}), 2)
+        number = {"filterType": "number", "type": "inRange", "filter": 100, "filterTo": 200}
+        self.assertEqual(total({"c1": number}), 2)
+        date = {"filterType": "date", "type": "greaterThan", "dateFrom": "2016-06-15 00:00:00"}
+        self.assertEqual(total({"c0": date}), 2)
+        self.assertEqual(total({"c1": {"filterType": "number", "type": "blank"}}), 1)
+        either = {
+            "filterType": "number",
+            "operator": "OR",
+            "conditions": [
+                {"filterType": "number", "type": "lessThan", "filter": 150},
+                {"filterType": "number", "type": "greaterThan", "filter": 250},
+            ],
+        }
+        self.assertEqual(total({"c1": either}), 2)
+        self.assertEqual(total({"c1": number, "c2": text}), 2)
+
+    def test_bad_requests_are_refused(self):
+        for kwargs in (
+            {"limit": 0},
+            {"limit": 501},
+            {"start": -1},
+            {"sort": [{"colId": "c9", "sort": "asc"}]},
+            {"filters": {"c1": {"filterType": "text", "type": "contains", "filter": "x"}}},
+            {"filters": {"c1": {"filterType": "number", "type": "like", "filter": 1}}},
+            {"filters": {"c1": {"filterType": "number", "type": "equals", "filter": "x"}}},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(DatasetError):
+                self.page(**kwargs)
+
+    def test_grid_options_use_server_pages(self):
         from data_story.data_grid import grid_options
 
-        options = grid_options(
-            DatasetTable.model_validate(
-                {
-                    "columns": [{"name": "d", "kind": "date"}, {"name": "x", "kind": "number"}],
-                    "rows": [["2016-12-03", 1], [None, 2.5]],
-                }
-            )
-        )
-        date, number = options["columnDefs"]
+        options = grid_options("abc", [("d", "date"), ("x", "number"), ("t", "text")])
+        self.assertEqual(options["rowModelType"], "infinite")
+        self.assertTrue(options["pagination"])
+        self.assertNotIn("rowData", options)
+        self.assertIn('"/api/datasets/abc/rows"', options[":datasource"])
+        date, number, text = options["columnDefs"]
         self.assertEqual(date["filter"], "agDateColumnFilter")
-        self.assertIn(":comparator", date["filterParams"])
         self.assertEqual(
             (number["filter"], number["type"]), ("agNumberColumnFilter", "rightAligned")
         )
-        self.assertEqual(options["rowData"][1], {"c0": None, "c1": 2.5})
-        self.assertEqual(options["localeText"]["contains"], "Містить")
+        self.assertEqual(text["filter"], "agTextColumnFilter")
         self.assertIn("replace('.', ',')", number[":valueFormatter"])
+        self.assertEqual(options["localeText"]["page"], "Сторінка")
 
 
 def column(values: list, name: str = "дата") -> dict:

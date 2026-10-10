@@ -1,6 +1,6 @@
 """One public contract for UI, HTTP adapters, and future tool calls."""
 
-from typing import Annotated, Generic, Literal, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
@@ -139,16 +139,25 @@ class DatasetPreview(StrictModel):
     total_rows: int
 
 
-class TableColumn(StrictModel):
-    name: str
-    kind: Literal["number", "text", "date", "bool"]
+class SortItem(StrictModel):
+    colId: Annotated[str, Field(strict=True, pattern=r"^c\d{1,4}$")]
+    sort: Literal["asc", "desc"]
 
 
-class DatasetTable(StrictModel):
-    """All rows for the interactive grid; dates are ISO text, missing values are null."""
+class RowsQuery(StrictModel):
+    """One page request from the grid (AG Grid infinite row model): rows start..start+limit
+    after the grid's filter model and sort model are applied on the server."""
 
-    columns: list[TableColumn]
-    rows: list[list[int | float | str | None]]
+    start: Annotated[int, Field(ge=0)] = 0
+    limit: Annotated[int, Field(ge=1, le=500)] = 100
+    sort: Annotated[list[SortItem], Field(max_length=50)] = []
+    filter: dict[str, dict[str, Any]] = {}
+
+
+class RowsPage(StrictModel):
+    rows: list[dict[str, int | float | str | None]]
+    total: int
+    all_rows: int
 
 
 class MetadataIssue(StrictModel):

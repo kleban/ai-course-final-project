@@ -10,7 +10,6 @@ from pydantic import BaseModel, ValidationError
 from .configuration import InstructionStore
 from .contracts import (
     DatasetPreview,
-    DatasetTable,
     DatasetView,
     ErrorInfo,
     EventView,
@@ -27,6 +26,8 @@ from .contracts import (
     ProjectId,
     ProjectTypeView,
     ProjectView,
+    RowsPage,
+    RowsQuery,
     Success,
 )
 from .datasets import DatasetError, DatasetNotFound, DatasetStore
@@ -197,10 +198,18 @@ class ProjectService:
 
         return execute(action)
 
-    def table(self, dataset_id: str) -> Success[DatasetTable] | Failure:
-        def action() -> DatasetTable:
+    def rows(self, dataset_id: str, raw: object) -> Success[RowsPage] | Failure:
+        def action() -> RowsPage:
             validated = str(validate_input(ProjectId, {"id": dataset_id}).id)
-            return DatasetTable.model_validate(self.datasets.table(validated))
+            query = validate_input(RowsQuery, raw)
+            page = self.datasets.page(
+                validated,
+                query.start,
+                query.limit,
+                [item.model_dump() for item in query.sort],
+                query.filter,
+            )
+            return RowsPage.model_validate(page)
 
         return execute(action)
 

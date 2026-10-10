@@ -19,6 +19,7 @@ SHOTS = Path(__file__).resolve().parents[1] / "tmp" / "ui-smoke"
 SHOTS.mkdir(parents=True, exist_ok=True)
 errors, results = [], []
 external_requests = []
+row_requests: list[int] = []  # "limit" of every page request from the data grid
 
 
 def ok(name, cond):
@@ -48,6 +49,14 @@ with sync_playwright() as pw:
     pg = context.new_page()
     pg.on("console", lambda m: m.type == "error" and errors.append(m.text))
     pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.on(
+        "request",
+        lambda r: (
+            r.method == "POST"
+            and r.url.endswith("/rows")
+            and row_requests.append(int((r.post_data_json or {}).get("limit", 10**6)))
+        ),
+    )
     pg.goto(B)
     pg.wait_for_timeout(1500)
     ok("empty overview", pg.get_by_text("Тут з’являться ваші проєкти").count() == 1)
@@ -112,6 +121,7 @@ with sync_playwright() as pw:
         grid.locator(".ag-header-cell-text").get_by_text("Suburb", exact=True).count() == 1
         and grid.locator(".ag-header-cell-text").get_by_text("Price", exact=True).count() == 1
         and pg.get_by_text("Усі 13").count() == 1
+        and grid.locator(".ag-paging-panel").get_by_text("Сторінка").count() >= 1
         and pg.get_by_text("Дати показано як ДД.ММ.РРРР").count() == 1,
     )
     ok("grid shows dates as ДД.ММ.РРРР", grid.get_by_text("03.12.2016").count() >= 1)
@@ -121,7 +131,14 @@ with sync_playwright() as pw:
     ok("grid sorts numbers as numbers", first_price.strip() == "85000")
     grid.locator(".ag-floating-filter[aria-colindex='4'] input").fill("u")
     pg.wait_for_timeout(1500)
-    ok("grid filter updates count", pg.get_by_text("За фільтрами показано 3").count() == 1)
+    ok("grid filter updates count", pg.get_by_text("За фільтрами знайдено 3").count() == 1)
+    grid.locator(".ag-paging-button[aria-label='Наступна сторінка']").click()
+    pg.wait_for_timeout(1200)
+    ok("next page loads", grid.locator(".ag-row[row-index='50']").count() == 1)
+    ok(
+        "server pages only",
+        bool(row_requests) and max(row_requests) <= 100 and len(row_requests) <= 10,
+    )
     grid.scroll_into_view_if_needed()
     pg.screenshot(path=str(SHOTS / "melbourne-grid.png"))
     pg.screenshot(path=str(SHOTS / "melbourne-dataset.png"), full_page=True)

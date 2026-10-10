@@ -11,7 +11,6 @@ from .config import Settings
 from .contracts import (
     HTTP_STATUS,
     DatasetPreview,
-    DatasetTable,
     DatasetView,
     EventView,
     Failure,
@@ -24,6 +23,8 @@ from .contracts import (
     ProjectCreate,
     ProjectTypeView,
     ProjectView,
+    RowsPage,
+    RowsQuery,
     Success,
 )
 from .datasets import MAX_BYTES
@@ -85,9 +86,13 @@ def router(service: ProjectService) -> APIRouter:
     def preview_dataset(dataset_id: str):
         return response(service.preview(dataset_id))
 
-    @api.get("/datasets/{dataset_id}/rows", response_model=Success[DatasetTable] | Failure)
-    def dataset_rows(dataset_id: str):
-        return response(service.table(dataset_id))
+    @api.post(
+        "/datasets/{dataset_id}/rows",
+        response_model=Success[RowsPage] | Failure,
+        responses={422: {"model": Failure}},
+    )
+    def dataset_rows(dataset_id: str, request: RowsQuery):
+        return response(service.rows(dataset_id, request))
 
     @api.get("/datasets/{dataset_id}/metadata", response_model=Success[MetadataView] | Failure)
     def get_metadata(dataset_id: str):

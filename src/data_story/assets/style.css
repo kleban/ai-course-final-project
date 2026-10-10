@@ -210,14 +210,15 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .columns .trow-head > :nth-child(n+4) { text-align:right; }
 .trow .num.warn { color:var(--accent); font-weight:600; }
 .btn.back { margin-bottom:10px; }
-/* Таблиця даних: AG Grid Community з NiceGUI (історія 037); стиль дашборда — без заокруглень і тіней. */
-.data-grid { width:100%; height:560px;
-  --ag-font-family:var(--font); --ag-font-size:13px; --ag-foreground-color:var(--ink);
+/* Таблиця даних: AG Grid Community з NiceGUI (історія 037), компактна, сторінками (038); без заокруглень і тіней. */
+.data-grid { width:100%; height:620px;
+  --ag-font-family:var(--font); --ag-font-size:12.5px; --ag-foreground-color:var(--ink);
   --ag-accent-color:var(--primary); --ag-border-color:var(--grid); --ag-border-radius:0;
   --ag-wrapper-border-radius:0; --ag-header-background-color:var(--shade);
   --ag-header-text-color:var(--ink); --ag-header-font-weight:600; --ag-row-hover-color:var(--band);
   --ag-odd-row-background-color:#fff; --ag-selected-row-background-color:var(--band);
-  --ag-row-height:32px; --ag-header-height:36px; --ag-spacing:6px; }
+  --ag-row-height:26px; --ag-header-height:30px; --ag-spacing:4px; --ag-cell-horizontal-padding:8px;
+  --ag-list-item-height:24px; }
 .data-grid .ag-cell.num { font-variant-numeric:tabular-nums; }
 .data-grid .ag-popup-child, .data-grid .ag-menu { box-shadow:none !important; border-radius:0 !important; }
 @media (max-width:1100px) { .datasets .trow, .columns .trow { grid-template-columns:minmax(0,1fr) auto; }

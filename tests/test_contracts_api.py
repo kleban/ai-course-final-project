@@ -138,10 +138,17 @@ class ContractAndApiTests(unittest.TestCase):
         self.assertEqual([d["id"] for d in listed], [data["id"]])
         preview = self.client.get(f"/api/datasets/{data['id']}/preview").json()["data"]
         self.assertEqual(preview["rows"], [["1", "2"], ["3", None]])
-        rows = self.client.get(f"/api/datasets/{data['id']}/rows").json()["data"]
-        self.assertEqual(rows["rows"], [[1, 2], [3, None]])
-        self.assertEqual([c["kind"] for c in rows["columns"]], ["number", "number"])
-        self.assertEqual(self.client.get(f"/api/datasets/{uuid4()}/rows").status_code, 404)
+        url = f"/api/datasets/{data['id']}/rows"
+        query = {"start": 0, "limit": 10, "sort": [{"colId": "c0", "sort": "desc"}], "filter": {}}
+        rows = self.client.post(url, json=query).json()["data"]
+        self.assertEqual(
+            rows, {"rows": [{"c0": 3, "c1": None}, {"c0": 1, "c1": 2}], "total": 2, "all_rows": 2}
+        )
+        self.assertEqual(self.client.post(url, json={**query, "limit": 501}).status_code, 422)
+        bad = {**query, "filter": {"c0": {"filterType": "text", "type": "contains", "filter": "1"}}}
+        self.assertEqual(self.client.post(url, json=bad).status_code, 422)
+        missing = self.client.post(f"/api/datasets/{uuid4()}/rows", json=query)
+        self.assertEqual(missing.status_code, 404)
         events = self.client.get(f"/api/projects/{project.id}/events").json()["data"]
         self.assertEqual(events[-1]["operation"], "dataset.uploaded")
 
