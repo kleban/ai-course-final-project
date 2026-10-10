@@ -55,6 +55,7 @@ NAV = [
         "Налаштування",
         [
             ("settings", "/settings", "Типи проєктів", "settings"),
+            ("chart_settings", "/settings/charts", "Графіки", "formula"),
             ("icons", "/icons", "Іконки", "gallery"),
         ],
     ),
@@ -68,6 +69,7 @@ EVENT_TITLES = {
     "metadata.confirmed": ("Підтверджено метадані", "check"),
     "metadata.source_added": ("Додано опис даних", "doc"),
     "statistics.calculated": ("Розраховано статистику", "compare"),
+    "chart.built": ("Побудовано графік", "formula"),
 }
 FORMAT_TITLES = {"csv": "CSV"}
 
@@ -144,9 +146,15 @@ class Shell:
         trail: list[tuple[str, str | None]] | None = None,
     ):
         self.service = service
-        for sheet in ("icons.css", "style.css"):
+        for sheet in ("icons.css", "style.css", "charts.css"):
             version = asset_version(sheet)
             ui.add_head_html(f'<link rel="stylesheet" href="/assets/{sheet}?v={version}">')
+        if current in ("charts", "chart_settings"):
+            ui.add_head_html("""<script>window.MathJax={tex:{packages:['base','ams']},
+              options:{enableMenu:false,enableAssistiveMml:false},
+              startup:{typeset:false},svg:{fontCache:'local'}};</script>
+              <script defer src="/assets/vendor/mathjax/tex-svg.js"></script>
+              <script defer src="/assets/formulas.js"></script>""")
         ui.colors(primary="#174690", negative="#c0392b")
         self._dialog()
         self._header(trail or [])
@@ -284,7 +292,13 @@ class Shell:
                                 f"/?project={active.id}&view=statistics",
                                 "Статистика",
                                 "compare",
-                            )
+                            ),
+                            (
+                                "charts",
+                                f"/?project={active.id}&view=charts",
+                                "Графіки й формули",
+                                "formula",
+                            ),
                         ],
                     ),
                 )
@@ -402,16 +416,22 @@ def projects_screen(
         found = service.dataset(dataset_id)
         name = found.data.name if isinstance(found, Success) else "Набір даних"
         link = f"/?project={active.id}&dataset={dataset_id}"
-        trail.append((name, link if view in ("metadata", "statistics") else None))
+        trail.append((name, link if view in ("metadata", "statistics", "charts") else None))
         if view == "metadata":
             trail.append(("Метадані", None))
     if active and view == "statistics":
         trail.append(("Статистика", None))
-    shell = Shell(service, "statistics" if view == "statistics" else "projects", active, trail)
+    if active and view == "charts":
+        trail.append(("Графіки й формули", None))
+    shell = Shell(service, view if view in ("statistics", "charts") else "projects", active, trail)
     with ui.column().classes("page"):
         if isinstance(active_result, Failure):
             error_line(active_result)
-        if active and view == "statistics":
+        if active and view == "charts":
+            from .chart_screen import heatmap_screen
+
+            heatmap_screen(service, active, dataset_id)
+        elif active and view == "statistics":
             statistics_screen(service, active, dataset_id)
         elif active and dataset_id and view == "metadata":
             metadata_editor(service, active, dataset_id)
@@ -546,7 +566,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
             title, ico = EVENT_TITLES.get(event.operation, (event.operation, "info"))
             if event.operation.startswith(("dataset.", "metadata.")):
                 title = f"{title}: {event.payload.get('name', '')}"
-            if event.operation == "statistics.calculated":
+            if event.operation in ("statistics.calculated", "chart.built"):
                 view_title = STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
                 title = f"{view_title}: {event.payload.get('dataset_name', '')} · " + (
                     "помилка" if event.payload.get("status") == "error" else "розраховано"
@@ -555,7 +575,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 icon(ico)
                 ui.label(title)
                 ui.label(event.occurred_at.strftime("%d.%m.%Y %H:%M UTC")).classes("date")
-            if event.operation == "statistics.calculated":
+            if event.operation in ("statistics.calculated", "chart.built"):
                 with ui.element("details").classes("howto stat-audit"):
                     with ui.element("summary"):
                         ui.label("Деталі розрахунку")

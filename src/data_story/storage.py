@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 _V1 = """
     CREATE TABLE projects (
@@ -88,6 +88,16 @@ _V5 = """
 """
 
 
+# v6: one local chart configuration, independent from projects/datasets.
+_V6 = """
+    CREATE TABLE chart_configuration (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        document TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+"""
+
+
 @contextmanager
 def connect(database: Path) -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(database, timeout=5)
@@ -106,7 +116,7 @@ def ensure_schema(database: Path) -> Path:
     database.parent.mkdir(parents=True, exist_ok=True)
     with connect(database) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, SCHEMA_VERSION):
             raise RuntimeError("Непідтримувана версія бази даних; файл не змінено.")
         if version == 0:
             tables = connection.execute(
@@ -115,11 +125,12 @@ def ensure_schema(database: Path) -> Path:
             if tables:
                 raise RuntimeError("Невідома схема бази даних; файл не змінено.")
         steps = {
-            0: _V1 + _V2 + _V3 + _V4 + _V5,
-            1: _V2 + _V3 + _V4 + _V5,
-            2: _V3 + _V4 + _V5,
-            3: _V4 + _V5,
-            4: _V5,
+            0: _V1 + _V2 + _V3 + _V4 + _V5 + _V6,
+            1: _V2 + _V3 + _V4 + _V5 + _V6,
+            2: _V3 + _V4 + _V5 + _V6,
+            3: _V4 + _V5 + _V6,
+            4: _V5 + _V6,
+            5: _V6,
         }.get(version)
         if steps:
             connection.executescript(

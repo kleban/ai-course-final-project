@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, FiniteFloat, field_validator
 
+from .chart_configuration import ChartOptions, Theme
 from .configuration import INSTRUCTION_LIMIT
 from .metadata import MetadataDocument
 from .project_types import DEFAULT_TYPE, ProjectTypeKey, require_enabled
@@ -87,6 +88,7 @@ class EventView(StrictModel):
         "metadata.confirmed",
         "metadata.source_added",
         "statistics.calculated",
+        "chart.built",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -288,3 +290,29 @@ class Failure(StrictModel):
 
 
 HTTP_STATUS = {"invalid_input": 422, "not_found": 404, "storage_error": 503, "internal_error": 500}
+
+
+class HeatmapQuery(StrictModel):
+    dataset_id: UUID
+    fields: list[Annotated[str, Field(strict=True, min_length=1)]] = Field(
+        min_length=2, max_length=12
+    )
+    options: ChartOptions | None = None
+    title: Annotated[str, Field(strict=True, max_length=180)] = ""
+
+
+class HeatmapView(StrictModel):
+    dataset_id: UUID
+    project_id: UUID
+    sha256: str
+    row_count: int
+    metadata_state: str
+    warnings: list[str]
+    fields: list[StatisticsField]
+    r: list[list[FiniteFloat | None]]
+    n: list[list[int]]
+    reasons: list[list[str | None]]
+    excluded: dict[str, str]
+    theme: Theme
+    options: ChartOptions
+    svg: str

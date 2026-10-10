@@ -7,6 +7,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from nicegui import app, ui
 
+from .chart_configuration import ChartConfiguration
+from .chart_screen import chart_settings_screen
 from .config import Settings
 from .contracts import (
     HTTP_STATUS,
@@ -16,6 +18,8 @@ from .contracts import (
     DatasetView,
     EventView,
     Failure,
+    HeatmapQuery,
+    HeatmapView,
     InstructionUpdate,
     InstructionView,
     MetadataSourceView,
@@ -44,6 +48,24 @@ def router(service: ProjectService) -> APIRouter:
     def response(result):
         status = HTTP_STATUS[result.error.code] if isinstance(result, Failure) else 200
         return JSONResponse(result.model_dump(mode="json"), status_code=status)
+
+    @api.get("/configuration/charts", response_model=Success[ChartConfiguration] | Failure)
+    def chart_configuration():
+        return response(service.chart_configuration())
+
+    @api.put("/configuration/charts", response_model=Success[ChartConfiguration] | Failure)
+    def save_chart_configuration(request: ChartConfiguration):
+        return response(service.save_chart_configuration(request.model_dump()))
+
+    @api.post("/configuration/charts/reset", response_model=Success[ChartConfiguration] | Failure)
+    def reset_chart_configuration():
+        return response(service.reset_chart_configuration())
+
+    @api.post(
+        "/projects/{project_id}/charts/heatmap", response_model=Success[HeatmapView] | Failure
+    )
+    def heatmap(project_id: str, query: HeatmapQuery):
+        return response(service.heatmap(project_id, query.model_dump(mode="json")))
 
     @api.get("/projects", response_model=Success[list[ProjectView]] | Failure)
     def list_projects():
@@ -215,6 +237,10 @@ def configure(settings: Settings) -> None:
     @ui.page("/settings")
     def settings_page(request: Request):
         settings_screen(service, request.query_params.get("type"))
+
+    @ui.page("/settings/charts")
+    def chart_settings_page():
+        chart_settings_screen(service)
 
     @ui.page("/icons")
     def icons_page():

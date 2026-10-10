@@ -7,6 +7,8 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from .chart_configuration import ChartConfiguration, ChartConfigurationStore
+from .charts import contrast_warnings, heatmap_svg
 from .configuration import InstructionStore
 from .contracts import (
     DatasetCandidate,
@@ -17,6 +19,8 @@ from .contracts import (
     EventView,
     Failure,
     FieldIssue,
+    HeatmapQuery,
+    HeatmapView,
     InstructionUpdate,
     InstructionView,
     MetadataIssue,
@@ -123,6 +127,7 @@ class ProjectService:
         self.metadata_store = MetadataStore(store.database, self.datasets)
         self.copier = DatasetCopier(self.datasets)
         self.statistics_store = StatisticsStore(self.datasets)
+        self.chart_config = ChartConfigurationStore(store.database)
 
     def create(self, raw: object) -> Success[ProjectView] | Failure:
         def action() -> ProjectView:
@@ -399,6 +404,66 @@ class ProjectService:
             return [
                 MetadataSourceView.model_validate(s) for s in self.metadata_store.sources(validated)
             ]
+
+        return execute(action)
+
+    def chart_configuration(self) -> Success[ChartConfiguration] | Failure:
+        return execute(self.chart_config.get)
+
+    def save_chart_configuration(self, raw: object) -> Success[ChartConfiguration] | Failure:
+        return execute(lambda: self.chart_config.save(validate_input(ChartConfiguration, raw)))
+
+    def reset_chart_configuration(self) -> Success[ChartConfiguration] | Failure:
+        return execute(self.chart_config.reset)
+
+    def chart_configuration_events(self) -> Success[list[dict]] | Failure:
+        return execute(self.chart_config.events)
+
+    def heatmap(self, project_id: str, raw: object) -> Success[HeatmapView] | Failure:
+        def action() -> HeatmapView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(HeatmapQuery, raw)
+            configuration = self.chart_config.get()
+            options = query.options or configuration.effective()
+            result = self.statistics_store.calculate(
+                validated,
+                str(query.dataset_id),
+                "correlations",
+                query.fields,
+                operation="chart.built",
+                audit_extra={
+                    "chart": "heatmap",
+                    "theme": configuration.theme,
+                    "temporary_options": query.options is not None,
+                    "options": options.model_dump(),
+                    "title": query.title,
+                },
+            )
+            descriptors = {
+                c["name"]: {k: c[k] for k in ("name", "label", "unit", "kind", "role")}
+                for c in result["columns"]
+            }
+            return HeatmapView(
+                **{
+                    k: result[k]
+                    for k in (
+                        "dataset_id",
+                        "project_id",
+                        "sha256",
+                        "row_count",
+                        "metadata_state",
+                        "r",
+                        "n",
+                        "reasons",
+                        "excluded",
+                    )
+                },
+                fields=[StatisticsField(**descriptors[n]) for n in result["fields"]],
+                warnings=result["warnings"] + contrast_warnings(options),
+                theme=configuration.theme,
+                options=options,
+                svg=heatmap_svg(result, options, query.title),
+            )
 
         return execute(action)
 

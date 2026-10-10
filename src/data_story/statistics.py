@@ -220,7 +220,14 @@ class StatisticsStore:
         self.metadata = MetadataStore(datasets.database, datasets)
 
     def calculate(
-        self, project_id: str, dataset_id: str, view: View, fields: list[str] | None = None
+        self,
+        project_id: str,
+        dataset_id: str,
+        view: View,
+        fields: list[str] | None = None,
+        *,
+        operation: str = "statistics.calculated",
+        audit_extra: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         started = perf_counter()
         ProjectStore(self.datasets.database).get(project_id)
@@ -234,6 +241,8 @@ class StatisticsStore:
             "metadata_updated_at": None,
             "row_count": None,
         }
+        if audit_extra:
+            audit.update(audit_extra)
         try:
             dataset = self.datasets.get(dataset_id)
             if dataset.project_id != project_id:
@@ -265,6 +274,8 @@ class StatisticsStore:
                 {key: result[key] for key in ("metadata_state", "metadata_updated_at", "row_count")}
             )
             audit["fields"] = result.get("fields", [c["name"] for c in result["columns"]])
+            if operation == "chart.built":
+                audit["pair_counts"] = result.get("n", [])
             audit["status"] = "success"
             return result
         except (StatisticsError, DatasetError, LookupError, OSError, ValueError) as error:
@@ -278,4 +289,4 @@ class StatisticsStore:
         finally:
             audit["duration_ms"] = (perf_counter() - started) * 1000
             with connect(self.datasets.database) as connection:
-                ProjectStore._event(connection, project_id, "statistics.calculated", audit)
+                ProjectStore._event(connection, project_id, operation, audit)
