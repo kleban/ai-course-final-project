@@ -1,0 +1,2 @@
+# Preserve upstream assets byte-for-byte, including their licenses and checksums.
+src/data_story/assets/vendor/toastui/* -text -whitespace

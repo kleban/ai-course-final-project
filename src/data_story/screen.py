@@ -5,7 +5,7 @@ Design follows the author's dashboard «Keeping the Lights On» (see assets/styl
 """
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from functools import partial
 from pathlib import Path
 
@@ -22,6 +22,7 @@ from .contracts import (
 )
 from .datasets import KIND_TITLES, MAX_BYTES
 from .icons import GROUPS, ICONS
+from .markdown_editor import MarkdownEditor
 from .metadata import KIND_TITLES as META_KINDS
 from .metadata import ROLE_TITLES, SOURCE_FORMATS
 from .project_types import DEFAULT_TYPE, PROJECT_TYPES
@@ -40,7 +41,8 @@ STAGES = [
     ("07", "База знань (RAG)", "sources"),
     ("08", "Налаштування AI", "settings"),
     ("09", "AI-агент", "spark"),
-    ("10", "Підсумок-історія", "story"),
+    ("10", "Звіти", "doc"),
+    ("11", "Підсумок-історія", "story"),
 ]
 DONE_STAGES = {"01"}
 NAV = [
@@ -74,7 +76,10 @@ def icon(name: str, extra: str = "") -> ui.element:
 
 
 def button(
-    text: str, on_click: Callable[[], None], ico: str | None = None, kind: str = ""
+    text: str,
+    on_click: Callable[[], None | Awaitable[None]],
+    ico: str | None = None,
+    kind: str = "",
 ) -> ui.element:
     with (
         ui.element("button")
@@ -986,15 +991,16 @@ def settings_screen(service: ProjectService, selected: str | None) -> None:
                     else f"Змінено {instruction.updated_at.strftime('%d.%m.%Y %H:%M')} UTC"
                 ).classes("muted")
 
-        editor = (
-            ui.textarea(value=instruction.text)
-            .props("outlined square autogrow maxlength=20000")
-            .classes("w-full instruction-editor")
-        )
+        editor = MarkdownEditor(instruction.text)
         message = ui.label("").classes("error-message")
 
-        def save() -> None:
-            saved = service.save_instruction(key, {"text": editor.value or ""})
+        async def save() -> None:
+            try:
+                text = await editor.markdown()
+            except TimeoutError:
+                message.set_text("Редактор не відповів. Спробуйте зберегти ще раз.")
+                return
+            saved = service.save_instruction(key, {"text": text})
             if isinstance(saved, Failure):
                 message.set_text(error_text(saved))
                 return

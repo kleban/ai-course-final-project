@@ -32,3 +32,12 @@
 ## Доповнення: економне AI, історія 013
 
 2026-10-10 прочитано релевантні офіційні сторінки [каталогу моделей OpenAI](https://developers.openai.com/api/docs/models), [gpt-6-luna](https://developers.openai.com/api/docs/models/gpt-6-luna), [gpt-6.1-sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol), [text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small), [usage Responses](https://developers.openai.com/api/reference/python/resources/responses/methods/create), [prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching), [keyring](https://keyring.readthedocs.io/en/latest/), [CredWrite](https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credwritew) і [DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata). Результат — [ai-settings.md](../planning/ai-settings.md). Це перевірка документації; доступ моделей, якість, інтеграції й економію не тестували.
+
+
+## DuckDB — історія 026
+
+2026-10-10 прочитано релевантні розділи [Python API](https://duckdb.org/docs/current/clients/python/overview) (DataFrames, Result Conversion, Connection Options) і [SQL on Pandas](https://duckdb.org/docs/current/guides/python/sql_on_pandas). Підтверджено: SQL над pandas DataFrame, результат у DataFrame, з’єднання в пам’яті або з файлом; документація рекомендує власне з’єднання замість глобального. Це джерела для архітектури 0.4 (SRC-013). DuckDB не встановлювали, сумісність Windows/Python 3.13 та інтеграцію не перевіряли. Роль у нашому MVP — етап 05: з’єднання й агрегації; метадані залишаються в SQLite.
+
+## Quarto — історія 027
+
+2026-10-10 прочитано релевантні частини офіційних [форматів](https://quarto.org/docs/output-formats/all-formats), [HTML Basics](https://quarto.org/docs/output-formats/html-basics.html), [PDF Basics](https://quarto.org/docs/output-formats/pdf-basics.html), [Using Python](https://quarto.org/docs/computations/python.html) і [Get Started](https://quarto.org/docs/get-started/). Quarto перетворює документи у HTML/PDF/Word; HTML підтримує математичні формули через MathJax, PDF через LaTeX потребує TeX (наприклад TinyTeX). Виконувані Python-блоки підтримуються, але для нашого першого звіту пропонується використовувати готові результати без повторного виконання. Це доповнення SRC-013; Quarto запропоновано автором, не обрано, не встановлено й не протестовано.

@@ -271,3 +271,50 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .q-drawer--mini .collapse-ico { transform:rotate(180deg); }
 .nav .q-drawer__content { display:flex; flex-direction:column; }
 @media (max-width:1023px) { .nav-link.nav-toggle { display:none; } }
+
+
+/* Local Markdown editor: thin lines, existing typography and no card styling. */
+.markdown-editor { min-width:0; }
+.markdown-tools { display:flex; flex-wrap:wrap; gap:0; border-top:1px solid var(--grid); border-bottom:1px solid var(--grid); padding:4px 0; }
+.markdown-tools .btn { padding:6px 10px; border:0; border-radius:0; font-size:.87em; }
+.markdown-tools .btn[aria-pressed="true"] { color:var(--primary); background:var(--shade); }
+.markdown-tools button:focus-visible, .markdown-help summary:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+.markdown-help { padding:10px 0; color:var(--ink2); font-size:.9em; }
+.markdown-help summary { cursor:pointer; color:var(--primary); }
+.markdown-help p { margin:10px 0; }
+.markdown-help dl { display:grid; grid-template-columns:150px 1fr; gap:6px 16px; }
+.markdown-help dt { color:var(--ink); font-weight:600; }
+.markdown-help dd { margin:0; }
+.markdown-editor .toastui-editor-defaultUI { border:0; border-top:1px solid var(--grid); border-bottom:1px solid var(--grid); border-radius:0; font-family:var(--font); }
+.markdown-editor .toastui-editor-defaultUI-toolbar, .markdown-editor .toastui-editor-mode-switch { display:none; }
+.markdown-editor .toastui-editor-md-preview { display:none; }
+.markdown-editor .toastui-editor-md-splitter { display:none; }
+.markdown-editor.show-preview .toastui-editor-md-preview { display:block; }
+.markdown-editor.show-preview .toastui-editor-md-splitter { display:block; background:var(--grid); }
+.markdown-editor .toastui-editor-contents, .markdown-editor .toastui-editor { font-family:var(--font); font-size:15px; color:var(--ink); }
+.markdown-editor .toastui-editor-md-container .ProseMirror { padding:16px 12px; }
+.markdown-editor .toastui-editor-contents h1, .markdown-editor .toastui-editor-contents h2, .markdown-editor .toastui-editor-contents h3 { font-family:var(--serif); }
+.markdown-status { padding:8px 0; color:var(--ink2); font-size:.82em; }
+@media (max-width:700px) {
+  .markdown-editor.show-preview .toastui-editor-md-container { flex-direction:column; }
+  .markdown-help dl { grid-template-columns:1fr; gap:4px; }
+  .markdown-help dd { margin-bottom:6px; }
+  .markdown-tools .btn { padding:7px 8px; }
+}
+
+.markdown-editor:not(.show-preview) .toastui-editor-md-vertical-style .toastui-editor { width:100%; }
+@media (max-width:700px) {
+  .markdown-editor.show-preview .toastui-editor-md-vertical-style .toastui-editor,
+  .markdown-editor.show-preview .toastui-editor-md-vertical-style .toastui-editor-md-preview { width:100%; height:50%; }
+  .markdown-editor.show-preview .toastui-editor-md-splitter { display:none; }
+}
+
+@media (max-width:700px) {
+  .seg { flex-wrap:wrap; max-width:100%; }
+  .seg-item { flex:1 1 150px; }
+  .type-head { flex-wrap:wrap; }
+  .type-head .type-state { margin-left:0; }
+  .dialog-actions.left { flex-wrap:wrap; }
+}
+
+.markdown-editor:not(.show-preview) .toastui-editor-main .toastui-editor-md-splitter { display:none; }

@@ -8,6 +8,7 @@ Not part of Check.cmd: Playwright is not in requirements.lock.
 
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -16,6 +17,7 @@ SAMPLE = str(Path(__file__).resolve().parents[1] / "samples" / "demo_apartments.
 SHOTS = Path(__file__).resolve().parents[1] / "tmp" / "ui-smoke"
 SHOTS.mkdir(parents=True, exist_ok=True)
 errors, results = [], []
+external_requests = []
 
 
 def ok(name, cond):
@@ -23,9 +25,26 @@ def ok(name, cond):
     print(("PASS " if cond else "FAIL ") + name)
 
 
+def markdown(page):
+    # Read the component's source text; inner_text adds visual paragraph breaks.
+    return page.locator(".markdown-editor").evaluate(
+        "el => runMethod(el.id.slice(1), 'getMarkdown', [])"
+    )
+
+
 with sync_playwright() as pw:
     b = pw.chromium.launch()
-    pg = b.new_page(viewport={"width": 1400, "height": 900})
+    context = b.new_context(viewport={"width": 1400, "height": 900})
+
+    def local_only(route):
+        if urlparse(route.request.url).hostname == urlparse(B).hostname:
+            route.continue_()
+        else:
+            external_requests.append(route.request.url)
+            route.abort()
+
+    context.route("**/*", local_only)
+    pg = context.new_page()
     pg.on("console", lambda m: m.type == "error" and errors.append(m.text))
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto(B)
@@ -73,6 +92,55 @@ with sync_playwright() as pw:
     pg.goto(B + "/settings")
     pg.wait_for_timeout(1200)
     ok("settings page", pg.get_by_text("Типи проєктів та інструкції").count() == 1)
+    editor = pg.get_by_role("textbox", name="Текст інструкції Markdown")
+    editor.wait_for()
+    original = markdown(pg).strip()
+    ok("markdown editor mounted", len(original) > 100)
+    ok("preview hidden by default", not pg.locator(".toastui-editor-md-preview").is_visible())
+    pg.get_by_text("Підказки Markdown", exact=True).click()
+    ok("markdown help", pg.get_by_text("Виділіть текст", exact=False).is_visible())
+    ok(
+        "ukrainian button hint",
+        "Ctrl+B" in pg.get_by_role("button", name="Жирний", exact=True).get_attribute("title"),
+    )
+    pg.get_by_role("button", name="Перегляд", exact=True).click()
+    ok("preview toggles", pg.locator(".toastui-editor-md-preview").is_visible())
+    pg.screenshot(path=str(SHOTS / "markdown-preview.png"))
+    pg.get_by_role("button", name="Перегляд", exact=True).click()
+    pg.get_by_text("Підказки Markdown", exact=True).click()
+    draft = "## Перевірка Markdown\n\nУкраїнський **текст**.\n\n- Перший пункт\n- Другий пункт\n\n| Поле | Опис |\n| --- | --- |\n| Ціна | грн |\n\n```python\nx = 1\n```"
+    editor.fill(draft)
+    # Save immediately after input: verifies that the last edit is not lost in transit.
+    pg.get_by_text("Зберегти інструкцію", exact=True).click()
+    pg.wait_for_timeout(1000)
+    ok("markdown save and reload", markdown(pg).strip() == draft)
+    pg.reload()
+    editor.wait_for()
+    ok("markdown survives page reload", markdown(pg).strip() == draft)
+    # ProseMirror groups edits within 500 ms; make this a distinct undo operation.
+    pg.wait_for_timeout(700)
+    pg.get_by_role("button", name="Таблиця", exact=True).click()
+    ok("table template inserted", "Пояснення" in editor.inner_text())
+    pg.get_by_role("button", name="Скасувати", exact=True).click()
+    ok("format undo", markdown(pg).strip() == draft)
+    pg.screenshot(path=str(SHOTS / "markdown-editor.png"))
+    editor.fill("")
+    pg.get_by_text("Зберегти інструкцію", exact=True).click()
+    pg.wait_for_timeout(500)
+    ok("empty markdown rejected", pg.get_by_text("Інструкція: введіть значення.").count() == 1)
+    editor.fill("а" * 20001)
+    pg.get_by_text("Зберегти інструкцію", exact=True).click()
+    pg.wait_for_timeout(500)
+    ok("oversized markdown rejected", "20000" in pg.locator(".error-message").last.inner_text())
+    pg.get_by_text("Відновити типову", exact=True).click()
+    pg.wait_for_timeout(1000)
+    ok("default instruction restored", markdown(pg).strip() == original)
+    pg.set_viewport_size({"width": 390, "height": 800})
+    pg.reload()
+    editor.wait_for()
+    pg.screenshot(path=str(SHOTS / "markdown-mobile.png"), full_page=True)
+    ok("mobile editor fits", pg.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+    pg.set_viewport_size({"width": 1400, "height": 900})
     pg.goto(B + "/icons")
     pg.wait_for_timeout(1200)
     ok("icons page", pg.locator(".icon-tile").count() >= 30)
@@ -101,6 +169,7 @@ with sync_playwright() as pw:
     ok("mobile renders", pg.get_by_text("Ваші дослідження").count() == 1)
     pg.screenshot(path=str(SHOTS / "final-mobile.png"))
     b.close()
+ok("no external resource requests", not external_requests)
 print("console errors:", errors)
 print(f"{sum(r for _, r in results)}/{len(results)} passed")
 sys.exit(0 if all(r for _, r in results) and not errors else 1)
