@@ -38,6 +38,7 @@ from .contracts import (
     MetadataUpdate,
     MetadataView,
     ProjectCreate,
+    ProjectDescription,
     ProjectId,
     ProjectTypeView,
     ProjectView,
@@ -156,6 +157,14 @@ class ProjectService:
             validated = str(validate_input(ProjectId, {"id": project_id}).id)
             project = self.store.open(validated) if opened else self.store.get(validated)
             return ProjectView.model_validate(project)
+
+        return execute(action)
+
+    def save_description(self, project_id: str, raw: object) -> Success[ProjectView] | Failure:
+        def action() -> ProjectView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(ProjectDescription, raw)
+            return ProjectView.model_validate(self.store.save_description(validated, request.text))
 
         return execute(action)
 

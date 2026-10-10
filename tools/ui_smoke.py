@@ -80,6 +80,20 @@ with sync_playwright() as pw:
         pg.locator(".nav-link .nav-count").inner_text().strip() == "1",
     )
     ok(
+        "project description empty state",
+        pg.get_by_text("Опису ще немає.", exact=False).count() == 1,
+    )
+    pg.get_by_role("button", name="Редагувати опис", exact=True).click()
+    pg.locator(".markdown-editor .toastui-editor").first.wait_for()
+    pg.locator(".markdown-editor .ProseMirror").first.click()
+    pg.keyboard.type("Мета: **ціна** житла")
+    pg.get_by_role("button", name="Зберегти опис", exact=True).click()
+    pg.locator(".project-description strong").first.wait_for()
+    ok(
+        "project description saved and rendered",
+        pg.locator(".project-description strong").inner_text() == "ціна",
+    )
+    ok(
         "opened project highlights block data",
         "Дані" in pg.locator(".block-link.current").inner_text(),
     )

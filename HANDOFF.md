@@ -24,7 +24,7 @@ Data Story — локальний аналітичний MVP для фіналь
 ## Як запустити й перевірити (Windows, подвійний клік)
 
 1. `Setup.cmd` — один раз і після змін `requirements.lock` (потрібен інтернет).
-2. `Check.cmd` — pip check, ruff, формат, mypy, 100 автотестів.
+2. `Check.cmd` — pip check, ruff, формат, mypy, 101 автотест.
 3. `Start.cmd` → http://127.0.0.1:8765; `Stop.cmd` — зупинка.
 4. Демонстраційний набір: `samples/melb_data.csv` — Melbourne Housing Snapshot, 13 580 рядків, CC BY-NC-SA 4.0 (D-43); опис і джерело — `samples/melb_data.description.md`. Синтетичні `samples/demo_apartments.*` — для автотестів.
 5. Для розробника — UI-смоук через Playwright (66 сценаріїв; Playwright не входить у `requirements.lock`):
@@ -32,7 +32,7 @@ Data Story — локальний аналітичний MVP для фіналь
 
 ## Карта коду
 
-- `src/data_story/` — `storage.py` (SQLite, міграції, схема v6), `projects.py`, `project_types.py` + `instructions/*.md`, `configuration.py`, `datasets.py`, `metadata.py`, `dataset_copy.py` (02c: копія набору з іншого проєкту), `contracts.py`, `service.py` (спільний для UI та API), `web.py`, `screen.py` (усі екрани), `markdown_editor.py` + `assets/markdown_editor.js` (редактор), `data_grid.py` (таблиця даних: AG Grid Community з NiceGUI, компактна, сторінки з сервера через `POST /api/datasets/{id}/rows`, D-47/D-48), `analysis_blocks.py` (реєстр блоків аналізу й меню проєкту, D-63), `chart_configuration.py` (теми й параметри графіків), `charts.py` (SVG теплової карти), `chart_screen.py` (сторінки «Налаштування → Графіки» і «Графіки й формули»), `assets/formulas.js` + `assets/charts.css`, `icons.py` → `assets/icons.css` (іконки додавати лише тут), `assets/` (стиль, шрифти, логотип, `vendor/toastui/`, `vendor/mathjax/`).
+- `src/data_story/` — `storage.py` (SQLite, міграції, схема v7), `projects.py`, `project_types.py` + `instructions/*.md`, `configuration.py`, `datasets.py`, `metadata.py`, `dataset_copy.py` (02c: копія набору з іншого проєкту), `contracts.py`, `service.py` (спільний для UI та API), `web.py`, `screen.py` (усі екрани), `markdown_editor.py` + `assets/markdown_editor.js` (редактор), `data_grid.py` (таблиця даних: AG Grid Community з NiceGUI, компактна, сторінки з сервера через `POST /api/datasets/{id}/rows`, D-47/D-48), `analysis_blocks.py` (реєстр блоків аналізу й меню проєкту, D-63), `chart_configuration.py` (теми й параметри графіків), `charts.py` (SVG теплової карти), `chart_screen.py` (сторінки «Налаштування → Графіки» і «Графіки й формули»), `assets/formulas.js` + `assets/charts.css`, `icons.py` → `assets/icons.css` (іконки додавати лише тут), `assets/` (стиль, шрифти, логотип, `vendor/toastui/`, `vendor/mathjax/`).
 - `tests/` — 100 тестів; `tools/` — запуск, перевірки, демо-дані, `make_demo_project.py` (демо-проєкт Melbourne у порожній базі), UI-смоук, генератор аркуша іконок.
 - `planning/` — план, статус, рішення, специфікації, архітектура.
 - `design/logo/final/` — фінальний логотип (інші чернетки логотипа застарілі); `design/reviews/` — знімки ітерацій.
@@ -57,7 +57,7 @@ Data Story — локальний аналітичний MVP для фіналь
 - Один компонент → перевірка → фіксація → наступний (D-15). Усе в цьому репозиторії, без CDN (D-36).
 - Меню «Поточний проєкт» розширювати розділами даних і функцій у міру їх реалізації (D-58); приклад «Оглядовий аналіз» не є затвердженим окремим етапом.
 - Автору пропонувати лише один наступний крок, коротким реченням, і чекати його відповіді (D-52).
-- Після ітерації: новий запис у `PROJECT_HISTORY.md` (наступний номер — **055**), оновити `planning/status.md`, `planning/plan.md`, `planning/decisions.md`, README за потреби, цей файл; коміт. Пуш — лише за дозволом автора.
+- Після ітерації: новий запис у `PROJECT_HISTORY.md` (наступний номер — **056**), оновити `planning/status.md`, `planning/plan.md`, `planning/decisions.md`, README за потреби, цей файл; коміт. Пуш — лише за дозволом автора.
 - Поточні файли передачі описують стан, а не хронологію: замінювати застарілі абзаци, а не дописувати нові в кінець.
 - Автор часто працює з телефона: тоді без керування комп’ютером і браузером. Автотести, mypy і UI-смоук можна запускати в хмарному середовищі: скопіювати чисті Python-пакети з `.venv` автора разом із їхніми `*.dist-info` (pydantic, pandas, ruff, mypy там уже є), для aiohttp/multidict/yarl/frozenlist/propcache задати `*_NO_EXTENSIONS=1`; `tools/start.py` запускати через обгортку, що замінює Windows-блокування `launch_lock` на no-op (заглушка `msvcrt` ламає `subprocess`). PyPI і GitHub з хмари та VM недоступні — пуш робить автор або агент лише з дозволу й доступної мережі.
-- Git: гілка main, remote origin — https://github.com/kleban/ai-course-final-project.git. На початку 046 main випереджала локальний origin/main на 2 коміти, робоче дерево чисте; віддалений сервер не перевіряли. Коміти 044–054 — без пушу; актуальний стан перевіряти через git status -sb.
+- Git: гілка main, remote origin — https://github.com/kleban/ai-course-final-project.git. На початку 046 main випереджала локальний origin/main на 2 коміти, робоче дерево чисте; віддалений сервер не перевіряли. Коміти 044–055 — без пушу; актуальний стан перевіряти через git status -sb.

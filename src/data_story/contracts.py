@@ -18,7 +18,7 @@ from .configuration import INSTRUCTION_LIMIT
 from .metadata import MetadataDocument
 from .project_types import DEFAULT_TYPE, ProjectTypeKey, require_enabled
 from .statistics import View
-from .validation import NAME_LIMIT, PURPOSE_LIMIT, text
+from .validation import DESCRIPTION_LIMIT, NAME_LIMIT, PURPOSE_LIMIT, text
 
 T = TypeVar("T")
 
@@ -58,6 +58,11 @@ class ProjectView(StrictModel):
     purpose: Annotated[str, Field(strict=True, max_length=PURPOSE_LIMIT)]
     created_at: AwareDatetime
     project_type: ProjectTypeKey
+    description: str = ""
+
+
+class ProjectDescription(StrictModel):
+    text: Annotated[str, Field(strict=True, max_length=DESCRIPTION_LIMIT)]
 
 
 class ProjectTypeView(StrictModel):
@@ -90,6 +95,7 @@ class EventView(StrictModel):
     operation: Literal[
         "project.created",
         "project.opened",
+        "project.description_saved",
         "dataset.uploaded",
         "dataset.copied",
         "metadata.saved",

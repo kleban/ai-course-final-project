@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from .project_types import DEFAULT_TYPE, require_enabled
 from .storage import SCHEMA_VERSION, connect, ensure_schema
-from .validation import NAME_LIMIT, PURPOSE_LIMIT, text
+from .validation import DESCRIPTION_LIMIT, NAME_LIMIT, PURPOSE_LIMIT, text
 
 
 class ProjectNotFound(LookupError):
@@ -22,6 +22,7 @@ class Project:
     purpose: str
     created_at: str
     project_type: str = DEFAULT_TYPE
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,26 @@ class ProjectStore:
 
     def get(self, project_id: str) -> Project:
         with self._connection() as connection:
+            return self._get(connection, project_id)
+
+    def save_description(self, project_id: str, description: str) -> Project:
+        """Markdown description of the project; the change and its event commit together."""
+        if not isinstance(description, str):
+            raise ValueError("Опис: очікується текст.")
+        if len(description) > DESCRIPTION_LIMIT:
+            raise ValueError(f"Опис: не більше {DESCRIPTION_LIMIT} символів.")
+        description = description.replace("\r\n", "\n").strip()
+        with self._connection() as connection:
+            self._get(connection, project_id)
+            connection.execute(
+                "UPDATE projects SET description = ? WHERE id = ?", (description, project_id)
+            )
+            self._event(
+                connection,
+                project_id,
+                "project.description_saved",
+                {"length": len(description), "empty": not description},
+            )
             return self._get(connection, project_id)
 
     def open(self, project_id: str) -> Project:

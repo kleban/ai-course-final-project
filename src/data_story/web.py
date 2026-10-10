@@ -29,6 +29,7 @@ from .contracts import (
     MetadataUpdate,
     MetadataView,
     ProjectCreate,
+    ProjectDescription,
     ProjectTypeView,
     ProjectView,
     RowsPage,
@@ -74,6 +75,10 @@ def router(service: ProjectService) -> APIRouter:
     )
     def histogram(project_id: str, query: HistogramQuery):
         return response(service.histogram(project_id, query.model_dump(mode="json")))
+
+    @api.put("/projects/{project_id}/description", response_model=Success[ProjectView] | Failure)
+    def save_description(project_id: str, request: ProjectDescription):
+        return response(service.save_description(project_id, request.model_dump()))
 
     @api.get("/projects", response_model=Success[list[ProjectView]] | Failure)
     def list_projects():

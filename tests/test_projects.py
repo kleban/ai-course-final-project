@@ -89,3 +89,36 @@ class ProjectStoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProjectDescriptionTests(unittest.TestCase):
+    """D-64: Markdown description is saved with an event and survives reopening."""
+
+    def test_description_saved_validated_and_migrated(self):
+        import tempfile
+
+        from data_story.contracts import Failure, Success
+        from data_story.projects import ProjectStore as Store
+        from data_story.service import ProjectService
+
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "data.sqlite3"
+            service = ProjectService(Store(database))
+            project = service.create({"name": "Опис"}).data
+            self.assertEqual(project.description, "")
+            saved = service.save_description(
+                str(project.id), {"text": "# Мета\r\n\nЦіна **житла**  "}
+            )
+            self.assertIsInstance(saved, Success)
+            self.assertEqual(saved.data.description, "# Мета\n\nЦіна **житла**")
+            reopened = ProjectService(Store(database)).get(str(project.id)).data
+            self.assertEqual(reopened.description, "# Мета\n\nЦіна **житла**")
+            events = service.events(str(project.id)).data
+            self.assertEqual(events[-1].operation, "project.description_saved")
+            self.assertEqual(
+                events[-1].payload, {"length": len("# Мета\n\nЦіна **житла**"), "empty": False}
+            )
+            for bad in ({"text": "x" * 20001}, {"text": 5}, {}):
+                self.assertIsInstance(service.save_description(str(project.id), bad), Failure)
+            missing = "00000000-0000-0000-0000-000000000000"
+            self.assertIsInstance(service.save_description(missing, {"text": "x"}), Failure)

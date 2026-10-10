@@ -49,6 +49,7 @@ NAV = [
 EVENT_TITLES = {
     "project.created": ("Проєкт створено", "check"),
     "project.opened": ("Проєкт відкрито", "when"),
+    "project.description_saved": ("Збережено опис проєкту", "doc"),
     "dataset.uploaded": ("Завантажено набір даних", "data"),
     "dataset.copied": ("Додано копію наявного набору", "copy"),
     "metadata.saved": ("Збережено метадані", "doc"),
@@ -494,6 +495,50 @@ def overview(service: ProjectService, shell: Shell) -> None:
                     ui.label(step)
 
 
+def description_section(service: ProjectService, active: ProjectView) -> None:
+    """Markdown description of the project (D-64): formatted view, edit in the local editor."""
+    ui.label("Опис проєкту").classes("section-title")
+    state = {"editing": False}
+
+    @ui.refreshable
+    def body() -> None:
+        if not state["editing"]:
+            if active.description:
+                ui.markdown(active.description).classes("md project-description")
+            else:
+                ui.label(
+                    "Опису ще немає. Опишіть контекст, дані, питання й очікуваний результат "
+                    "(Markdown). Згодом допомагатиме LLM."
+                ).classes("section-lead")
+            button("Редагувати опис", lambda: toggle(True), "edit", "small")
+            return
+        editor = MarkdownEditor(active.description)
+        message = ui.label("").classes("error-message").props('role="alert"')
+
+        async def save() -> None:
+            try:
+                text = await editor.markdown()
+            except TimeoutError:
+                message.set_text("Редактор не відповів. Спробуйте зберегти ще раз.")
+                return
+            saved = service.save_description(str(active.id), {"text": text})
+            if isinstance(saved, Failure):
+                message.set_text(error_text(saved))
+                return
+            ui.notify("Опис збережено", type="positive")
+            ui.navigate.to(f"/?project={active.id}")
+
+        with ui.element("div").classes("dialog-actions left"):
+            button("Зберегти опис", save, "check", "primary")
+            button("Скасувати", lambda: toggle(False), "prev")
+
+    def toggle(value: bool) -> None:
+        state["editing"] = value
+        body.refresh()
+
+    body()
+
+
 def project_view(service: ProjectService, active: ProjectView) -> None:
     kind = type_of(active)
     page_header(
@@ -515,6 +560,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
         kpi("when", "Створено", date(active.created_at), active.created_at.strftime("%H:%M UTC"))
         kpi("journal", "Подій у журналі", str(len(events)), f"відкрито {opened} раз(и)")
 
+    description_section(service, active)
     datasets_section(service, active, datasets_result)
     button(
         "Оглядовий аналіз",

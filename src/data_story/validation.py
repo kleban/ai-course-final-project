@@ -2,6 +2,7 @@
 
 NAME_LIMIT = 120
 PURPOSE_LIMIT = 2000
+DESCRIPTION_LIMIT = 20000
 
 
 def text(value: object, field: str, limit: int, *, required: bool = False) -> str:
