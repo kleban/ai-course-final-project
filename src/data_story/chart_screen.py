@@ -5,6 +5,7 @@ from typing import Any
 from nicegui import ui
 from pydantic import ValidationError
 
+from .analysis_blocks import eda_link
 from .chart_configuration import FONTS, THEMES, ChartConfiguration, ChartOptions, preset
 from .charts import (
     bin_text,
@@ -185,16 +186,13 @@ def charts_screen(
     service: ProjectService, active: ProjectView, dataset_id: str | None, chart: str | None
 ) -> None:
     """One chart at a time: choose the chart type, then its own controls."""
-    from .screen import datasets_section, error_line, page_header
+    from .screen import datasets_section, error_line
 
     kind = chart if chart in CHARTS else "heatmap"
     project_id = str(active.id)
-    page_header(
-        "Графіки · " + active.name,
-        "formula",
-        CHARTS[kind],
-        "Один графік, увесь набір даних. Числа з перевіреного ядра статистики.",
-    )
+    ui.label(
+        CHARTS[kind] + " · один графік, увесь набір даних. Числа з перевіреного ядра статистики."
+    ).classes("section-lead")
     listing = service.list_datasets(project_id)
     configuration = service.chart_configuration()
     if isinstance(listing, Failure):
@@ -214,12 +212,9 @@ def charts_screen(
     selected = dataset_id or next(iter(choices))
 
     def go(dataset: str, chart_kind: str) -> None:
-        ui.navigate.to(f"/?project={project_id}&dataset={dataset}&view=charts&chart={chart_kind}")
+        ui.navigate.to(eda_link(project_id, chart_kind, dataset))
 
     with ui.element("div").classes("chart-choice"):
-        ui.toggle(CHARTS, value=kind, on_change=lambda e: go(selected, e.value)).props(
-            'no-caps unelevated aria-label="Тип графіка"'
-        ).classes("chart-type")
         ui.select(
             choices,
             value=selected,

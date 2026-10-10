@@ -13,6 +13,7 @@ from typing import Any
 
 from nicegui import app, ui
 
+from .analysis_blocks import EDA_TOOLS, block_link, blocks_for, eda_link
 from .contracts import (
     DatasetView,
     EventView,
@@ -149,7 +150,7 @@ class Shell:
         for sheet in ("icons.css", "style.css", "charts.css"):
             version = asset_version(sheet)
             ui.add_head_html(f'<link rel="stylesheet" href="/assets/{sheet}?v={version}">')
-        if current in ("charts", "chart_settings"):
+        if current in ("eda", "chart_settings"):
             ui.add_head_html("""<script>window.MathJax={tex:{packages:['base','ams']},
               options:{enableMenu:false,enableAssistiveMml:false},
               startup:{typeset:false},svg:{fontCache:'local'}};</script>
@@ -281,27 +282,36 @@ class Shell:
         ):
             brand()
             navigation = list(NAV)
-            if active:
-                navigation.insert(
-                    1,
-                    (
-                        "Поточний проєкт",
-                        [
-                            (
-                                "statistics",
-                                f"/?project={active.id}&view=statistics",
-                                "Статистика",
-                                "compare",
-                            ),
-                            (
-                                "charts",
-                                f"/?project={active.id}&view=charts",
-                                "Графіки й формули",
-                                "formula",
-                            ),
-                        ],
-                    ),
-                )
+
+            def project_blocks() -> None:
+                if active is None:
+                    return
+                # Analysis blocks (D-62, D-63): implemented ones link, planned ones are greyed.
+                ui.label("Поточний проєкт · етапи аналізу").classes("nav-group")
+                for position, block in enumerate(blocks_for(active.project_type), 1):
+                    target = block_link(block, str(active.id))
+                    title = block.title if target else block.title + " · заплановано"
+                    classes = "nav-link block-link"
+                    if block.key == current:
+                        classes += " current"
+                    if target is None:
+                        classes += " planned"
+                    element = (
+                        ui.element("div")
+                        .classes(classes)
+                        .props(
+                            f'role="link" tabindex="0" title="{title}. {block.purpose}"'
+                            if target
+                            else f'aria-disabled="true" title="{title}. {block.purpose}"'
+                        )
+                    )
+                    if target:
+                        element.on("click", lambda target=target: ui.navigate.to(target))
+                    with element:
+                        ui.label(str(position)).classes("block-num")
+                        icon(block.icon)
+                        ui.label(block.title).classes("label")
+
             for group, items in navigation:
                 ui.label(group).classes("nav-group")
                 for key, target, title, ico in items:
@@ -317,6 +327,8 @@ class Shell:
                             ui.label(str(counts[key])).classes("nav-count").props(
                                 f'title="Активних проєктів: {counts[key]}"'
                             )
+                if group == "Робота":
+                    project_blocks()
             ui.label("Етапи MVP · тимчасово").classes("nav-group stages-title")
             with ui.element("div").classes("stages"):
                 for number, title, ico in STAGES:
@@ -417,23 +429,18 @@ def projects_screen(
         found = service.dataset(dataset_id)
         name = found.data.name if isinstance(found, Success) else "Набір даних"
         link = f"/?project={active.id}&dataset={dataset_id}"
-        trail.append((name, link if view in ("metadata", "statistics", "charts") else None))
+        trail.append((name, link if view in ("metadata", "eda") else None))
         if view == "metadata":
             trail.append(("Метадані", None))
-    if active and view == "statistics":
-        trail.append(("Статистика", None))
-    if active and view == "charts":
-        trail.append(("Графіки й формули", None))
-    shell = Shell(service, view if view in ("statistics", "charts") else "projects", active, trail)
+    if active and view == "eda":
+        trail.append(("Оглядовий аналіз", None))
+    current = "eda" if view == "eda" else "data" if active else "projects"
+    shell = Shell(service, current, active, trail)
     with ui.column().classes("page"):
         if isinstance(active_result, Failure):
             error_line(active_result)
-        if active and view == "charts":
-            from .chart_screen import charts_screen
-
-            charts_screen(service, active, dataset_id, chart)
-        elif active and view == "statistics":
-            statistics_screen(service, active, dataset_id)
+        if active and view == "eda":
+            eda_screen(service, active, dataset_id, chart)
         elif active and dataset_id and view == "metadata":
             metadata_editor(service, active, dataset_id)
         elif active and dataset_id:
@@ -533,7 +540,9 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
 
     datasets_section(service, active, datasets_result)
     button(
-        "Статистика", partial(ui.navigate.to, f"/?project={active.id}&view=statistics"), "compare"
+        "Оглядовий аналіз",
+        partial(ui.navigate.to, eda_link(str(active.id), "statistics")),
+        "compare",
     )
 
     ui.label("Інструкція аналізу").classes("section-title")
@@ -794,8 +803,8 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
             details.append("копія набору з іншого проєкту")
     page_header("Набір даних · " + active.name, "data", data.name, " · ".join(details))
     button(
-        "Статистика",
-        partial(ui.navigate.to, f"/?project={active.id}&dataset={dataset_id}&view=statistics"),
+        "Оглядовий аналіз",
+        partial(ui.navigate.to, eda_link(str(active.id), "statistics", dataset_id)),
         "compare",
     )
 
@@ -898,15 +907,36 @@ def stat_number(value, decimals: int = 3) -> str:
     return f"{value:,.{decimals}f}".rstrip("0").rstrip(".").replace(",", "\u202f").replace(".", ",")
 
 
+def eda_screen(
+    service: ProjectService, active: ProjectView, dataset_id: str | None, tool: str | None
+) -> None:
+    """Block 2 «Оглядовий аналіз»: statistics and charts are tools inside one block."""
+    tool = tool if tool in EDA_TOOLS else "statistics"
+    project_id = str(active.id)
+    page_header(
+        "Етап 2 · " + active.name,
+        "compare",
+        "Оглядовий аналіз даних",
+        "Один набір, один інструмент: статистика, пропуски, розподіли й зв’язки. "
+        "Розрахунки локальні, без AI.",
+    )
+    ui.toggle(
+        EDA_TOOLS,
+        value=tool,
+        on_change=lambda e: ui.navigate.to(eda_link(project_id, e.value, dataset_id)),
+    ).props('no-caps unelevated aria-label="Інструмент оглядового аналізу"').classes(
+        "chart-type eda-tools"
+    )
+    if tool == "statistics":
+        statistics_screen(service, active, dataset_id)
+    else:
+        from .chart_screen import charts_screen
+
+        charts_screen(service, active, dataset_id, tool)
+
+
 def statistics_screen(service: ProjectService, active: ProjectView, dataset_id: str | None) -> None:
     project_id = str(active.id)
-    button("До проєкту", partial(ui.navigate.to, f"/?project={project_id}"), "prev", "small back")
-    page_header(
-        "Статистика · " + active.name,
-        "compare",
-        "Статистика",
-        "Один набір, один перегляд. Розрахунки локальні, без AI.",
-    )
     listing = service.list_datasets(project_id)
     if isinstance(listing, Failure):
         error_line(listing)
@@ -927,9 +957,7 @@ def statistics_screen(service: ProjectService, active: ProjectView, dataset_id: 
             choices,
             value=selected,
             label="Набір даних",
-            on_change=lambda e: ui.navigate.to(
-                f"/?project={project_id}&dataset={e.value}&view=statistics"
-            ),
+            on_change=lambda e: ui.navigate.to(eda_link(project_id, "statistics", e.value)),
         ).props("outlined square").classes("stat-dataset")
         button(
             "Огляд і метадані",

@@ -393,3 +393,10 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .stat-pager { padding:8px 0; font-size:13px; }
 .stat-audit { margin-left:28px; overflow-wrap:anywhere; }
 @media (max-width:700px) { .stat-views .btn { flex:1 1 150px; } .stat-table { font-size:13px; } }
+/* Analysis blocks of the current project (D-62, D-63) */
+.block-link .block-num { width:1.4em; text-align:right; font-size:.82em; color:var(--ink2); }
+.block-link.planned { cursor:default; color:var(--axis); font-style:italic; }
+.block-link.planned:hover { background:transparent; }
+.block-link.planned .ico { color:var(--axis); }
+.eda-tools { margin:4px 0 12px; }
+.q-drawer--mini .block-num { display:none; }

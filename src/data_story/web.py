@@ -245,7 +245,7 @@ def configure(settings: Settings) -> None:
             query.get("project"),
             query.get("dataset"),
             query.get("view"),
-            query.get("chart"),
+            query.get("tool"),
         )
 
     @ui.page("/settings")

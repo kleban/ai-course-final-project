@@ -77,12 +77,27 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(1500)
     ok(
         "menu shows project count",
-        pg.locator(".nav-link.current .nav-count").inner_text().strip() == "1",
+        pg.locator(".nav-link .nav-count").inner_text().strip() == "1",
+    )
+    ok(
+        "opened project highlights block data",
+        "Дані" in pg.locator(".block-link.current").inner_text(),
     )
     ok("project opened", "project=" in pg.url and pg.get_by_text("Ціни на квартири").count() >= 1)
     project_url = pg.url
-    pg.get_by_role("button", name="Статистика", exact=True).click()
+    pg.get_by_role("button", name="Оглядовий аналіз", exact=True).click()
     pg.get_by_text("Для статистики потрібен набір даних.", exact=False).wait_for()
+    blocks = pg.locator(".block-link")
+    ok(
+        "analysis blocks: seven, five planned, exploratory current",
+        blocks.count() == 7
+        and pg.locator(".block-link.planned").count() == 5
+        and "Оглядовий аналіз" in pg.locator(".block-link.current").inner_text()
+        and "eda" in pg.url,
+    )
+    pg.locator(".block-link.planned").first.click()
+    pg.wait_for_timeout(300)
+    ok("planned block has no link", "view=eda" in pg.url)
     ok("statistics empty state has upload", pg.locator(".uploader input[type=file]").count() == 1)
     pg.goto(project_url)
     pg.wait_for_timeout(1500)
@@ -156,7 +171,7 @@ with sync_playwright() as pw:
     grid.scroll_into_view_if_needed()
     pg.screenshot(path=str(SHOTS / "melbourne-grid.png"))
     melbourne_url = pg.url
-    pg.get_by_role("button", name="Статистика", exact=True).click()
+    pg.get_by_role("button", name="Оглядовий аналіз", exact=True).click()
     pg.locator(".stat-table tbody tr").first.wait_for()
     ok(
         "statistics context entire Melbourne",
@@ -243,8 +258,8 @@ with sync_playwright() as pw:
     postcode_card.get_by_label("Тип").click()
     pg.get_by_role("option", name="категорія", exact=True).click()
     pg.get_by_text("Зберегти й підтвердити", exact=True).click()
-    pg.get_by_role("button", name="Статистика", exact=True).wait_for()
-    pg.get_by_role("button", name="Статистика", exact=True).click()
+    pg.get_by_role("button", name="Оглядовий аналіз", exact=True).wait_for()
+    pg.get_by_role("button", name="Оглядовий аналіз", exact=True).click()
     pg.get_by_role("button", name="Кореляції", exact=True).click()
     pg.get_by_label("Числові поля для кореляції").wait_for()
     pg.get_by_text("Виключені поля", exact=False).click()

@@ -108,7 +108,7 @@ with sync_playwright() as pw:
         "reset restores defaults",
         page.get_by_role("checkbox", name="Числа в клітинках", exact=True).is_checked(),
     )
-    page.goto(B + f"/?project={project}&dataset={dataset}&view=charts")
+    page.goto(B + f"/?project={project}&dataset={dataset}&view=eda&tool=heatmap")
     selector = page.get_by_label("Числові поля · оберіть 2–12", exact=True)
     selector.click()
     page.get_by_role("option", name="Price", exact=True).click()
@@ -160,7 +160,7 @@ with sync_playwright() as pw:
             sum(e["operation"] == "chart.built" for e in events) == 2
             and not any(e["operation"] == "statistics.calculated" for e in events),
         )
-    page.goto(B + f"/?project={project}&dataset={dataset}&view=charts&chart=histogram")
+    page.goto(B + f"/?project={project}&dataset={dataset}&view=eda&tool=histogram")
     page.get_by_label("Числове поле", exact=True).click()
     page.get_by_role("option", name="Price", exact=True).click()
     page.get_by_role("button", name="Побудувати", exact=True).click()
