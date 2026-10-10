@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _V1 = """
     CREATE TABLE projects (
@@ -104,6 +104,18 @@ _V7 = """
 """
 
 
+_V8 = """
+    CREATE TABLE preparation_plans (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        dataset_id TEXT NOT NULL REFERENCES datasets(id),
+        created_at TEXT NOT NULL,
+        document TEXT NOT NULL
+    );
+    CREATE INDEX preparation_plans_project ON preparation_plans(project_id, created_at);
+"""
+
+
 @contextmanager
 def connect(database: Path) -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(database, timeout=5)
@@ -122,7 +134,7 @@ def ensure_schema(database: Path) -> Path:
     database.parent.mkdir(parents=True, exist_ok=True)
     with connect(database) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
             raise RuntimeError("Непідтримувана версія бази даних; файл не змінено.")
         if version == 0:
             tables = connection.execute(
@@ -131,13 +143,14 @@ def ensure_schema(database: Path) -> Path:
             if tables:
                 raise RuntimeError("Невідома схема бази даних; файл не змінено.")
         steps = {
-            0: _V1 + _V2 + _V3 + _V4 + _V5 + _V6 + _V7,
-            1: _V2 + _V3 + _V4 + _V5 + _V6 + _V7,
-            2: _V3 + _V4 + _V5 + _V6 + _V7,
-            3: _V4 + _V5 + _V6 + _V7,
-            4: _V5 + _V6 + _V7,
-            5: _V6 + _V7,
-            6: _V7,
+            0: _V1 + _V2 + _V3 + _V4 + _V5 + _V6 + _V7 + _V8,
+            1: _V2 + _V3 + _V4 + _V5 + _V6 + _V7 + _V8,
+            2: _V3 + _V4 + _V5 + _V6 + _V7 + _V8,
+            3: _V4 + _V5 + _V6 + _V7 + _V8,
+            4: _V5 + _V6 + _V7 + _V8,
+            5: _V6 + _V7 + _V8,
+            6: _V7 + _V8,
+            7: _V8,
         }.get(version)
         if steps:
             connection.executescript(

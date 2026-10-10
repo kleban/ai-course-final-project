@@ -16,6 +16,7 @@ from pydantic import (
 from .chart_configuration import ChartOptions, Theme
 from .configuration import INSTRUCTION_LIMIT
 from .metadata import MetadataDocument
+from .preparation import MissingRule
 from .project_types import DEFAULT_TYPE, ProjectTypeKey, require_enabled
 from .statistics import View
 from .validation import DESCRIPTION_LIMIT, NAME_LIMIT, PURPOSE_LIMIT, text
@@ -103,6 +104,8 @@ class EventView(StrictModel):
         "metadata.source_added",
         "statistics.calculated",
         "chart.built",
+        "preparation.previewed",
+        "preparation.saved",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -442,3 +445,12 @@ class HistogramView(StrictModel):
     theme: Theme
     options: ChartOptions
     svg: str
+
+
+class PreparationQuery(StrictModel):
+    dataset_id: UUID
+    rules: list[MissingRule] = Field(default_factory=list, max_length=200)
+
+
+class PreparationSave(PreparationQuery):
+    preview_token: str = Field(pattern=r"^[a-f0-9]{64}$")

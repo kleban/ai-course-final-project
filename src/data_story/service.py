@@ -44,6 +44,8 @@ from .contracts import (
     MissingQuery,
     MissingRow,
     MissingView,
+    PreparationQuery,
+    PreparationSave,
     ProjectCreate,
     ProjectDescription,
     ProjectId,
@@ -62,6 +64,8 @@ from .contracts import (
 from .dataset_copy import DatasetCopier
 from .datasets import DatasetError, DatasetNotFound, DatasetStore
 from .metadata import MetadataError, MetadataStore, issues
+from .preparation import PreparationError
+from .preparation_store import PreparationStore
 from .project_types import PROJECT_TYPES
 from .projects import ProjectNotFound, ProjectStore
 from .statistics import StatisticsError, StatisticsStore
@@ -105,7 +109,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         return Success(data=action())
     except InputValidation as error:
         return validation_failure(error.error.errors(include_input=False))
-    except (DatasetError, MetadataError, StatisticsError) as error:
+    except (DatasetError, MetadataError, StatisticsError, PreparationError) as error:
         return Failure(
             error=ErrorInfo(
                 code="invalid_input",
@@ -147,6 +151,35 @@ class ProjectService:
         self.copier = DatasetCopier(self.datasets)
         self.statistics_store = StatisticsStore(self.datasets)
         self.chart_config = ChartConfigurationStore(store.database)
+        self.preparation_store = PreparationStore(self.datasets)
+
+    def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(PreparationQuery, raw)
+            return self.preparation_store.preview(validated, str(request.dataset_id), request.rules)
+
+        return execute(action)
+
+    def preparation_save(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(PreparationSave, raw)
+            return self.preparation_store.preview(
+                validated,
+                str(request.dataset_id),
+                request.rules,
+                expected_token=request.preview_token,
+            )
+
+        return execute(action)
+
+    def preparation_plans(self, project_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.preparation_store.plans(
+                str(validate_input(ProjectId, {"id": project_id}).id)
+            )
+        )
 
     def create(self, raw: object) -> Success[ProjectView] | Failure:
         def action() -> ProjectView:

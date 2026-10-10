@@ -57,6 +57,8 @@ EVENT_TITLES = {
     "metadata.source_added": ("Додано опис даних", "doc"),
     "statistics.calculated": ("Розраховано статистику", "compare"),
     "chart.built": ("Побудовано графік", "formula"),
+    "preparation.previewed": ("Перегляд підготовки", "methods"),
+    "preparation.saved": ("Збережено план підготовки", "check"),
 }
 FORMAT_TITLES = {"csv": "CSV"}
 
@@ -407,18 +409,24 @@ def projects_screen(
         found = service.dataset(dataset_id)
         name = found.data.name if isinstance(found, Success) else "Набір даних"
         link = f"/?project={active.id}&dataset={dataset_id}"
-        trail.append((name, link if view in ("metadata", "eda") else None))
+        trail.append((name, link if view in ("metadata", "eda", "preparation") else None))
         if view == "metadata":
             trail.append(("Метадані", None))
     if active and view == "eda":
         trail.append(("Оглядовий аналіз", None))
-    current = "eda" if view == "eda" else "data" if active else "projects"
+    if active and view == "preparation":
+        trail.append(("Підготовка даних", None))
+    current = view if view in ("eda", "preparation") else "data" if active else "projects"
     shell = Shell(service, current, active, trail)
     with ui.column().classes("page"):
         if isinstance(active_result, Failure):
             error_line(active_result)
         if active and view == "eda":
             eda_screen(service, active, dataset_id, chart)
+        elif active and view == "preparation":
+            from .preparation_screen import preparation_screen
+
+            preparation_screen(service, active, dataset_id)
         elif active and dataset_id and view == "metadata":
             metadata_editor(service, active, dataset_id)
         elif active and dataset_id:
@@ -599,8 +607,17 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
             title, ico = EVENT_TITLES.get(event.operation, (event.operation, "info"))
             if event.operation.startswith(("dataset.", "metadata.")):
                 title = f"{title}: {event.payload.get('name', '')}"
-            if event.operation in ("statistics.calculated", "chart.built"):
-                view_title = STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
+            if event.operation in (
+                "statistics.calculated",
+                "chart.built",
+                "preparation.previewed",
+                "preparation.saved",
+            ):
+                view_title = (
+                    EVENT_TITLES[event.operation][0]
+                    if event.operation.startswith("preparation.")
+                    else STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
+                )
                 title = f"{view_title}: {event.payload.get('dataset_name', '')} · " + (
                     "помилка" if event.payload.get("status") == "error" else "розраховано"
                 )
@@ -608,12 +625,22 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 icon(ico)
                 ui.label(title)
                 ui.label(event.occurred_at.strftime("%d.%m.%Y %H:%M UTC")).classes("date")
-            if event.operation in ("statistics.calculated", "chart.built"):
+            if event.operation in (
+                "statistics.calculated",
+                "chart.built",
+                "preparation.previewed",
+                "preparation.saved",
+            ):
                 with ui.element("details").classes("howto stat-audit"):
                     with ui.element("summary"):
                         ui.label("Деталі розрахунку")
                     for key, label in (
                         ("row_count", "Рядків"),
+                        ("rows_before", "Рядків до підготовки"),
+                        ("rows_after", "Рядків після підготовки"),
+                        ("rows_removed", "Вилучено рядків"),
+                        ("actions", "Операції"),
+                        ("plan_id", "План підготовки"),
                         ("fields", "Поля"),
                         ("sha256", "SHA-256"),
                         ("metadata_state", "Стан метаданих"),

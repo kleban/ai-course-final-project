@@ -21,7 +21,7 @@ class AnalysisBlocksTests(unittest.TestCase):
                 "Звіт",
             ],
         )
-        self.assertEqual([b.key for b in blocks if b.available], ["data", "eda"])
+        self.assertEqual([b.key for b in blocks if b.available], ["data", "eda", "preparation"])
 
     def test_links_and_registry_consistency(self):
         self.assertEqual(block_link(BLOCKS["data"], "p"), "/?project=p")

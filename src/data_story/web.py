@@ -30,6 +30,8 @@ from .contracts import (
     MetadataView,
     MissingQuery,
     MissingView,
+    PreparationQuery,
+    PreparationSave,
     ProjectCreate,
     ProjectDescription,
     ProjectTypeView,
@@ -55,6 +57,20 @@ def router(service: ProjectService) -> APIRouter:
     def response(result):
         status = HTTP_STATUS[result.error.code] if isinstance(result, Failure) else 200
         return JSONResponse(result.model_dump(mode="json"), status_code=status)
+
+    @api.post("/projects/{project_id}/preparation/preview", response_model=Success[dict] | Failure)
+    def preparation_preview(project_id: str, query: PreparationQuery):
+        return response(service.preparation_preview(project_id, query.model_dump(mode="json")))
+
+    @api.post("/projects/{project_id}/preparation/plans", response_model=Success[dict] | Failure)
+    def preparation_save(project_id: str, query: PreparationSave):
+        return response(service.preparation_save(project_id, query.model_dump(mode="json")))
+
+    @api.get(
+        "/projects/{project_id}/preparation/plans", response_model=Success[list[dict]] | Failure
+    )
+    def preparation_plans(project_id: str):
+        return response(service.preparation_plans(project_id))
 
     @api.get("/configuration/charts", response_model=Success[ChartConfiguration] | Failure)
     def chart_configuration():
