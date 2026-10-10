@@ -46,6 +46,16 @@ with httpx.Client(base_url=BASE, timeout=60) as api:
             "encoding": "onehot",
         },
     ).json()["data"]["id"]
+    noisy_rows = ["signal,noise,y"]
+    for i in range(80):
+        signal, noise = (i * 37) % 23, (i * 11) % 7
+        wobble = ((i * 53) % 9) - 4
+        noisy_rows.append(f"{signal},{noise},{5 + 2 * signal + wobble}")
+    noisy_set = upload("noisy.csv", "\n".join(noisy_rows) + "\n")
+    noisy = api.post(
+        f"/api/projects/{project}/training",
+        json={"dataset_id": noisy_set, "target": "y", "features": ["signal", "noise"]},
+    ).json()["data"]["id"]
     small = upload("small.csv", "a,b,y\n1,2,3\n2,1,4\n3,5,1\n4,4,2\n5,3,8\n")
     tiny = api.post(
         f"/api/projects/{project}/training",
@@ -95,7 +105,7 @@ with sync_playwright() as pw:
     page.get_by_text("Модель навчено й збережено.", exact=True).wait_for(timeout=30000)
     ok("model trained through UI", True)
     ok("test R2 equals one", page.locator(".model-kpis .kpi-value").first.inner_text() == "1")
-    ok("intercept row shown", page.get_by_text("Вільний член", exact=True).count() >= 1)
+    ok("intercept row shown", page.get_by_text("Вільний член (a₀)", exact=True).count() >= 1)
     ok("coefficient names shown", page.get_by_text("cat = B", exact=True).count() >= 1)
     ok(
         "metric explanation shown",
@@ -109,7 +119,18 @@ with sync_playwright() as pw:
         "limitations shown",
         page.get_by_text("не доказ причинного впливу", exact=False).count() >= 1,
     )
-    page.get_by_text("Як розраховано · формули").first.click()
+    ok(
+        "perfect fit hides p-values with note",
+        page.get_by_text("p-value ненадійні", exact=False).count() >= 1,
+    )
+    ok("significance note shown", page.get_by_text("як у summary() в R", exact=False).count() >= 1)
+    boxes = [page.locator(".model-grid-main > .model-panel").nth(i).bounding_box() for i in (0, 1)]
+    ok("desktop panels side by side", abs(boxes[0]["y"] - boxes[1]["y"]) < 2)
+    ok(
+        "three panels in one row",
+        len({round(page.locator(".model-grid-three > .model-panel").nth(i).bounding_box()["y"])
+             for i in range(3)}) == 1,
+    )  # fmt: skip
     page.wait_for_selector("[data-formula][data-rendered='ok']", timeout=15000)
     ok("formulas rendered locally", page.locator("[data-rendered='ok']").count() >= 4)
     page.screenshot(path=str(SHOTS / "model-result.png"), full_page=True)
@@ -133,6 +154,23 @@ with sync_playwright() as pw:
             len(api.get(f"/api/projects/{project}/models").json()["data"]) == 1,
         )
 
+    page.goto(f"{BASE}/?project={project}&view=model&run={noisy}")
+    page.get_by_role("button", name="Навчити лінійну регресію", exact=True).click()
+    page.get_by_text("Модель навчено й збережено.", exact=True).wait_for(timeout=30000)
+    row = page.locator(".coefs .trow", has_text="signal").first
+    ok("p-value and stars shown", row.locator(".stars").inner_text() == "***")
+    ok("p-value column present", page.get_by_text("p-value", exact=True).count() >= 1)
+    with httpx.Client(base_url=BASE) as api:
+        noisy_doc = next(
+            m["document"]
+            for m in api.get(f"/api/projects/{project}/models").json()["data"]
+            if m["training_run_id"] == noisy
+        )
+        by_name = {c["name"]: c for c in noisy_doc["coefficients"]}
+        ok("signal significant", by_name["signal"]["p_value"] < 0.001)
+        ok("noise not significant", by_name["noise"]["p_value"] > 0.05)
+    page.screenshot(path=str(SHOTS / "model-p-values.png"), full_page=True)
+
     page.goto(f"{BASE}/?project={project}&view=model&run={tiny}")
     page.get_by_role("button", name="Навчити лінійну регресію", exact=True).click()
     page.get_by_text("Замало навчальних рядків", exact=False).wait_for(timeout=30000)
@@ -140,7 +178,10 @@ with sync_playwright() as pw:
 
     page.goto(f"{BASE}/?project={project}&view=model&run={good}")
     page.get_by_text("Для цих вибірок є збережена модель", exact=False).wait_for()
-    ok("saved result survives reload", page.get_by_text("Вільний член", exact=True).count() >= 1)
+    ok(
+        "saved result survives reload",
+        page.get_by_text("Вільний член (a₀)", exact=True).count() >= 1,
+    )
     ok(
         "saved models listed",
         page.get_by_text("Збережені моделі проєкту", exact=True).count() == 1,
@@ -166,6 +207,8 @@ with sync_playwright() as pw:
     page.goto(f"{BASE}/?project={project}&view=model&run={good}")
     page.get_by_text("Для цих вибірок є збережена модель", exact=False).wait_for()
     page.wait_for_timeout(300)
+    mobile = [page.locator(".model-grid-main > .model-panel").nth(i).bounding_box() for i in (0, 1)]
+    ok("mobile panels stacked", mobile[1]["y"] > mobile[0]["y"] + 20)
     ok(
         "mobile page contained",
         page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),

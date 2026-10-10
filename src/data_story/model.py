@@ -4,6 +4,7 @@ import math
 import warnings as py_warnings
 
 import numpy as np
+from scipy import stats
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
 
@@ -17,6 +18,70 @@ class ModelError(ValueError):
 
 class ModelNotFound(LookupError):
     """No saved model with this id in the project."""
+
+
+SIGNIFICANCE = ((0.001, "***"), (0.01, "**"), (0.05, "*"), (0.1, "."))
+SIGNIFICANCE_NOTE = (
+    "Позначки значущості, як у summary() в R: *** p < 0,001; ** p < 0,01; * p < 0,05; "
+    ". p < 0,1; без позначки — p ≥ 0,1."
+)
+INFERENCE_NOTES = [
+    "p-value перевіряє гіпотезу, що коефіцієнт дорівнює нулю за незмінних інших ознак. "
+    "Мале p-value означає, що такий коефіцієнт малоймовірний за відсутності зв'язку; "
+    "воно не вимірює силу чи важливість ознаки і не доводить причинність.",
+    "Стандартні помилки, t і p-value розраховано класичним методом найменших квадратів "
+    "на навчальній частині (як lm у R). Вони коректні, якщо помилки незалежні, мають однакову "
+    "мінливість і приблизно нормальний розподіл; інакше p-value можуть бути занижені.",
+    "Коли перевіряється багато коефіцієнтів, деякі виявляться «значущими» випадково; "
+    "сильна кореляція між ознаками збільшує стандартні помилки.",
+]
+
+
+def stars(p_value: float | None) -> str:
+    if p_value is None:
+        return ""
+    return next((mark for limit, mark in SIGNIFICANCE if p_value < limit), "")
+
+
+def inference(
+    x_train: np.ndarray, y_train: np.ndarray, coefficients: np.ndarray, intercept: float, rank: int
+) -> dict:
+    """OLS standard errors, t and two-sided p-values on the training part (R ``summary.lm``).
+
+    Uses the pseudo-inverse: with linearly dependent features only estimable coefficients get
+    statistics; the others are reported as undefined instead of misleading numbers.
+    """
+    design = np.column_stack([np.ones(len(y_train)), x_train])
+    estimate = np.concatenate([[intercept], coefficients])
+    residual = y_train - design @ estimate
+    df = len(y_train) - rank
+    rss = float(residual @ residual)
+    tss = float(((y_train - y_train.mean()) ** 2).sum())
+    empty: dict[str, object] = {"std_error": None, "t": None, "p_value": None, "stars": ""}
+    if df < 1:
+        reason = "Немає залишкових ступенів свободи."
+        return {"df": df, "sigma": None, "reason": reason, "rows": [empty] * len(estimate)}
+    if rss <= 1e-24 * max(tss, 1.0) or rss == 0:
+        reason = (
+            "Модель майже ідеально відтворює навчальні дані (залишки ≈ 0), тому p-value "
+            "ненадійні й не показуються."
+        )
+        return {"df": df, "sigma": 0.0, "reason": reason, "rows": [empty] * len(estimate)}
+    sigma2 = rss / df
+    with np.errstate(all="ignore"):
+        pseudo = np.linalg.pinv(design.T @ design)
+        estimable = np.isclose(np.linalg.pinv(design) @ design, np.eye(design.shape[1]), atol=1e-8)
+    rows: list[dict[str, object]] = []
+    for j, value in enumerate(estimate):
+        variance = sigma2 * pseudo[j, j]
+        if not estimable[:, j].all() or not math.isfinite(variance) or variance <= 0:
+            rows.append({**empty, "reason": "Не визначено через лінійну залежність ознак."})
+            continue
+        error = math.sqrt(variance)
+        t_value = float(value) / error
+        p_value = float(2 * stats.t.sf(abs(t_value), df))
+        rows.append({"std_error": error, "t": t_value, "p_value": p_value, "stars": stars(p_value)})
+    return {"df": df, "sigma": math.sqrt(sigma2), "reason": None, "rows": rows}
 
 
 LIMITATIONS = [
@@ -114,6 +179,9 @@ def _fit_and_score(
             "Результат числово нестабільний (нескінченні значення). Перевірте масштаб ознак і цілі."
         )
     rank = int(np.linalg.matrix_rank(np.column_stack([np.ones(rows), x_train])))
+    with np.errstate(all="ignore"), py_warnings.catch_warnings():
+        py_warnings.simplefilter("ignore")
+        tests = inference(x_train, y_train, coefficients, intercept, rank)
     warnings: list[str] = []
     r2_reason = None
     if not math.isfinite(r2_test):
@@ -148,10 +216,19 @@ def _fit_and_score(
         },
         "feature_names": list(feature_names),
         "coefficients": [
-            {"name": name, "value": float(value)}
-            for name, value in zip(feature_names, coefficients)
+            {"name": name, "value": float(value), **row}
+            for name, value, row in zip(feature_names, coefficients, tests["rows"][1:])
         ],
         "intercept": intercept,
+        "intercept_inference": tests["rows"][0],
+        "inference": {
+            "method": "OLS на навчальній частині; t-розподіл; двосторонні p-value",
+            "df_residual": tests["df"],
+            "sigma": tests["sigma"],
+            "reason": tests["reason"],
+            "significance_note": SIGNIFICANCE_NOTE,
+            "notes": INFERENCE_NOTES,
+        },
         "metrics": {
             "test": {
                 "r2": _finite(r2_test),
@@ -206,6 +283,14 @@ def explain(document: dict) -> list[str]:
         f"RMSE {_eq(test['rmse'])}: сильніше враховує великі помилки; що більший він "
         "за MAE, то більше окремих великих відхилень."
     )
+    tested = [c for c in document["coefficients"] if c.get("p_value") is not None]
+    if tested:
+        significant = [c["name"] for c in tested if c["p_value"] < 0.05]
+        lines.append(
+            "На рівні 0,05 статистично значущі: " + ", ".join(significant) + "."
+            if significant
+            else "Жоден коефіцієнт не є статистично значущим на рівні 0,05."
+        )
     baseline = document["metrics"]["baseline_mae"]
     if baseline > 0:
         change = (baseline - test["mae"]) / baseline * 100

@@ -13,7 +13,13 @@ from fastapi.testclient import TestClient
 from data_story.analysis_blocks import BLOCKS
 from data_story.assistant_tools import TOOLS, run_tool
 from data_story.contracts import Failure, Success
-from data_story.model import ModelError, check_matrices, explain, train_linear_regression
+from data_story.model import (
+    ModelError,
+    check_matrices,
+    explain,
+    stars,
+    train_linear_regression,
+)
 from data_story.projects import ProjectStore
 from data_story.service import ProjectService
 from data_story.storage import (
@@ -134,6 +140,62 @@ class ModelCoreTests(unittest.TestCase):
         big[::2] = -1e308
         with self.assertRaises(ModelError):
             train_linear_regression(arrays(big[:7], big[:7, 0], big[7:], [1, 2, 3]), ["a"])
+
+    def test_p_values_match_published_r_summary_for_mtcars(self):
+        # R: summary(lm(mpg ~ wt, data = mtcars)) — published, independent of our code.
+        mpg = [21.0, 21.0, 22.8, 21.4, 18.7, 18.1, 14.3, 24.4, 22.8, 19.2, 17.8, 16.4, 17.3,
+               15.2, 10.4, 10.4, 14.7, 32.4, 30.4, 33.9, 21.5, 15.5, 15.2, 13.3, 19.2, 27.3,
+               26.0, 30.4, 15.8, 19.7, 15.0, 21.4]  # fmt: skip
+        wt = [2.620, 2.875, 2.320, 3.215, 3.440, 3.460, 3.570, 3.190, 3.150, 3.440, 3.440,
+              4.070, 3.730, 3.780, 5.250, 5.424, 5.345, 2.200, 1.615, 1.835, 2.465, 3.520,
+              3.435, 3.840, 3.845, 1.935, 2.140, 1.513, 3.170, 2.770, 3.570, 2.780]  # fmt: skip
+        x = np.array(wt).reshape(-1, 1)
+        result = train_linear_regression(arrays(x, mpg, x[:2], mpg[:2]), ["wt"])
+        intercept, slope = result["intercept_inference"], result["coefficients"][0]
+        self.assertAlmostEqual(result["intercept"], 37.2851, places=4)
+        self.assertAlmostEqual(intercept["std_error"], 1.8776, places=4)
+        self.assertAlmostEqual(intercept["t"], 19.858, places=3)
+        self.assertLess(intercept["p_value"], 2e-16)
+        self.assertAlmostEqual(slope["value"], -5.3445, places=4)
+        self.assertAlmostEqual(slope["std_error"], 0.5591, places=4)
+        self.assertAlmostEqual(slope["t"], -9.559, places=3)
+        self.assertAlmostEqual(slope["p_value"] * 1e10, 1.29, places=2)
+        self.assertEqual((slope["stars"], intercept["stars"]), ("***", "***"))
+        self.assertEqual(result["inference"]["df_residual"], 30)
+        self.assertAlmostEqual(result["inference"]["sigma"], 3.046, places=3)
+
+    def test_significance_stars_like_r(self):
+        cases = [(0.0005, "***"), (0.005, "**"), (0.03, "*"), (0.07, "."), (0.5, ""), (None, "")]
+        for value, mark in cases:
+            self.assertEqual(stars(value), mark)
+
+    def test_noise_feature_not_significant_and_collinear_undefined(self):
+        rng = np.random.default_rng(21)
+        x = np.column_stack([rng.normal(size=200), rng.normal(size=200)])
+        y = 2 + 3 * x[:, 0] + rng.normal(size=200)
+        result = train_linear_regression(arrays(x, y, x[:5], y[:5]), ["signal", "noise"])
+        signal, noise = result["coefficients"]
+        self.assertEqual(signal["stars"], "***")
+        self.assertGreater(noise["p_value"], 0.05)
+        self.assertIn("signal", explain({**result, "choices": {"target": "y"}})[3])
+        cat = np.array([0, 1] * 10)
+        dummies = np.column_stack([np.arange(20.0), cat == 0, cat == 1]).astype(float)
+        target = 3 + 2 * dummies[:, 0] + 4 * dummies[:, 2] + rng.normal(size=20)
+        trap = train_linear_regression(
+            arrays(dummies, target, dummies[:3], target[:3]), ["x", "cat = A", "cat = B"]
+        )
+        self.assertIsNotNone(trap["coefficients"][0]["p_value"])
+        self.assertIsNone(trap["coefficients"][1]["p_value"])
+        self.assertIsNone(trap["intercept_inference"]["p_value"])
+        self.assertIn("лінійну залежність", trap["coefficients"][2]["reason"])
+
+    def test_perfect_fit_hides_p_values(self):
+        x = np.arange(20.0).reshape(-1, 1)
+        result = train_linear_regression(
+            arrays(x[:14], 2 * x[:14, 0], x[14:], 2 * x[14:, 0]), ["x"]
+        )
+        self.assertIsNone(result["coefficients"][0]["p_value"])
+        self.assertIn("ненадійні", result["inference"]["reason"])
 
     def test_damaged_or_mismatching_matrices_refused(self):
         x = np.arange(20.0).reshape(-1, 1)

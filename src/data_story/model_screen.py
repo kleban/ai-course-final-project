@@ -11,8 +11,8 @@ from .service import ProjectService
 
 FORMULAS = [
     (
-        r"\hat y = b_0 + b_1 x_1 + \dots + b_p x_p",
-        "Прогноз — вільний член плюс сума ознак, помножених на коефіцієнти. "
+        r"\hat y = a_0 + a_1 x_1 + \dots + a_p x_p",
+        "Прогноз — вільний член a₀ плюс сума ознак, помножених на коефіцієнти a₁…aₚ. "
         "Коефіцієнти знаходить LinearRegression методом найменших квадратів на навчальній частині.",
     ),
     (
@@ -47,21 +47,40 @@ def run_title(item: dict) -> str:
     )
 
 
-def formulas() -> None:
-    with ui.element("details").classes("howto"):
-        with ui.element("summary"):
-            ui.label("Як розраховано · формули")
-        for tex, explanation in FORMULAS:
-            formula = ui.element("div").classes("math-formula")
-            formula._props["data-formula"] = tex
-            ui.label(explanation)
-        ui.label("Якщо формула не завантажилась, пояснення залишається доступним.").classes("muted")
+def p_text(value: float | None) -> str:
+    """p-value like R's summary: < 2e-16, scientific below 0.001, else three digits."""
+    if value is None:
+        return "—"
+    if value < 2.2e-16:
+        return "< 2,2e-16"
+    text = f"{value:.2e}" if value < 0.001 else f"{value:.3g}"
+    return text.replace(".", ",")
+
+
+def panel(title: str, extra: str = ""):
+    box = ui.element("section").classes(f"model-panel {extra}".strip())
+    with box:
+        ui.label(title).classes("panel-title")
+    return box
+
+
+def coefficient_row(name: str, value: float, stats: dict) -> None:
+    with ui.element("div").classes("trow"):
+        ui.label(name).classes("name")
+        ui.label(precise(value)).classes("num")
+        ui.label(precise(stats.get("std_error"))).classes("num se")
+        ui.label(precise(stats.get("t"))).classes("num tval")
+        ui.label(p_text(stats.get("p_value"))).classes("num")
+        ui.label(stats.get("stars", "")).classes("stars").props(
+            f'title="{stats.get("reason") or "Позначка значущості"}"'
+        )
 
 
 def model_result(item: dict) -> None:
     doc = item["document"]
     test, train = doc["metrics"]["test"], doc["metrics"]["train"]
     target = doc["choices"]["target"]
+    tests = doc.get("inference") or {}
     with ui.element("div").classes("grid grid-4 model-kpis"):
         kpi(
             "regression",
@@ -78,52 +97,74 @@ def model_result(item: dict) -> None:
             precise(train["r2"]),
             f"для порівняння · навчальних {doc['train_count']}, тестових {doc['test_count']}",
         )
-    ui.label("Що означають показники").classes("section-title")
-    for line in explain(doc):
-        ui.label(line).classes("model-explain")
-    for warning in doc["warnings"] + doc["preparation_warnings"]:
-        with ui.element("div").classes("model-warning"):
-            ui.label(warning)
-    formulas()
-    ui.label("Коефіцієнти").classes("section-title")
-    ui.label(
-        "Зміна прогнозу при зростанні ознаки на одиницю за незмінних інших ознак. "
-        "Порядок — як у матриці ознак."
-    ).classes("section-lead")
-    with ui.element("div").classes("trows coefs"):
-        with ui.element("div").classes("trow-head"):
-            ui.label("Ознака")
-            ui.label("Коефіцієнт").classes("num")
-        with ui.element("div").classes("trow"):
-            ui.label("Вільний член").classes("name")
-            ui.label(precise(doc["intercept"])).classes("num")
-        for coefficient in doc["coefficients"]:
-            with ui.element("div").classes("trow"):
-                ui.label(coefficient["name"]).classes("name")
-                ui.label(precise(coefficient["value"])).classes("num")
-    ui.label("Обмеження").classes("section-title")
-    with ui.element("ul").classes("model-limits"):
-        for limitation in doc["limitations"]:
-            with ui.element("li"):
-                ui.label(limitation)
-    with ui.element("details").classes("howto"):
-        with ui.element("summary"):
-            ui.label("Походження результату")
-        choices = doc["choices"]
-        for text in (
-            f"Оцінювач: {doc['estimator']} · scikit-learn {doc['sklearn_version']} · "
-            f"параметри: {', '.join(f'{k}={v}' for k, v in doc['params'].items())}",
-            f"Набір: {doc['dataset_name']} · SHA-256 джерела: {doc['source_sha256']}",
-            f"Вибірки: {doc['training_run_id']} · SHA-256 матриць: {doc['matrix_sha256']}",
-            f"Ціль: {choices['target']} · ознаки: {', '.join(choices['features'])}",
-            f"Поділ: навчання/тест {100 - choices['test_percent']}/{choices['test_percent']} · "
-            f"число відтворення {choices['seed']} · кодування {choices['encoding']} · "
-            f"пропуски чисел {choices['numeric_missing']}, категорій {choices['category_missing']}",
-            f"Версія метаданих: {doc['metadata_updated_at'] or 'не збережені'} · "
-            f"ранг матриці з вільним членом: {doc['rank']} з {doc['feature_count'] + 1}",
-            f"Ідентифікатор моделі: {item['id']}",
-        ):
-            ui.label(text)
+    with ui.element("div").classes("model-grid model-grid-main"):
+        with panel("Коефіцієнти"):
+            ui.label(
+                "Зміна прогнозу при зростанні ознаки на одиницю за незмінних інших ознак."
+            ).classes("section-lead")
+            with ui.element("div").classes("trows coefs"):
+                with ui.element("div").classes("trow-head"):
+                    ui.label("Ознака")
+                    ui.label("Коефіцієнт").classes("num")
+                    ui.label("Ст. помилка").classes("num se")
+                    ui.label("t").classes("num tval")
+                    ui.label("p-value").classes("num")
+                    ui.label("")
+                coefficient_row(
+                    "Вільний член (a₀)", doc["intercept"], doc.get("intercept_inference") or {}
+                )
+                for coefficient in doc["coefficients"]:
+                    coefficient_row(coefficient["name"], coefficient["value"], coefficient)
+            if tests:
+                ui.label(tests["significance_note"]).classes("model-note")
+                if tests.get("reason"):
+                    ui.label(tests["reason"]).classes("model-note")
+                elif any(c.get("reason") for c in doc["coefficients"]):
+                    ui.label(
+                        "«—»: коефіцієнт окремо не визначений через лінійну залежність "
+                        "(наприклад, усі категорії one-hot разом із вільним членом); "
+                        "змістовна лише різниця між категоріями."
+                    ).classes("model-note")
+                ui.label(
+                    f"Залишкових ступенів свободи: {tests['df_residual']} · "
+                    f"стандартна помилка залишків: {precise(tests['sigma'])}"
+                ).classes("model-note")
+        with panel("Що означають показники"):
+            for line in explain(doc):
+                ui.label(line).classes("model-explain")
+            for warning in doc["warnings"] + doc["preparation_warnings"]:
+                with ui.element("div").classes("model-warning"):
+                    ui.label(warning)
+    with ui.element("div").classes("model-grid model-grid-three"):
+        with panel("Обмеження"):
+            with ui.element("ul").classes("model-limits"):
+                for limitation in doc["limitations"] + (tests.get("notes") or []):
+                    with ui.element("li"):
+                        ui.label(limitation)
+        with panel("Як розраховано"):
+            for tex, explanation in FORMULAS:
+                formula = ui.element("div").classes("math-formula")
+                formula._props["data-formula"] = tex
+                ui.label(explanation).classes("model-note")
+        with panel("Походження"):
+            choices = doc["choices"]
+            for text in (
+                f"Оцінювач: {doc['estimator']} · scikit-learn {doc['sklearn_version']}",
+                f"Параметри: {', '.join(f'{k}={v}' for k, v in doc['params'].items())}",
+                f"Набір: {doc['dataset_name']}",
+                f"SHA-256 джерела: {doc['source_sha256']}",
+                f"Вибірки: {doc['training_run_id']}",
+                f"SHA-256 матриць: {doc['matrix_sha256']}",
+                f"Ціль: {choices['target']} · ознаки: {', '.join(choices['features'])}",
+                f"Поділ {100 - choices['test_percent']}/{choices['test_percent']} · "
+                f"число відтворення {choices['seed']} · кодування {choices['encoding']} · "
+                f"пропуски: числа {choices['numeric_missing']}, "
+                f"категорії {choices['category_missing']}",
+                f"Версія метаданих: {doc['metadata_updated_at'] or 'не збережені'}",
+                f"Ранг матриці з вільним членом: {doc['rank']} з {doc['feature_count'] + 1}",
+                f"Ідентифікатор моделі: {item['id']}",
+            ):
+                ui.label(text).classes("model-note mono-wrap")
 
 
 def model_screen(service: ProjectService, active: ProjectView, run_id: str | None) -> None:
@@ -156,11 +197,15 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
     if run_id and run_id not in options:
         ui.label("Ці вибірки не належать проєкту або не знайдені.").classes("error-message")
         run_id = None
-    selector = (
-        ui.select(options, value=run_id, label="Збережені вибірки")
-        .props("outlined square")
-        .classes("model-select")
-    )
+    with ui.element("div").classes("model-grid model-top"):
+        left = panel("Збережені вибірки")
+        right = panel("Навчання")
+    with left:
+        selector = (
+            ui.select(options, value=run_id, label="Збережені вибірки")
+            .props("outlined square")
+            .classes("model-select")
+        )
     busy = False
 
     def models_by_run() -> dict[str, dict]:
@@ -202,7 +247,8 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
                 model_result(existing)
 
     selector.on_value_change(selection_changed)
-    summary()
+    with left:
+        summary()
 
     async def train() -> None:
         nonlocal busy
@@ -238,7 +284,12 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
             busy = False
             train_button.props(remove="disabled")
 
-    train_button = button("Навчити лінійну регресію", train, "regression", "primary")
+    with right:
+        ui.label(
+            "LinearRegression (scikit-learn): коефіцієнти знаходяться лише на навчальній "
+            "частині, показники R², MAE, RMSE — на тестовій. p-value — на навчальній, як у R."
+        ).classes("section-lead")
+        train_button = button("Навчити лінійну регресію", train, "regression", "primary")
     feedback = ui.column().classes("w-full")
     if selector.value:
         selection_changed(None)

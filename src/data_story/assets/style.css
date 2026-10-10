@@ -405,13 +405,29 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .training-controls > .q-field { flex:1 1 280px; min-width:0; max-width:420px; }
 @media (max-width:700px) { .training-controls > .q-field { flex-basis:100%; max-width:100%; } }
 
-/* Model block (stage 06): result tiles, explanations, coefficients, limitations. */
-.model-select { width:min(720px,100%); }
+/* Model block (stage 06): panels in 2–3 columns on wide screens, one column on narrow ones. */
+.model-grid { display:grid; gap:18px 28px; width:100%; margin:14px 0; align-items:start; }
+.model-top { grid-template-columns:minmax(0,3fr) minmax(0,2fr); }
+.model-grid-main { grid-template-columns:minmax(0,3fr) minmax(0,2fr); }
+.model-grid-three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.model-panel { border-top:2px solid var(--primary); padding-top:8px; min-width:0; }
+.model-panel .panel-title { font-family:var(--serif); font-size:1.15em; font-weight:700; margin:0 0 6px; }
+.model-select { width:100%; }
 .model-kpis { margin-top:12px; }
-.model-explain { max-width:1000px; margin:2px 0; }
-.model-warning { border-left:3px solid var(--secondary); padding:4px 10px; margin:6px 0; max-width:1000px; }
-.model-limits { list-style:disc; max-width:1000px; color:var(--ink2); padding-left:1.4em; margin:4px 0 12px; }
-.model-limits li { margin-bottom:4px; }
-.coefs { max-width:720px; }
-.coefs .trow-head, .coefs .trow { grid-template-columns:minmax(0,1fr) 160px; }
-.coefs .trow .name { font-weight:500; overflow-wrap:anywhere; }
+.model-explain { margin:2px 0 6px; }
+.model-warning { border-left:3px solid var(--secondary); padding:4px 10px; margin:6px 0; }
+.model-note { color:var(--ink2); font-size:.88em; margin:4px 0; }
+.mono-wrap { overflow-wrap:anywhere; }
+.model-limits { list-style:disc; color:var(--ink2); padding-left:1.2em; margin:0; font-size:.92em; }
+.model-limits li { margin-bottom:5px; }
+.coefs .trow-head, .coefs .trow { grid-template-columns:minmax(0,1.6fr) repeat(4,minmax(0,1fr)) 36px; gap:10px; }
+.coefs .trow .name { font-weight:500; overflow-wrap:anywhere; white-space:normal; }
+.coefs .trow-head .num { text-align:right; }
+.coefs .stars { font-family:var(--mono); font-weight:700; color:var(--primary); }
+@media (max-width:1100px) {
+  .model-top, .model-grid-main, .model-grid-three { grid-template-columns:1fr; }
+  .coefs .trow-head { display:grid; }
+  .coefs .trow-head, .coefs .trow { grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 30px; }
+  .coefs .se, .coefs .tval { display:none; }
+  .model-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
