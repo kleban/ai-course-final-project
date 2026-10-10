@@ -28,6 +28,8 @@ from .contracts import (
     MetadataText,
     MetadataUpdate,
     MetadataView,
+    MissingQuery,
+    MissingView,
     ProjectCreate,
     ProjectDescription,
     ProjectTypeView,
@@ -71,6 +73,12 @@ def router(service: ProjectService) -> APIRouter:
     )
     def heatmap(project_id: str, query: HeatmapQuery):
         return response(service.heatmap(project_id, query.model_dump(mode="json")))
+
+    @api.post(
+        "/projects/{project_id}/charts/missing", response_model=Success[MissingView] | Failure
+    )
+    def missing_chart(project_id: str, query: MissingQuery):
+        return response(service.missing_chart(project_id, query.model_dump(mode="json")))
 
     @api.post(
         "/projects/{project_id}/charts/scatter", response_model=Success[ScatterView] | Failure

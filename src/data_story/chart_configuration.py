@@ -46,6 +46,10 @@ class ChartOptions(BaseModel):
     scatter_size: Annotated[int, Field(ge=1, le=10)] = 3
     scatter_opacity: Annotated[float, Field(ge=0.05, le=1, allow_inf_nan=False)] = 0.6
     scatter_outline: bool = False
+    # Missing values: grey context with accent on the largest share, direct labels, order.
+    context: Color = "#C3C6CA"
+    missing_labels: bool = True
+    missing_order: Literal["desc", "source"] = "desc"
 
 
 def preset(theme: Literal["storytelling", "academic"]) -> ChartOptions:

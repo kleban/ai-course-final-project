@@ -457,3 +457,95 @@ def scatter_svg(
     parts.append(text(left + plot_w, 35, f"n = {len(pairs)} · r = {r_text}", "end"))
     parts.append("</svg>")
     return "".join(parts)
+
+
+# ---------------------------------------------------------------- missing values (stage 04, 057)
+# Bars start at zero on a fixed 0-100% axis (SRC-004 slides_4_types.js:21); grey context and one
+# accent for the largest share (slides_2_design.js:79). Equal maxima share the same accent.
+
+MISSING_PAGE = 10
+
+
+def missing_order(rows: list[dict[str, Any]], order: str) -> list[dict[str, Any]]:
+    if order == "source":
+        return list(rows)
+    # Undefined shares go last; equal shares keep the source order (stable sort).
+    return sorted(rows, key=lambda row: (row["percent"] is None, -(row["percent"] or 0.0)))
+
+
+def missing_svg(
+    rows: list[dict[str, Any]], top_share: float | None, options: ChartOptions, title: str = ""
+) -> str:
+    width, row_h = 820, 34
+    left, right, top = 250, 150, 80
+    plot_w = width - left - right
+    height = top + max(1, len(rows)) * row_h + 60
+    heading = title or "Пропуски за полями, % рядків"
+    description = f"Горизонтальні стовпці: частка пропусків для {len(rows)} полів, шкала 0–100%."
+    parts = [
+        f'<svg class="missing-chart" xmlns="http://www.w3.org/2000/svg" width="{width}" '
+        f'height="{height}" viewBox="0 0 {width} {height}" role="group" '
+        f'aria-label="{escape(description, quote=True)}" style="font-family:{options.font};'
+        f'background:{options.background}">',
+        f'<text x="20" y="35" font-size="{options.title_size}" fill="{options.text}">'
+        f"{escape(heading)}</text>",
+    ]
+    tick_size = max(11, options.label_size - 2)
+    bottom = top + len(rows) * row_h
+    for tick in (0, 25, 50, 75, 100):
+        x = left + tick / 100 * plot_w
+        if options.grid_x:
+            parts.append(
+                f'<line x1="{x:.1f}" x2="{x:.1f}" y1="{top - 6}" y2="{bottom}" stroke="#E3E5E8" />'
+            )
+        parts.append(
+            f'<text x="{x:.1f}" y="{bottom + 20}" text-anchor="middle" font-size="{tick_size}" '
+            f'fill="{options.text}">{tick}%</text>'
+        )
+    for index, row in enumerate(rows):
+        y = top + index * row_h
+        name = field_label(row["field"])
+        short = name if len(name) <= 30 else name[:27] + "…"
+        percent = row["percent"]
+        if percent is None:
+            label = "— · " + (row["reason"] or "частку не визначено")
+            detail = f"{name}: частку пропусків не визначено. {row['reason'] or ''}".strip()
+        else:
+            label = f"{percent:.{options.decimals}f}% ({row['missing']})"
+            detail = f"{name}: {row['missing']} пропусків, {percent:.{options.decimals}f}% рядків"
+        if row["invalid_infinite"]:
+            detail += f"; нескінченностей окремо: {row['invalid_infinite']}"
+        parts.append(
+            f'<g class="chart-item" tabindex="0" role="img" aria-label="{escape(detail, quote=True)}">'
+            f"<title>{escape(detail)}</title>"
+            f'<text x="{left - 10}" y="{y + row_h / 2 + 5:.1f}" text-anchor="end" '
+            f'font-size="{options.label_size}" fill="{options.text}">{escape(short)}</text>'
+        )
+        if percent is not None:
+            fill = options.accent if top_share and percent == top_share else options.context
+            bar = percent / 100 * plot_w
+            parts.append(
+                f'<rect x="{left}" y="{y + 6}" width="{max(bar, 0):.2f}" height="{row_h - 12}" '
+                f'fill="{fill}" />'
+            )
+            if options.missing_labels:
+                parts.append(
+                    f'<text x="{left + bar + 6:.1f}" y="{y + row_h / 2 + 5:.1f}" '
+                    f'font-size="{tick_size}" fill="{options.text}">{escape(label)}</text>'
+                )
+        else:
+            parts.append(
+                f'<text x="{left + 6}" y="{y + row_h / 2 + 5:.1f}" font-size="{tick_size}" '
+                f'fill="{options.text}">{escape(label[:60])}</text>'
+            )
+        parts.append("</g>")
+    parts.append(
+        f'<line x1="{left}" x2="{left}" y1="{top - 6}" y2="{bottom}" stroke="{options.text}" />'
+    )
+    if options.frame:
+        parts.append(
+            f'<rect x="{left}" y="{top - 6}" width="{plot_w}" height="{bottom - top + 6}" '
+            f'fill="none" stroke="{options.text}" />'
+        )
+    parts.append("</svg>")
+    return "".join(parts)

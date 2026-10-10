@@ -13,6 +13,8 @@ from .charts import (
     heatmap_svg,
     histogram_bins,
     histogram_svg,
+    missing_order,
+    missing_svg,
     number_text,
     scatter_svg,
 )
@@ -24,6 +26,7 @@ GROUPS = {
     "heatmap": "Теплова карта",
     "histogram": "Гістограма",
     "scatter": "Розсіювання",
+    "missing": "Пропуски",
 }
 FIELDS: dict[str, list[tuple[str, str, str, Any]]] = {
     # (name, control, title, bounds) - only parameters of implemented charts are shown.
@@ -58,6 +61,16 @@ FIELDS: dict[str, list[tuple[str, str, str, Any]]] = {
         ("scatter_size", "int", "Радіус точки (1–10)", (1, 10)),
         ("scatter_opacity", "float", "Непрозорість точок (0,05–1)", (0.05, 1, 0.05)),
         ("scatter_outline", "bool", "Контур точок", None),
+    ],
+    "missing": [
+        ("context", "color", "Сірий контекст", None),
+        ("missing_labels", "bool", "Прямі підписи часток", None),
+        (
+            "missing_order",
+            "select",
+            "Порядок полів",
+            {"desc": "За спаданням частки", "source": "Як у наборі"},
+        ),
     ],
 }
 INVALID = "Перевірте HEX-кольори, розміри тексту, поріг 0…1 і непрозорість 0,2…1."
@@ -117,6 +130,7 @@ def show_chart(svg: str, hint: str) -> None:
 
 
 HEATMAP_HINT = "Оберіть клітинку мишею або клавішею Tab: тут з’являться r, n і виключення."
+MISSING_HINT = "Оберіть стовпець мишею або клавішею Tab: тут з’являться кількість і частка."
 SCATTER_HINT = "Кожна точка — рядок з обома значеннями; накладання видно за прозорістю."
 HISTOGRAM_HINT = "Оберіть стовпець мишею або клавішею Tab: тут з’являться межі й частота."
 
@@ -141,6 +155,17 @@ FORMULAS = {
                 r"p_{\mathrm{missing}}=100\frac{m}{N}",
                 "m — кількість пропусків поля за метаданими; N — усі рядки. "
                 "Нескінченності не є пропусками.",
+            ),
+        ],
+    ),
+    "missing": (
+        "Пропуски — порожні клітинки й явні коди пропуску з метаданих. Нескінченності не є "
+        "пропусками й показані окремо. Шкала завжди 0–100%, стовпці від нуля.",
+        [
+            (
+                r"p=100\,\frac{m}{N}",
+                "m — пропуски поля, N — усі рядки набору. При N = 0 або помилковому коді "
+                "частку не визначено.",
             ),
         ],
     ),
@@ -202,6 +227,7 @@ CHARTS = {
     "heatmap": "Теплова карта кореляцій",
     "histogram": "Гістограма",
     "scatter": "Розсіювання",
+    "missing": "Пропуски за полями",
 }
 
 
@@ -253,7 +279,9 @@ def charts_screen(
         for c in meta.data.document.columns
         if c.kind == "number" and c.role not in ("id", "ignore")
     }
-    if kind == "scatter":
+    if kind == "missing":
+        missing_body(service, project_id, selected, configuration.data)
+    elif kind == "scatter":
         scatter_body(service, project_id, selected, eligible, configuration.data)
     elif kind == "histogram":
         histogram_body(service, project_id, selected, eligible, configuration.data)
@@ -494,6 +522,83 @@ def histogram_body(
     render()
 
 
+def missing_body(
+    service: ProjectService,
+    project_id: str,
+    selected: str,
+    configuration: ChartConfiguration,
+) -> None:
+    from .screen import button, error_text
+
+    theme_line(configuration)
+    title = (
+        ui.input("Заголовок (необов’язково)")
+        .props("outlined square maxlength=180")
+        .classes("w-full")
+    )
+    with ui.expansion("Тимчасове оформлення графіка").classes("w-full"):
+        read_options = options_editor(
+            configuration.effective(), lambda: None, ("common", "missing")
+        )
+    message = ui.label("").classes("error-message").props('role="alert"')
+    state: dict[str, Any] = {"result": None, "start": 0}
+
+    @ui.refreshable
+    def render() -> None:
+        result = state["result"]
+        if result is None:
+            ui.label("Натисніть «Побудувати»: усі поля набору, по 10 на сторінці.").classes(
+                "section-lead"
+            )
+            return
+        ui.label(f"Увесь набір · N = {result.row_count:,} рядків".replace(",", " ")).classes(
+            "stat-summary"
+        )
+        ui.label("Тема при побудові: " + THEMES[result.theme])
+        for warning in result.warnings:
+            ui.label(warning).classes("metadata-warning")
+        if result.rows_with_missing is not None:
+            share = result.rows_with_missing_percent or 0
+            ui.label(
+                f"Рядків хоча б з одним пропуском: {result.rows_with_missing:,} "
+                f"({share:.{result.options.decimals}f}%)".replace(",", " ")
+            ).classes("chart-facts")
+        end = min(result.start + len(result.rows), result.total)
+        ui.label(f"Поля {result.start + 1}–{end} з {result.total}").classes("chart-facts")
+        show_chart(result.svg, MISSING_HINT)
+        with ui.element("div").classes("dialog-actions left"):
+            if result.start > 0:
+                button("Попередні 10", lambda: build(result.start - 10), "prev", "small")
+            if end < result.total:
+                button("Наступні 10", lambda: build(result.start + 10), "next", "small")
+        formulas("missing")
+
+    def build(start: int = 0) -> None:
+        try:
+            options = read_options()
+        except ValidationError:
+            message.set_text(INVALID)
+            return
+        result = service.missing_chart(
+            project_id,
+            {
+                "dataset_id": selected,
+                "start": start,
+                "options": options.model_dump(),
+                "title": title.value or "",
+            },
+        )
+        if isinstance(result, Failure):
+            message.set_text(error_text(result))
+            return
+        state["result"] = result.data
+        message.set_text("")
+        render.refresh()
+
+    button("Побудувати", lambda: build(0), "formula", "primary")
+    render()
+
+
 def scatter_body(
     service: ProjectService,
     project_id: str,
@@ -588,7 +693,7 @@ def chart_settings_screen(service: ProjectService) -> None:
             "settings",
             "Графіки й теми",
             "Спільні для сервісу. Попередній перегляд не змінює збережені налаштування. "
-            "Доступні параметри реалізованих графіків: теплової карти, гістограми й розсіювання; "
+            "Доступні параметри всіх графіків оглядового аналізу; "
             "інші додамо разом із графіками.",
         )
         response = service.chart_configuration()
@@ -613,6 +718,9 @@ def chart_settings_screen(service: ProjectService) -> None:
             ui.label("Попередній перегляд · демонстраційні значення, не ваші дані").classes(
                 "section-lead"
             )
+            if sample["kind"] == "missing":
+                show_chart(demo_missing(options), MISSING_HINT)
+                return
             if sample["kind"] == "scatter":
                 show_chart(demo_scatter(options), SCATTER_HINT)
                 return
@@ -639,7 +747,7 @@ def chart_settings_screen(service: ProjectService) -> None:
             read_state["read"] = options_editor(
                 options_state["value"],
                 preview.refresh,
-                ("common", "heatmap", "histogram", "scatter"),
+                ("common", "heatmap", "histogram", "scatter", "missing"),
             )
 
         def choose(e) -> None:
@@ -729,3 +837,18 @@ def demo_scatter(options: ChartOptions) -> str:
     return scatter_svg(
         pairs, {**column, "name": "Поле A"}, {**column, "name": "Поле B"}, None, options
     )
+
+
+def demo_missing(options: ChartOptions) -> str:
+    """Demonstration shares for the settings preview, not user data."""
+    rows = [
+        {
+            "field": {"name": f"Поле {letter}", "label": "", "unit": ""},
+            "missing": missing,
+            "percent": missing,
+            "invalid_infinite": 0,
+            "reason": None,
+        }
+        for letter, missing in (("A", 0), ("B", 47), ("C", 12), ("D", 3), ("E", 47))
+    ]
+    return missing_svg(missing_order(rows, options.missing_order), 47, options)

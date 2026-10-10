@@ -31,4 +31,4 @@ class AnalysisBlocksTests(unittest.TestCase):
         for keys in TYPE_BLOCKS.values():
             self.assertEqual(keys[:2], ["data", "eda"])
             self.assertTrue(set(keys) <= set(BLOCKS))
-        self.assertEqual(list(EDA_TOOLS), ["statistics", "heatmap", "histogram", "scatter"])
+        self.assertEqual(list(EDA_TOOLS), ["statistics", "heatmap", "histogram", "scatter", "missing"])

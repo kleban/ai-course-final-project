@@ -384,6 +384,40 @@ class ScatterView(StrictModel):
     svg: str
 
 
+class MissingQuery(StrictModel):
+    """All fields of the dataset, ten per page; order comes from the chart options."""
+
+    dataset_id: UUID
+    start: Annotated[int, Field(strict=True, ge=0)] = 0
+    options: ChartOptions | None = None
+    title: Annotated[str, Field(strict=True, max_length=180)] = ""
+
+
+class MissingRow(StrictModel):
+    field: StatisticsField
+    missing: int | None
+    percent: FiniteFloat | None
+    invalid_infinite: int
+    reason: str | None
+
+
+class MissingView(StrictModel):
+    dataset_id: UUID
+    project_id: UUID
+    sha256: str
+    row_count: int
+    metadata_state: str
+    warnings: list[str]
+    rows: list[MissingRow]
+    start: int
+    total: int
+    rows_with_missing: int | None
+    rows_with_missing_percent: FiniteFloat | None
+    theme: Theme
+    options: ChartOptions
+    svg: str
+
+
 class HistogramView(StrictModel):
     dataset_id: UUID
     project_id: UUID

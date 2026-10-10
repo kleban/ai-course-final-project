@@ -84,6 +84,7 @@ EDA_TOOLS: dict[str, str] = {
     "heatmap": "Теплова карта",
     "histogram": "Гістограма",
     "scatter": "Розсіювання",
+    "missing": "Графік пропусків",
 }
 
 

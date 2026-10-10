@@ -9,12 +9,15 @@ from pydantic import BaseModel, ValidationError
 
 from .chart_configuration import ChartConfiguration, ChartConfigurationStore
 from .charts import (
+    MISSING_PAGE,
     SMALL_SAMPLE,
     BinningError,
     contrast_warnings,
     heatmap_svg,
     histogram_bins,
     histogram_svg,
+    missing_order,
+    missing_svg,
     scatter_svg,
 )
 from .configuration import InstructionStore
@@ -38,6 +41,9 @@ from .contracts import (
     MetadataText,
     MetadataUpdate,
     MetadataView,
+    MissingQuery,
+    MissingRow,
+    MissingView,
     ProjectCreate,
     ProjectDescription,
     ProjectId,
@@ -530,6 +536,61 @@ class ProjectService:
                 theme=configuration.theme,
                 options=options,
                 svg=scatter_svg(pairs, x, y, r, options, query.title) if pairs else "",
+            )
+
+        return execute(action)
+
+    def missing_chart(self, project_id: str, raw: object) -> Success[MissingView] | Failure:
+        def action() -> MissingView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(MissingQuery, raw)
+            configuration = self.chart_config.get()
+            options = query.options or configuration.effective()
+            result = self.statistics_store.calculate(
+                validated,
+                str(query.dataset_id),
+                "missing",
+                operation="chart.built",
+                audit_extra={
+                    "chart": "missing",
+                    "theme": configuration.theme,
+                    "temporary_options": query.options is not None,
+                    "options": options.model_dump(),
+                    "title": query.title,
+                    "start": query.start,
+                },
+            )
+            rows = [
+                {
+                    "field": {k: c[k] for k in ("name", "label", "unit", "kind", "role")},
+                    "missing": c["missing"],
+                    "percent": c["missing_percent"],
+                    "invalid_infinite": c["invalid_infinite"],
+                    "reason": c["error"]
+                    or (None if c["missing_percent"] is not None else "Набір не містить рядків."),
+                }
+                for c in result["columns"]
+            ]
+            ordered = missing_order(rows, options.missing_order)
+            shares = [row["percent"] for row in rows if row["percent"] is not None]
+            top = max(shares) if shares and max(shares) > 0 else None
+            if query.start >= max(len(ordered), 1):
+                raise StatisticsError("Такої сторінки полів немає.")
+            page = ordered[query.start : query.start + MISSING_PAGE]
+            return MissingView(
+                **{
+                    k: result[k]
+                    for k in ("dataset_id", "project_id", "sha256", "row_count", "metadata_state")
+                },
+                warnings=result["warnings"] + contrast_warnings(options),
+                rows=[MissingRow(**row) for row in page],
+                start=query.start,
+                total=len(ordered),
+                rows_with_missing=result["rows_with_missing"],
+                rows_with_missing_percent=result["rows_with_missing_percent"],
+                theme=configuration.theme,
+                options=options,
+                svg=missing_svg(page, top, options, query.title),
             )
 
         return execute(action)

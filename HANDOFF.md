@@ -1,6 +1,6 @@
 # Data Story — почати тут (передача роботи)
 
-Оновлено: 2026-10-10 (Europe/Kiev), після історії 053. Коротка точка входу для нового агента чи діалогу. Актуальний стан і перевірки — [`planning/status.md`](planning/status.md), хронологія — [`PROJECT_HISTORY.md`](PROJECT_HISTORY.md), рішення — [`planning/decisions.md`](planning/decisions.md). Правила роботи — [`AGENTS.md`](AGENTS.md): прочитати й дотримуватися.
+Оновлено: 2026-10-10 (Europe/Kiev), після історії 057. Коротка точка входу для нового агента чи діалогу. Актуальний стан і перевірки — [`planning/status.md`](planning/status.md), хронологія — [`PROJECT_HISTORY.md`](PROJECT_HISTORY.md), рішення — [`planning/decisions.md`](planning/decisions.md). Правила роботи — [`AGENTS.md`](AGENTS.md): прочитати й дотримуватися.
 
 ## Що це
 
@@ -24,11 +24,11 @@ Data Story — локальний аналітичний MVP для фіналь
 ## Як запустити й перевірити (Windows, подвійний клік)
 
 1. `Setup.cmd` — один раз і після змін `requirements.lock` (потрібен інтернет).
-2. `Check.cmd` — pip check, ruff, формат, mypy, 106 автотестів.
+2. `Check.cmd` — pip check, ruff, формат, mypy, 108 автотестів.
 3. `Start.cmd` → http://127.0.0.1:8765; `Stop.cmd` — зупинка.
 4. Демонстраційний набір: `samples/melb_data.csv` — Melbourne Housing Snapshot, 13 580 рядків, CC BY-NC-SA 4.0 (D-43); опис і джерело — `samples/melb_data.description.md`. Синтетичні `samples/demo_apartments.*` — для автотестів.
 5. Для розробника — UI-смоук через Playwright (66 сценаріїв; Playwright не входить у `requirements.lock`):
-   `python tools/start.py --no-browser --port 8899 --database tmp/smoke/data.sqlite3`, потім `python tools/ui_smoke.py http://127.0.0.1:8899`. Графіки — окремий сервер з порожньою базою й `python tools/charts_ui_smoke.py <адреса>` (34 сценарії, знімки в `design/reviews/056-scatter/`).
+   `python tools/start.py --no-browser --port 8899 --database tmp/smoke/data.sqlite3`, потім `python tools/ui_smoke.py http://127.0.0.1:8899`. Графіки — окремий сервер з порожньою базою й `python tools/charts_ui_smoke.py <адреса>` (38 сценаріїв, знімки в `design/reviews/057-missing/`).
 
 ## Карта коду
 
@@ -57,7 +57,7 @@ Data Story — локальний аналітичний MVP для фіналь
 - Один компонент → перевірка → фіксація → наступний (D-15). Усе в цьому репозиторії, без CDN (D-36).
 - Меню «Поточний проєкт» розширювати розділами даних і функцій у міру їх реалізації (D-58); приклад «Оглядовий аналіз» не є затвердженим окремим етапом.
 - Автору пропонувати лише один наступний крок, коротким реченням, і чекати його відповіді (D-52).
-- Після ітерації: новий запис у `PROJECT_HISTORY.md` (наступний номер — **057**), оновити `planning/status.md`, `planning/plan.md`, `planning/decisions.md`, README за потреби, цей файл; коміт. Пуш — лише за дозволом автора.
+- Після ітерації: новий запис у `PROJECT_HISTORY.md` (наступний номер — **058**), оновити `planning/status.md`, `planning/plan.md`, `planning/decisions.md`, README за потреби, цей файл; коміт. Пуш — лише за дозволом автора.
 - Поточні файли передачі описують стан, а не хронологію: замінювати застарілі абзаци, а не дописувати нові в кінець.
 - Автор часто працює з телефона: тоді без керування комп’ютером і браузером. Автотести, mypy і UI-смоук можна запускати в хмарному середовищі: скопіювати чисті Python-пакети з `.venv` автора разом із їхніми `*.dist-info` (pydantic, pandas, ruff, mypy там уже є), для aiohttp/multidict/yarl/frozenlist/propcache задати `*_NO_EXTENSIONS=1`; `tools/start.py` запускати через обгортку, що замінює Windows-блокування `launch_lock` на no-op (заглушка `msvcrt` ламає `subprocess`). PyPI і GitHub з хмари та VM недоступні — пуш робить автор або агент лише з дозволу й доступної мережі.
-- Git: гілка main, remote origin — https://github.com/kleban/ai-course-final-project.git. На початку 046 main випереджала локальний origin/main на 2 коміти, робоче дерево чисте; віддалений сервер не перевіряли. Коміти 044–056 — без пушу; актуальний стан перевіряти через git status -sb.
+- Git: гілка main, remote origin — https://github.com/kleban/ai-course-final-project.git. На початку 046 main випереджала локальний origin/main на 2 коміти, робоче дерево чисте; віддалений сервер не перевіряли. Коміти 044–057 — без пушу; актуальний стан перевіряти через git status -sb.
