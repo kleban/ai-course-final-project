@@ -102,6 +102,22 @@ ICONS = {
 }
 
 
+# Review candidates only: not registered in ICONS or used by the application yet.
+REGRESSION_PROPOSALS = {
+    "1": '<path d="M4 4v16h16M7 17L19 6"/>'
+    '<circle cx="8" cy="14" r="1"/><circle cx="12" cy="13" r="1"/><circle cx="17" cy="7" r="1"/>',
+    "2": '<path d="M4 19L20 5"/>'
+    '<circle cx="5" cy="14" r=".8"/><circle cx="9" cy="17" r=".8"/>'
+    '<circle cx="11" cy="10" r=".8"/><circle cx="15" cy="12" r=".8"/>'
+    '<circle cx="18" cy="5" r=".8"/><circle cx="20" cy="9" r=".8"/>',
+    "3": '<path d="M4 4v16h16M7 17c3-8 6-9 12-10"/>'
+    '<circle cx="7" cy="13" r=".8"/><circle cx="12" cy="9" r=".8"/><circle cx="18" cy="5" r=".8"/>',
+    "4": '<path d="M4 4v16h16M7 17L19 5"/>'
+    '<path d="M9 10v5M15 14V9" stroke-dasharray="1 2"/>'
+    '<circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/>',
+}
+
+
 # Groups for the gallery page (/icons); every icon belongs to exactly one group.
 GROUPS = {
     "Редактор Markdown": [

@@ -347,4 +347,3 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .markdown-editor .ProseMirror .toastui-editor-md-list-item-style,
 .markdown-editor .ProseMirror .toastui-editor-md-code.toastui-editor-md-marked-text { color:var(--primary); }
 .markdown-editor .ProseMirror .toastui-editor-md-code { background:var(--shade); border-radius:0; }
-
