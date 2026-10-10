@@ -1,5 +1,6 @@
 """Heatmap SVG adapted from SRC-004 slides_4_types.js divCol; no browser calculations."""
 
+import math
 from html import escape
 from typing import Any
 
@@ -118,5 +119,239 @@ def heatmap_svg(result: dict[str, Any], options: ChartOptions, title: str = "") 
     for i, value in ((0, "1"), (10, "0"), (20, "−1")):
         parts.append(label(legend_x + 30, top + i * 12 + 12, value))
     parts.append(label(20, height - 15, "Невизначено: — · Шкала кольору: −1…1"))
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------- histogram (stage 04, 052)
+# Adapted idea from SRC-004 slides_4_types.js:93 (bin width, frequencies, median line);
+# no fixed demonstration range: the full range of eligible values is always shown.
+
+MAX_WIDTH_BINS = 200
+SMALL_SAMPLE = 30
+
+
+class BinningError(ValueError):
+    """Safe Ukrainian message for impossible bin settings."""
+
+
+def number_text(value: float, decimals: int) -> str:
+    if float(value).is_integer() and abs(value) < 1e15:
+        return f"{int(value):,}".replace(",", " ")
+    text = f"{value:,.{decimals}f}".replace(",", " ")
+    return text if text.strip("-0. ") else f"{value:.{decimals}g}"
+
+
+def nice_ticks(low: float, high: float, target: int = 6, integer: bool = False) -> list[float]:
+    """Readable ticks (1/2/5 x 10^k) inside [low, high]; both ends stay data-driven."""
+    if not math.isfinite(low) or not math.isfinite(high) or high <= low:
+        return [low]
+    raw = (high - low) / max(1, target)
+    if integer:
+        raw = max(raw, 1.0)
+    power = 10 ** math.floor(math.log10(raw))
+    step = next(m * power for m in (1, 2, 5, 10) if m * power >= raw)
+    first = math.ceil(low / step) * step
+    ticks, i = [], 0
+    while first + i * step <= high + step * 1e-9 and i < 100:
+        ticks.append(round(first + i * step, 12))
+        i += 1
+    return ticks
+
+
+def histogram_bins(
+    values: list[float], bins: int | None = None, width: float | None = None
+) -> dict[str, Any]:
+    """Equal bins [a, b) over the full range; the last bin includes the maximum."""
+    n = len(values)
+    if n == 0:
+        return {
+            "mode": "width" if width else "count",
+            "edges": [],
+            "counts": [],
+            "width": None,
+            "constant": False,
+            "reason": "Немає придатних значень: графік не будується.",
+        }
+    low, high = min(values), max(values)
+    if low == high:
+        return {
+            "mode": "width" if width else "count",
+            "edges": [low, high],
+            "counts": [n],
+            "width": 0.0,
+            "constant": True,
+            "reason": "Усі значення однакові: один стовпець без ширини інтервалу.",
+        }
+    if width is not None:
+        if not math.isfinite(width) or width <= 0:
+            raise BinningError("Ширина інтервалу має бути додатним числом.")
+        count = math.ceil((high - low) / width)
+        if low + count * width < high:
+            count += 1
+        if count > MAX_WIDTH_BINS:
+            raise BinningError(
+                f"Ця ширина дає {count} інтервалів; допустимо до {MAX_WIDTH_BINS}. Збільште ширину."
+            )
+        edges = [low + i * width for i in range(count + 1)]
+        mode, step = "width", width
+    else:
+        count = bins or 20
+        if not 5 <= count <= 60:
+            raise BinningError("Кількість інтервалів має бути від 5 до 60.")
+        step = (high - low) / count
+        edges = [low + i * step for i in range(count)] + [high]
+        mode = "count"
+    counts = [0] * count
+    for value in values:
+        index = min(int((value - low) // step), count - 1)
+        # Guard floating edges: the value must satisfy edges[index] <= value < edges[index+1].
+        while index > 0 and value < edges[index]:
+            index -= 1
+        while index < count - 1 and value >= edges[index + 1]:
+            index += 1
+        counts[index] += 1
+    if sum(counts) != n:  # pragma: no cover - invariant
+        raise BinningError("Сума частот не збігається з кількістю значень.")
+    return {
+        "mode": mode,
+        "edges": edges,
+        "counts": counts,
+        "width": step,
+        "constant": False,
+        "reason": None,
+    }
+
+
+def bin_text(edges: list[float], index: int, decimals: int) -> str:
+    last = index == len(edges) - 2
+    left, right = number_text(edges[index], decimals), number_text(edges[index + 1], decimals)
+    return f"[{left}; {right}{']' if last else ')'}"
+
+
+def histogram_svg(
+    data: dict[str, Any], column: dict[str, Any], options: ChartOptions, title: str = ""
+) -> str:
+    edges, counts, n = data["edges"], data["counts"], sum(data["counts"])
+    width, height = 820, 470
+    left, right, top, bottom = 90, 30, 70, 90
+    plot_w, plot_h = width - left - right, height - top - bottom
+    name = field_label(column)
+    heading = title or f"Розподіл: {name}"
+    description = (
+        f"Гістограма поля {name}. Вісь X: значення поля; вісь Y: кількість рядків. "
+        f"n={n}; інтервалів: {len(counts)}."
+    )
+    parts = [
+        f'<svg class="histogram" xmlns="http://www.w3.org/2000/svg" width="{width}" '
+        f'height="{height}" viewBox="0 0 {width} {height}" role="group" '
+        f'aria-label="{escape(description, quote=True)}" style="font-family:{options.font};'
+        f'background:{options.background}">',
+        f"<desc>{escape(description)}</desc>",
+        f'<text x="20" y="35" font-size="{options.title_size}" fill="{options.text}">'
+        f"{escape(heading)}</text>",
+    ]
+    tick_size = max(11, options.label_size - 2)
+
+    def text(x: float, y: float, value: str, anchor: str = "middle", size: int = 0) -> str:
+        return (
+            f'<text x="{x:.2f}" y="{y:.2f}" text-anchor="{anchor}" '
+            f'font-size="{size or tick_size}" fill="{options.text}">{escape(value)}</text>'
+        )
+
+    grid = "#E3E5E8"
+    if data["constant"]:
+        low = edges[0] - 0.5 if edges[0] == 0 else edges[0] - abs(edges[0]) * 0.05
+        high = edges[0] + 0.5 if edges[0] == 0 else edges[0] + abs(edges[0]) * 0.05
+    else:
+        low, high = edges[0], edges[-1]
+    top_count = max(counts) if counts else 1
+    # Axis ends at the first tick at or above the tallest bar, so it is never clipped.
+    y_ticks = nice_ticks(0, top_count, 5, integer=True)
+    step = y_ticks[1] - y_ticks[0] if len(y_ticks) > 1 else 1
+    while y_ticks[-1] < top_count:
+        y_ticks.append(y_ticks[-1] + step)
+    y_max = y_ticks[-1] or 1
+
+    def sx(value: float) -> float:
+        return left + (value - low) / (high - low) * plot_w
+
+    def sy(count: float) -> float:
+        return top + plot_h - count / y_max * plot_h
+
+    for tick in y_ticks:
+        if options.grid_y and tick > 0:
+            parts.append(
+                f'<line x1="{left}" x2="{left + plot_w}" y1="{sy(tick):.2f}" '
+                f'y2="{sy(tick):.2f}" stroke="{grid}" stroke-width="1" />'
+            )
+        parts.append(text(left - 10, sy(tick) + 4, number_text(tick, 0), "end"))
+    x_ticks = nice_ticks(low, high, 6)
+    for tick in x_ticks:
+        if options.grid_x:
+            parts.append(
+                f'<line x1="{sx(tick):.2f}" x2="{sx(tick):.2f}" y1="{top}" '
+                f'y2="{top + plot_h}" stroke="{grid}" stroke-width="1" />'
+            )
+        parts.append(
+            f'<line x1="{sx(tick):.2f}" x2="{sx(tick):.2f}" y1="{top + plot_h}" '
+            f'y2="{top + plot_h + 5}" stroke="{options.text}" />'
+        )
+        parts.append(text(sx(tick), top + plot_h + 22, number_text(tick, options.decimals)))
+    for index, count in enumerate(counts):
+        if data["constant"]:
+            x0, x1 = sx(edges[0]) - plot_w * 0.04, sx(edges[0]) + plot_w * 0.04
+            label = f"Усі значення = {number_text(edges[0], options.decimals)}"
+        else:
+            x0, x1 = sx(edges[index]), sx(edges[index + 1])
+            label = bin_text(edges, index, options.decimals)
+        share = 100 * count / n if n else 0
+        detail = f"{label}: {count} рядків ({share:.1f}% від n={n})"
+        bar_h = plot_h - (sy(count) - top)
+        parts.append(
+            f'<g class="chart-item" tabindex="0" role="img" aria-label="{escape(detail, quote=True)}">'
+            f"<title>{escape(detail)}</title>"
+            f'<rect x="{x0:.2f}" y="{top:.2f}" width="{max(x1 - x0, 1):.2f}" height="{plot_h}" '
+            f'fill="transparent" />'
+            f'<rect x="{x0 + 0.5:.2f}" y="{sy(count):.2f}" width="{max(x1 - x0 - 1, 1):.2f}" '
+            f'height="{max(bar_h, 0):.2f}" fill="{options.accent}" '
+            f'fill-opacity="{options.histogram_opacity:g}" /></g>'
+        )
+    # Bars start at zero: the baseline is always drawn.
+    parts.append(
+        f'<line x1="{left}" x2="{left + plot_w}" y1="{top + plot_h}" y2="{top + plot_h}" '
+        f'stroke="{options.text}" stroke-width="1" />'
+    )
+    median = data.get("median")
+    if options.histogram_median and median is not None:
+        mx = sx(median)
+        parts.append(
+            f'<line class="median-line" x1="{mx:.2f}" x2="{mx:.2f}" y1="{top - 8}" '
+            f'y2="{top + plot_h}" stroke="{options.negative}" stroke-width="2" '
+            f'stroke-dasharray="6 4" />'
+        )
+        anchor = "start" if mx < left + plot_w * 0.75 else "end"
+        offset = 6 if anchor == "start" else -6
+        parts.append(
+            text(
+                mx + offset,
+                top - 12,
+                "Медіана " + number_text(median, options.decimals),
+                anchor,
+                options.label_size,
+            )
+        )
+    if options.frame:
+        parts.append(
+            f'<rect x="{left}" y="{top}" width="{plot_w}" height="{plot_h}" fill="none" '
+            f'stroke="{options.text}" />'
+        )
+    if options.axis_labels:
+        parts.append(text(left + plot_w / 2, height - 30, name, size=options.label_size))
+        parts.append(
+            f'<text x="22" y="{top + plot_h / 2:.2f}" text-anchor="middle" '
+            f'font-size="{options.label_size}" fill="{options.text}" '
+            f'transform="rotate(-90 22 {top + plot_h / 2:.2f})">Кількість рядків</text>'
+        )
     parts.append("</svg>")
     return "".join(parts)

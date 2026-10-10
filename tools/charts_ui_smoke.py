@@ -1,4 +1,4 @@
-"""Stage04 browser acceptance on a separate test server; bootstrap fixture via API."""
+"""Stage 04 browser acceptance (heatmap, histogram, settings) on a separate test server."""
 
 import json
 import sys
@@ -10,7 +10,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 B = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8895"
-SHOTS = ROOT / "design" / "reviews" / "050-charts"
+SHOTS = ROOT / "design" / "reviews" / "052-histogram"
 SHOTS.mkdir(parents=True, exist_ok=True)
 results, errors, external = [], [], []
 
@@ -85,6 +85,24 @@ with sync_playwright() as pw:
     ok("invalid configuration rejected", True)
     page.get_by_role("button", name="Відновити початкові налаштування", exact=True).click()
     page.wait_for_timeout(800)
+    page.get_by_role("button", name="Гістограма", exact=True).click()
+    page.locator(".histogram .chart-item").first.wait_for()
+    ok(
+        "settings histogram preview with median",
+        page.locator(".histogram .chart-item").count() == 20
+        and page.locator(".histogram .median-line").count() == 1,
+    )
+    page.get_by_role("checkbox", name="Лінія медіани", exact=True).click()
+    page.get_by_label("Інтервалів за замовчуванням (5–60)", exact=True).fill("10")
+    page.wait_for_timeout(500)
+    ok(
+        "histogram preview follows bins and median switch",
+        page.locator(".histogram .chart-item").count() == 10
+        and page.locator(".histogram .median-line").count() == 0,
+    )
+    page.screenshot(path=str(SHOTS / "settings-histogram.png"), full_page=True)
+    page.get_by_role("button", name="Відновити початкові налаштування", exact=True).click()
+    page.wait_for_timeout(800)
     page.screenshot(path=str(SHOTS / "settings.png"), full_page=True)
     ok(
         "reset restores defaults",
@@ -142,6 +160,61 @@ with sync_playwright() as pw:
             sum(e["operation"] == "chart.built" for e in events) == 2
             and not any(e["operation"] == "statistics.calculated" for e in events),
         )
+    page.goto(B + f"/?project={project}&dataset={dataset}&view=charts&chart=histogram")
+    page.get_by_label("Числове поле", exact=True).click()
+    page.get_by_role("option", name="Price", exact=True).click()
+    page.get_by_role("button", name="Побудувати", exact=True).click()
+    page.locator(".histogram .chart-item").first.wait_for()
+    bars = page.locator(".histogram .chart-item")
+    labels = [bars.nth(i).get_attribute("aria-label") for i in range(bars.count())]
+    total = sum(int(label.split(": ")[1].split(" ")[0]) for label in labels)
+    ok("histogram twenty bins sum equals n", len(labels) == 20 and total == 13580)
+    ok(
+        "histogram last bin closed includes max",
+        labels[-1].startswith("[") and "9 000 000]" in labels[-1],
+    )
+    ok(
+        "histogram facts and median from statistics",
+        page.get_by_text("сума частот 13 580 = n", exact=False).count() == 1
+        and page.get_by_text("Медіана (статистика 03): 903 000", exact=True).count() == 1
+        and page.locator(".histogram .median-line").count() == 1,
+    )
+    bars.nth(0).focus()
+    page.wait_for_timeout(100)
+    ok(
+        "keyboard bar shows bounds and count",
+        "рядків" in page.locator(".heatmap-detail").inner_text(),
+    )
+    page.get_by_text("Як розраховано · формули", exact=True).click()
+    page.wait_for_function("document.querySelectorAll('.math-formula mjx-container').length === 4")
+    ok(
+        "four histogram formulas rendered",
+        page.locator(".math-formula[data-rendered=ok]").count() == 4,
+    )
+    page.evaluate("scrollTo(0,0)")
+    page.wait_for_timeout(200)
+    page.screenshot(path=str(SHOTS / "histogram.png"), full_page=True)
+    page.get_by_role("button", name="Ширина інтервалу", exact=True).click()
+    page.get_by_label("Ширина інтервалу (> 0)", exact=True).fill("500000")
+    page.get_by_role("button", name="Побудувати", exact=True).click()
+    page.get_by_text("Інтервалів: 18 (задана ширина)", exact=False).wait_for()
+    ok("width mode builds eighteen bins", page.locator(".histogram .chart-item").count() == 18)
+    page.get_by_label("Ширина інтервалу (> 0)", exact=True).fill("1000")
+    page.get_by_role("button", name="Побудувати", exact=True).click()
+    page.get_by_text("допустимо до 200", exact=False).wait_for()
+    ok("too narrow width explained", True)
+    with httpx.Client(base_url=B) as api:
+        events = api.get(f"/api/projects/{project}/events").json()["data"]
+        histogram_events = [
+            e
+            for e in events
+            if e["operation"] == "chart.built" and e["payload"].get("chart") == "histogram"
+        ]
+        ok(
+            "histogram events success and error logged",
+            [e["payload"]["status"] for e in histogram_events].count("success") == 2
+            and [e["payload"]["status"] for e in histogram_events].count("error") == 1,
+        )
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_timeout(500)
     ok(
@@ -157,7 +230,7 @@ with sync_playwright() as pw:
     ok("no browser errors", not errors)
     browser.close()
 
-(ROOT / "tmp" / "charts050-results.json").write_text(
+(ROOT / "tmp" / "charts052-results.json").write_text(
     json.dumps(
         {"results": results, "errors": errors, "external": external}, ensure_ascii=False, indent=2
     ),

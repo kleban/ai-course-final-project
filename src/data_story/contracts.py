@@ -3,7 +3,15 @@
 from typing import Annotated, Any, Generic, Literal, TypeVar
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, FiniteFloat, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    field_validator,
+    model_validator,
+)
 
 from .chart_configuration import ChartOptions, Theme
 from .configuration import INSTRUCTION_LIMIT
@@ -313,6 +321,49 @@ class HeatmapView(StrictModel):
     n: list[list[int]]
     reasons: list[list[str | None]]
     excluded: dict[str, str]
+    theme: Theme
+    options: ChartOptions
+    svg: str
+
+
+class HistogramQuery(StrictModel):
+    """One numeric field; either a bin count (5-60) or an explicit bin width, not both."""
+
+    dataset_id: UUID
+    field: Annotated[str, Field(strict=True, min_length=1)]
+    bins: Annotated[int, Field(strict=True, ge=5, le=60)] | None = None
+    bin_width: Annotated[FiniteFloat, Field(gt=0)] | None = None
+    options: ChartOptions | None = None
+    title: Annotated[str, Field(strict=True, max_length=180)] = ""
+
+    @model_validator(mode="after")
+    def one_mode(self) -> "HistogramQuery":
+        if self.bins is not None and self.bin_width is not None:
+            raise ValueError("Оберіть або кількість інтервалів, або їх ширину.")
+        return self
+
+
+class HistogramView(StrictModel):
+    dataset_id: UUID
+    project_id: UUID
+    sha256: str
+    row_count: int
+    metadata_state: str
+    warnings: list[str]
+    field: StatisticsField
+    n: int
+    missing: int | None
+    invalid_infinite: int
+    mode: Literal["count", "width"]
+    edges: list[FiniteFloat]
+    counts: list[int]
+    width: FiniteFloat | None
+    minimum: FiniteFloat | None
+    maximum: FiniteFloat | None
+    median: FiniteFloat | None
+    small_sample: bool
+    constant: bool
+    reason: str | None
     theme: Theme
     options: ChartOptions
     svg: str

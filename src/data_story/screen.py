@@ -405,6 +405,7 @@ def projects_screen(
     selected: str | None,
     dataset_id: str | None = None,
     view: str | None = None,
+    chart: str | None = None,
 ) -> None:
     active_result = service.get(selected) if selected else None
     active = active_result.data if isinstance(active_result, Success) else None
@@ -428,9 +429,9 @@ def projects_screen(
         if isinstance(active_result, Failure):
             error_line(active_result)
         if active and view == "charts":
-            from .chart_screen import heatmap_screen
+            from .chart_screen import charts_screen
 
-            heatmap_screen(service, active, dataset_id)
+            charts_screen(service, active, dataset_id, chart)
         elif active and view == "statistics":
             statistics_screen(service, active, dataset_id)
         elif active and dataset_id and view == "metadata":

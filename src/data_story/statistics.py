@@ -2,6 +2,7 @@
 
 import hashlib
 import math
+from collections.abc import Callable
 from time import perf_counter
 from typing import Any, Literal
 
@@ -35,8 +36,12 @@ def calculate(
     metadata: Metadata,
     view: View,
     fields: list[str] | None = None,
+    values_for: str | None = None,
 ) -> dict[str, Any]:
     """Calculate one view from a snapshot; invalid field rules do not hide other fields.
+
+    ``values_for`` returns the cleaned finite values of one numeric field (stage 04
+    histogram) using exactly these missing/infinity rules; nothing is recalculated elsewhere.
 
     A malformed numeric missing code invalidates that field's additional count and the
     dataset-wide missing union. Known base counts stay visible, never presented as totals.
@@ -175,6 +180,15 @@ def calculate(
         if view == "missing":
             item.pop("statistics")
         result["columns"].append(item)
+    if values_for is not None:
+        if values_for not in numeric:
+            known = {c.name for c in metadata.document.columns}
+            raise StatisticsError(
+                excluded.get(values_for, "Поле не знайдено в наборі.")
+                if values_for in known
+                else "Поле не знайдено в наборі."
+            )
+        result["values"] = numeric[values_for].dropna().astype(float).tolist()
     if view == "missing":
         result["rows_with_missing"] = int(union.sum()) if union_valid else None
         result["rows_with_missing_percent"] = (
@@ -226,9 +240,12 @@ class StatisticsStore:
         view: View,
         fields: list[str] | None = None,
         *,
+        values_for: str | None = None,
         operation: str = "statistics.calculated",
         audit_extra: dict[str, Any] | None = None,
+        finish: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        """``finish`` derives chart data inside the audited block: its errors log as errors."""
         started = perf_counter()
         ProjectStore(self.datasets.database).get(project_id)
         audit: dict[str, Any] = {
@@ -268,14 +285,22 @@ class StatisticsStore:
                 else "none",
                 metadata_updated_at=metadata.updated_at,
             )
-            result = calculate(frame, dataset.profile, metadata, view, fields)
+            result = calculate(frame, dataset.profile, metadata, view, fields, values_for)
             result.update(project_id=project_id, dataset_id=dataset_id, sha256=audit["sha256"])
             audit.update(
                 {key: result[key] for key in ("metadata_state", "metadata_updated_at", "row_count")}
             )
-            audit["fields"] = result.get("fields", [c["name"] for c in result["columns"]])
-            if operation == "chart.built":
-                audit["pair_counts"] = result.get("n", [])
+            audit["fields"] = (
+                [values_for]
+                if values_for is not None
+                else result.get("fields", [c["name"] for c in result["columns"]])
+            )
+            if operation == "chart.built" and "n" in result:
+                audit["pair_counts"] = result["n"]
+            if "values" in result:
+                audit["value_count"] = len(result["values"])
+            if finish is not None:
+                audit.update(finish(result))
             audit["status"] = "success"
             return result
         except (StatisticsError, DatasetError, LookupError, OSError, ValueError) as error:

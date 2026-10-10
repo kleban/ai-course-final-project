@@ -20,7 +20,7 @@
   document.addEventListener('focusin', detail);
   document.addEventListener('click', detail);
   function detail(event) {
-    const cell = event.target.closest?.('.heatmap-cell');
+    const cell = event.target.closest?.('.heatmap-cell, .chart-item');
     const out = cell?.closest('.heatmap-wrap')?.querySelector('.heatmap-detail');
     if (out) out.textContent = cell.getAttribute('aria-label');
   }

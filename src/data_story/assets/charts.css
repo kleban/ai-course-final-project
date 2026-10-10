@@ -13,3 +13,12 @@
 .math-formula {overflow-x:auto;padding:12px 0;width:100%;color:#202124;font-size:18px;}
 .math-formula mjx-container[display="true"] {text-align:left!important;margin:0!important;}
 .heatmap-scroll svg text {user-select:none;}
+.chart-choice {display:flex;flex-wrap:wrap;gap:16px;align-items:center;width:100%;margin:8px 0;}
+.chart-type {border:1px solid #c9ced6;}
+.chart-options-title {font-weight:600;margin-top:12px;}
+.chart-facts {font-size:14px;}
+.histogram {display:block;max-width:none;}
+.chart-item {cursor:pointer;}
+.chart-item:focus {outline:none;}
+.chart-item:focus rect + rect {stroke:#000;stroke-width:2;stroke-dasharray:4 2;}
+.chart-field, .chart-choice .q-select {min-width:260px;}

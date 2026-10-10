@@ -8,7 +8,14 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from .chart_configuration import ChartConfiguration, ChartConfigurationStore
-from .charts import contrast_warnings, heatmap_svg
+from .charts import (
+    SMALL_SAMPLE,
+    BinningError,
+    contrast_warnings,
+    heatmap_svg,
+    histogram_bins,
+    histogram_svg,
+)
 from .configuration import InstructionStore
 from .contracts import (
     DatasetCandidate,
@@ -21,6 +28,8 @@ from .contracts import (
     FieldIssue,
     HeatmapQuery,
     HeatmapView,
+    HistogramQuery,
+    HistogramView,
     InstructionUpdate,
     InstructionView,
     MetadataIssue,
@@ -466,6 +475,79 @@ class ProjectService:
             )
 
         return execute(action)
+
+    def histogram(self, project_id: str, raw: object) -> Success[HistogramView] | Failure:
+        def action() -> HistogramView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(HistogramQuery, raw)
+            configuration = self.chart_config.get()
+            options = query.options or configuration.effective()
+            bins = None if query.bin_width is not None else query.bins or options.histogram_bins
+            result = self.statistics_store.calculate(
+                validated,
+                str(query.dataset_id),
+                "descriptive",
+                values_for=query.field,
+                operation="chart.built",
+                audit_extra={
+                    "chart": "histogram",
+                    "theme": configuration.theme,
+                    "temporary_options": query.options is not None,
+                    "options": options.model_dump(),
+                    "title": query.title,
+                    "bins": bins,
+                    "bin_width": query.bin_width,
+                },
+                finish=lambda result: bin_values(result, bins, query.bin_width),
+            )
+            values = result.pop("values")
+            binned = result.pop("histogram")
+            column = next(c for c in result["columns"] if c["name"] == query.field)
+            stats = column["statistics"] or {}
+            binned["median"] = stats.get("median")
+            descriptor = {k: column[k] for k in ("name", "label", "unit", "kind", "role")}
+            warnings = result["warnings"] + contrast_warnings(options)
+            small = 0 < len(values) < SMALL_SAMPLE
+            if small:
+                warnings.append(
+                    f"Малий набір: n={len(values)} (< {SMALL_SAMPLE}); форма розподілу нестійка."
+                )
+            return HistogramView(
+                **{
+                    k: result[k]
+                    for k in ("dataset_id", "project_id", "sha256", "row_count", "metadata_state")
+                },
+                warnings=warnings,
+                field=StatisticsField(**descriptor),
+                n=len(values),
+                missing=column["missing"],
+                invalid_infinite=column["invalid_infinite"],
+                mode=binned["mode"],
+                edges=binned["edges"],
+                counts=binned["counts"],
+                width=binned["width"],
+                minimum=stats.get("min"),
+                maximum=stats.get("max"),
+                median=binned["median"],
+                small_sample=small,
+                constant=binned["constant"],
+                reason=binned["reason"],
+                theme=configuration.theme,
+                options=options,
+                svg=histogram_svg(binned, descriptor, options, query.title) if values else "",
+            )
+
+        return execute(action)
+
+
+def bin_values(result: dict[str, Any], bins: int | None, width: float | None) -> dict[str, Any]:
+    """Bin inside the audited statistics call; returns what the chart event records."""
+    try:
+        binned = histogram_bins(result["values"], bins, width)
+    except BinningError as error:
+        raise StatisticsError(str(error)) from error
+    result["histogram"] = binned
+    return {"bin_count": len(binned["counts"]), "bin_counts": binned["counts"]}
 
 
 def _known(project_type: str) -> str:

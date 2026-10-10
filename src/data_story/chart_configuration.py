@@ -16,6 +16,8 @@ Color = Annotated[str, Field(strict=True, pattern=r"^#[0-9a-fA-F]{6}$")]
 
 
 class ChartOptions(BaseModel):
+    """Flat option set. New fields need defaults so earlier saved custom themes stay valid."""
+
     model_config = ConfigDict(extra="forbid", strict=True)
     font: Literal["Open Sans", "IBM Plex Sans", "STIX Two Text"] = "Open Sans"
     title_size: Annotated[int, Field(ge=16, le=32)] = 22
@@ -31,10 +33,20 @@ class ChartOptions(BaseModel):
     frame: bool = False
     threshold_enabled: bool = False
     threshold: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)] = 0.3
+    # Shared axes/colours for charts with axes (from history 052, histogram first).
+    accent: Color = "#1B4F8A"
+    axis_labels: bool = True
+    grid_x: bool = False
+    grid_y: bool = True
+    # Histogram: default bin count (5-60), median line, bar opacity.
+    histogram_bins: Annotated[int, Field(ge=5, le=60)] = 20
+    histogram_median: bool = True
+    histogram_opacity: Annotated[float, Field(ge=0.2, le=1, allow_inf_nan=False)] = 0.85
 
 
 def preset(theme: Literal["storytelling", "academic"]) -> ChartOptions:
-    return ChartOptions(lower_triangle=theme != "academic", frame=theme == "academic")
+    academic = theme == "academic"
+    return ChartOptions(lower_triangle=not academic, frame=academic, grid_x=academic)
 
 
 class ChartConfiguration(BaseModel):

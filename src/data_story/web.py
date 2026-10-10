@@ -20,6 +20,8 @@ from .contracts import (
     Failure,
     HeatmapQuery,
     HeatmapView,
+    HistogramQuery,
+    HistogramView,
     InstructionUpdate,
     InstructionView,
     MetadataSourceView,
@@ -66,6 +68,12 @@ def router(service: ProjectService) -> APIRouter:
     )
     def heatmap(project_id: str, query: HeatmapQuery):
         return response(service.heatmap(project_id, query.model_dump(mode="json")))
+
+    @api.post(
+        "/projects/{project_id}/charts/histogram", response_model=Success[HistogramView] | Failure
+    )
+    def histogram(project_id: str, query: HistogramQuery):
+        return response(service.histogram(project_id, query.model_dump(mode="json")))
 
     @api.get("/projects", response_model=Success[list[ProjectView]] | Failure)
     def list_projects():
@@ -232,7 +240,13 @@ def configure(settings: Settings) -> None:
     @ui.page("/")
     def projects_page(request: Request):
         query = request.query_params
-        projects_screen(service, query.get("project"), query.get("dataset"), query.get("view"))
+        projects_screen(
+            service,
+            query.get("project"),
+            query.get("dataset"),
+            query.get("view"),
+            query.get("chart"),
+        )
 
     @ui.page("/settings")
     def settings_page(request: Request):
