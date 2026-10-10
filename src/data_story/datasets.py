@@ -22,8 +22,8 @@ from pandas.api import types as ptypes
 from .projects import ProjectStore
 from .storage import connect, ensure_schema
 
-MAX_BYTES = 20 * 1024 * 1024
-FORMATS = {".csv": "csv", ".xlsx": "xlsx"}
+MAX_BYTES = 5 * 1024 * 1024
+FORMATS = {".csv": "csv"}
 PREVIEW_ROWS = 20
 NAME_LIMIT = 200
 ENCODINGS = ("utf-8-sig", "cp1251")
@@ -78,7 +78,7 @@ def clean_name(filename: object) -> str:
 def file_format(name: str) -> str:
     suffix = PurePath(name).suffix.lower()
     if suffix not in FORMATS:
-        raise DatasetError("Формат: підтримуються лише файли CSV і XLSX.")
+        raise DatasetError("Формат: підтримуються лише файли CSV.")
     return FORMATS[suffix]
 
 
@@ -110,30 +110,24 @@ def read_table(
 ) -> tuple[pd.DataFrame, dict]:
     """Parse bytes into a DataFrame. `meta` (encoding, delimiter) repeats an earlier detection."""
     meta = dict(meta or {})
+    if fmt != "csv":
+        raise DatasetError("Формат: підтримуються лише файли CSV.")
     try:
-        if fmt == "csv":
-            if "encoding" in meta:
-                text = content.decode(meta["encoding"])
-            else:
-                text, meta["encoding"] = _decode(content)
-            if not text.strip():
-                raise DatasetError("Файл порожній.")
-            meta.setdefault("delimiter", _delimiter(text))
-            frame = pd.read_csv(io.StringIO(text), sep=meta["delimiter"], nrows=nrows)
+        if "encoding" in meta:
+            text = content.decode(meta["encoding"])
         else:
-            if not content.startswith(b"PK"):
-                raise DatasetError("XLSX: файл пошкоджений або не є книгою Excel.")
-            book = pd.ExcelFile(io.BytesIO(content), engine="openpyxl")
-            meta.setdefault("sheet", str(book.sheet_names[0]))
-            meta["sheets"] = len(book.sheet_names)
-            frame = book.parse(meta["sheet"], nrows=nrows)
+            text, meta["encoding"] = _decode(content)
+        if not text.strip():
+            raise DatasetError("Файл порожній.")
+        meta.setdefault("delimiter", _delimiter(text))
+        frame = pd.read_csv(io.StringIO(text), sep=meta["delimiter"], nrows=nrows)
     except DatasetError:
         raise
     except pd.errors.EmptyDataError as error:
         raise DatasetError("Файл порожній: немає заголовків і даних.") from error
     except pd.errors.ParserError as error:
         raise DatasetError(f"CSV: неправильна структура рядків ({error}).") from error
-    except Exception as error:  # broken zip, xml, unexpected bytes
+    except Exception as error:  # unexpected bytes or structure
         raise DatasetError("Файл пошкоджений або має непідтримувану структуру.") from error
     frame.columns = [str(c) for c in frame.columns]
     if frame.shape[1] == 0:

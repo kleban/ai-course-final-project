@@ -147,7 +147,7 @@ class ContractAndApiTests(unittest.TestCase):
             f"/api/projects/{project.id}/datasets", files={"file": ("notes.txt", b"a\n1\n")}
         )
         self.assertEqual(refused.status_code, 422)
-        self.assertIn("CSV і XLSX", refused.json()["error"]["message"])
+        self.assertIn("лише файли CSV", refused.json()["error"]["message"])
         missing_project = self.client.post(
             f"/api/projects/{uuid4()}/datasets", files={"file": ("a.csv", b"a\n1\n")}
         )

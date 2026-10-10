@@ -51,5 +51,4 @@ if __name__ == "__main__":
     target = ROOT / "samples"
     target.mkdir(exist_ok=True)
     data.to_csv(target / "demo_apartments.csv", sep=";", index=False, encoding="utf-8")
-    data.to_excel(target / "demo_apartments.xlsx", sheet_name="Квартири", index=False)
     print(f"{len(data)} rows → {target}")

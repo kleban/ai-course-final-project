@@ -63,7 +63,7 @@ EVENT_TITLES = {
     "metadata.confirmed": ("Підтверджено метадані", "check"),
     "metadata.source_added": ("Додано опис даних", "doc"),
 }
-FORMAT_TITLES = {"csv": "CSV", "xlsx": "XLSX"}
+FORMAT_TITLES = {"csv": "CSV"}
 
 
 def asset_version(name: str) -> str:
@@ -458,7 +458,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
     )
     with ui.element("div").classes("grid grid-4"):
         kpi(kind.icon, "Тип аналізу", kind.title, kind.description, accent=True)
-        kpi("data", "Наборів даних", str(len(datasets)), "CSV або XLSX до 20 МБ")
+        kpi("data", "Наборів даних", str(len(datasets)), f"CSV до {MAX_BYTES // (1024 * 1024)} МБ")
         kpi("when", "Створено", date(active.created_at), active.created_at.strftime("%H:%M UTC"))
         kpi("journal", "Подій у журналі", str(len(events)), f"відкрито {opened} раз(и)")
 
@@ -537,7 +537,7 @@ def datasets_section(service: ProjectService, active: ProjectView, listing) -> N
         ui.label("Дані").classes("section-title")
     ui.label(
         "Завантажте таблицю CSV (UTF-8 або Windows-1251, роздільник визначається автоматично) "
-        "чи XLSX (перший аркуш), до 20 МБ. Оригінал зберігається без змін."
+        f"до {MAX_BYTES // (1024 * 1024)} МБ. Оригінал зберігається без змін."
     ).classes("section-lead")
     message = ui.label("").classes("error-message")
 
@@ -553,7 +553,7 @@ def datasets_section(service: ProjectService, active: ProjectView, listing) -> N
         ui.navigate.to(f"/?project={project_id}&dataset={result.data.id}")
 
     def rejected() -> None:
-        message.set_text("Файл не прийнято: підтримуються CSV і XLSX до 20 МБ.")
+        message.set_text(f"Файл не прийнято: підтримується CSV до {MAX_BYTES // (1024 * 1024)} МБ.")
 
     upload = (
         ui.upload(
@@ -563,7 +563,7 @@ def datasets_section(service: ProjectService, active: ProjectView, listing) -> N
             on_upload=uploaded,
             on_rejected=rejected,
         )
-        .props('accept=".csv,.xlsx" flat bordered square')
+        .props('accept=".csv" flat bordered square')
         .classes("uploader")
     )
 
@@ -610,15 +610,13 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
         return
     data = result.data
     source = data.source
-    details = [FORMAT_TITLES[data.file_format], file_size(data.size_bytes)]
-    if data.file_format == "csv":
-        delimiter = {"\t": "табуляція", ";": "крапка з комою", ",": "кома", "|": "риска"}
-        details += [
-            f"кодування {source.get('encoding', '?')}",
-            f"роздільник: {delimiter.get(source.get('delimiter', ''), source.get('delimiter', '?'))}",
-        ]
-    else:
-        details.append(f"аркуш «{source.get('sheet', '?')}» з {source.get('sheets', '?')}")
+    delimiter = {"\t": "табуляція", ";": "крапка з комою", ",": "кома", "|": "риска"}
+    details = [
+        FORMAT_TITLES[data.file_format],
+        file_size(data.size_bytes),
+        f"кодування {source.get('encoding', '?')}",
+        f"роздільник: {delimiter.get(source.get('delimiter', ''), source.get('delimiter', '?'))}",
+    ]
     page_header("Набір даних · " + active.name, "data", data.name, " · ".join(details))
 
     cells = data.row_count * data.column_count

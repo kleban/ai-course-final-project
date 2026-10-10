@@ -21,11 +21,7 @@ CSV = "площа;кімнат;район;ціна\n45,5;1;Центр;2100\n60;2
 
 def xlsx_bytes() -> bytes:
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        pd.DataFrame({"x": [1, 2, 3], "y": [2.5, None, 7.0]}).to_excel(
-            writer, sheet_name="Дані", index=False
-        )
-        pd.DataFrame({"other": ["a"]}).to_excel(writer, sheet_name="Інше", index=False)
+    pd.DataFrame({"x": [1, 2, 3]}).to_excel(buffer, sheet_name="Дані", index=False)
     return buffer.getvalue()
 
 
@@ -69,19 +65,22 @@ class DatasetTests(unittest.TestCase):
         self.assertEqual(dataset.profile["encoding"], "cp1251")
         self.assertEqual(self.store.preview(dataset.id).rows[1], ["Львів", "2"])
 
-    def test_xlsx_uses_first_sheet_and_reports_sheet_count(self):
-        dataset = self.store.add(self.project.id, "Книга.XLSX", xlsx_bytes())
-        self.assertEqual(dataset.file_format, "xlsx")
-        self.assertEqual((dataset.profile["sheet"], dataset.profile["sheets"]), ("Дані", 2))
-        self.assertEqual((dataset.row_count, dataset.column_count), (3, 2))
-        self.assertEqual(self.store.preview(dataset.id).rows[1], ["2", None])
+    def test_only_csv_is_accepted_and_limit_is_5_mb(self):
+        self.assertEqual(MAX_BYTES, 5 * 1024 * 1024)
+        with self.assertRaisesRegex(DatasetError, "лише файли CSV"):
+            self.store.add(self.project.id, "Книга.XLSX", xlsx_bytes())
+        exact = b"a\n" + b"1\n" * ((MAX_BYTES - 2) // 2)
+        self.assertEqual(len(exact), MAX_BYTES)
+        self.assertEqual(self.store.add(self.project.id, "межа.csv", exact).size_bytes, MAX_BYTES)
+        with self.assertRaisesRegex(DatasetError, "5 МБ"):
+            self.store.add(self.project.id, "завеликий.csv", exact + b"1")
 
     def test_bad_files_are_rejected_without_rows_or_files(self):
         cases = [
             ("notes.txt", b"a,b\n1,2\n"),
             ("empty.csv", b""),
             ("blank.csv", b"   \n"),
-            ("broken.xlsx", b"PK\x03\x04 not really a workbook"),
+            ("table.xlsx", b"PK\x03\x04 not really a workbook"),
             ("text.xlsx", b"a,b\n1,2\n"),
             ("big.csv", b"a\n" + b"1\n" * (MAX_BYTES // 2)),
             ("", b"a\n1\n"),
@@ -122,14 +121,12 @@ class DatasetTests(unittest.TestCase):
         self.assertEqual(self.stored_files(), [])
 
     def test_demo_samples_upload_as_regression_ready_tables(self):
-        for name in ("demo_apartments.csv", "demo_apartments.xlsx"):
-            with self.subTest(name=name):
-                content = (ROOT / "samples" / name).read_bytes()
-                dataset = self.store.add(self.project.id, name, content)
-                self.assertEqual((dataset.row_count, dataset.column_count), (150, 7))
-                kinds = {c["name"]: c["kind"] for c in dataset.profile["columns"]}
-                self.assertEqual(kinds["ціна_тис_грн"], "number")
-                self.assertEqual(kinds["район"], "text")
+        name = "demo_apartments.csv"
+        dataset = self.store.add(self.project.id, name, (ROOT / "samples" / name).read_bytes())
+        self.assertEqual((dataset.row_count, dataset.column_count), (150, 7))
+        kinds = {c["name"]: c["kind"] for c in dataset.profile["columns"]}
+        self.assertEqual(kinds["ціна_тис_грн"], "number")
+        self.assertEqual(kinds["район"], "text")
 
 
 if __name__ == "__main__":

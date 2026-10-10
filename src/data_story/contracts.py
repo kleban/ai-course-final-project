@@ -103,7 +103,7 @@ class DatasetView(StrictModel):
     id: UUID
     project_id: UUID
     name: str
-    file_format: Literal["csv", "xlsx"]
+    file_format: Literal["csv"]
     size_bytes: int
     row_count: int
     column_count: int
