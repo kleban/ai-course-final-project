@@ -319,7 +319,7 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 
 .markdown-editor:not(.show-preview) .toastui-editor-main .toastui-editor-md-splitter { display:none; }
 
-/* Source Markdown stays plain; only the separate preview renders formatting. */
+/* Markdown source: uniform size with syntax emphasis; preview is separate. */
 .markdown-editor { border:1px solid var(--grid); }
 .markdown-tools { border-top:0; padding:4px; }
 .markdown-tools .btn { position:relative; width:36px; height:36px; padding:6px; justify-content:center; }
@@ -332,8 +332,19 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .markdown-status { padding:8px 12px; }
 .markdown-editor .toastui-editor-md-container .ProseMirror,
 .markdown-editor .toastui-editor-md-container .ProseMirror * {
-  font-family:var(--mono); font-size:14px; font-weight:400; font-style:normal;
-  line-height:1.65; color:var(--ink); text-decoration:none; letter-spacing:normal;
-  background:transparent; border:0; border-radius:0;
+  font-family:var(--mono); font-size:14px;
+  line-height:1.65; letter-spacing:normal;
 }
-.markdown-editor .toastui-editor-md-container .ProseMirror [class*="toastui-editor-md-"] { padding:0; margin:0; }
+.markdown-editor .toastui-editor-md-container .ProseMirror { color:var(--ink); }
+/* The empty upstream toolbar wrapper still reserves 46px unless hidden too. */
+.markdown-editor .toastui-editor-defaultUI > .toastui-editor-toolbar { display:none; }
+.markdown-editor .ProseMirror .toastui-editor-md-delimiter,
+.markdown-editor .ProseMirror .toastui-editor-md-meta,
+.markdown-editor .ProseMirror .toastui-editor-md-table,
+.markdown-editor .ProseMirror .toastui-editor-md-thematic-break { color:var(--ink2); }
+.markdown-editor .ProseMirror .toastui-editor-md-heading,
+.markdown-editor .ProseMirror .toastui-editor-md-link,
+.markdown-editor .ProseMirror .toastui-editor-md-list-item-style,
+.markdown-editor .ProseMirror .toastui-editor-md-code.toastui-editor-md-marked-text { color:var(--primary); }
+.markdown-editor .ProseMirror .toastui-editor-md-code { background:var(--shade); border-radius:0; }
+

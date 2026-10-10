@@ -116,15 +116,23 @@ with sync_playwright() as pw:
     pg.screenshot(path=str(SHOTS / "markdown-preview.png"))
     pg.get_by_role("button", name="Перегляд", exact=True).click()
     pg.get_by_text("Підказки Markdown", exact=True).click()
-    draft = "## Перевірка Markdown\n\nУкраїнський **текст**.\n\n- Перший пункт\n- Другий пункт\n\n| Поле | Опис |\n| --- | --- |\n| Ціна | грн |\n\n```python\nx = 1\n```"
+    draft = "## Перевірка Markdown\n\nУкраїнський **текст** і *курсив*.\n\n- Перший пункт\n- Другий пункт\n\n| Поле | Опис |\n| --- | --- |\n| Ціна | грн |\n\n```python\nx = 1\n```"
     editor.fill(draft)
     ok(
-        "plain Markdown source",
-        editor.evaluate("""el => [...el.querySelectorAll('[class*=toastui-editor-md-]')].every(n => {
-            const s = getComputedStyle(n);
-            return s.fontSize === '14px' && s.fontWeight === '400'
-                && s.fontStyle === 'normal' && s.color === 'rgb(38, 38, 38)';
-        })"""),
+        "uniform Markdown source size",
+        editor.evaluate("""el => [...el.querySelectorAll('[class*=toastui-editor-md-]')].every(n =>
+            getComputedStyle(n).fontSize === '14px')"""),
+    )
+    ok(
+        "Markdown bold italic and colour",
+        editor.evaluate("""el => getComputedStyle(el.querySelector('.toastui-editor-md-strong')).fontWeight === '700'
+            && getComputedStyle(el.querySelector('.toastui-editor-md-emph')).fontStyle === 'italic'
+            && getComputedStyle(el.querySelector('.toastui-editor-md-heading')).color === 'rgb(23, 70, 144)'"""),
+    )
+    ok(
+        "no empty toolbar gap",
+        pg.locator(".toastui-editor-defaultUI").evaluate("""el =>
+            el.querySelector('.toastui-editor-main').getBoundingClientRect().top - el.getBoundingClientRect().top <= 2"""),
     )
     # Save immediately after input: verifies that the last edit is not lost in transit.
     pg.get_by_text("Зберегти інструкцію", exact=True).click()
@@ -139,7 +147,8 @@ with sync_playwright() as pw:
     ok("table template inserted", "Пояснення" in editor.inner_text())
     pg.get_by_role("button", name="Скасувати", exact=True).click()
     ok("format undo", markdown(pg).strip() == draft)
-    pg.screenshot(path=str(SHOTS / "markdown-editor.png"))
+    editor.hover()
+    pg.screenshot(path=str(SHOTS / "markdown-editor.png"), full_page=True)
     editor.fill("")
     pg.get_by_text("Зберегти інструкцію", exact=True).click()
     pg.wait_for_timeout(500)
