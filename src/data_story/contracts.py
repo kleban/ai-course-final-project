@@ -97,6 +97,10 @@ class ColumnProfile(StrictModel):
     min: float | None = None
     max: float | None = None
     mean: float | None = None
+    date_format: str | None = None
+    date_ambiguous: bool = False
+    first: str | None = None
+    last: str | None = None
 
 
 class DatasetView(StrictModel):

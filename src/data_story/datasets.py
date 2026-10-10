@@ -29,6 +29,26 @@ NAME_LIMIT = 200
 ENCODINGS = ("utf-8-sig", "cp1251")
 DELIMITERS = ",;\t|"
 KIND_TITLES = {"number": "число", "text": "текст", "date": "дата", "bool": "так/ні"}
+# Explicit date formats, tried in order; a text column becomes a date only when every filled
+# value matches one format. Day-first comes before month-first (Ukrainian convention).
+DATE_FORMATS = (
+    "%Y-%m-%d",
+    "%Y-%m-%d %H:%M",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M",
+    "%Y-%m-%dT%H:%M:%S",
+    "%d.%m.%Y",
+    "%d.%m.%Y %H:%M",
+    "%d.%m.%Y %H:%M:%S",
+    "%d/%m/%Y",
+    "%d/%m/%Y %H:%M",
+    "%m/%d/%Y",
+    "%m/%d/%Y %H:%M",
+    "%d-%m-%Y",
+    "%Y/%m/%d",
+    "%Y.%m.%d",
+)
+DATE_FORMAT_TITLES = {"%Y": "РРРР", "%m": "ММ", "%d": "ДД", "%H": "гг", "%M": "хх", "%S": "сс"}
 
 
 class DatasetError(ValueError):
@@ -148,6 +168,46 @@ def _kind(series: pd.Series) -> str:
     return "text"
 
 
+def date_format_title(fmt: str) -> str:
+    """'%d/%m/%Y' -> 'ДД/ММ/РРРР' for the interface."""
+    for code, title in DATE_FORMAT_TITLES.items():
+        fmt = fmt.replace(code, title)
+    return fmt
+
+
+def detect_dates(series: pd.Series) -> tuple[str, pd.Series, bool] | None:
+    """Recognise a text column as dates without AI: one explicit format must fit all values.
+
+    Returns the format, the parsed filled values and whether another format also fits
+    (for example 03/04/2020 is valid both day-first and month-first).
+    """
+    if not ptypes.is_string_dtype(series) and not ptypes.is_object_dtype(series):
+        return None
+    values = series.dropna().astype(str).str.strip()
+    values = values[values != ""]
+    if values.empty:
+        return None
+    unique = pd.Series(values.unique())
+    matches = [
+        fmt
+        for fmt in DATE_FORMATS
+        if pd.to_datetime(unique, format=fmt, errors="coerce").notna().all()
+    ]
+    if not matches:
+        return None
+    parsed = pd.to_datetime(values, format=matches[0])
+    return matches[0], parsed, len(matches) > 1
+
+
+def _date_text(value: pd.Timestamp, fmt: str) -> str:
+    """ISO text with the same precision as the source format."""
+    if "%S" in fmt:
+        return value.isoformat(timespec="seconds")
+    if "%H" in fmt:
+        return value.isoformat(timespec="minutes")
+    return value.date().isoformat()
+
+
 def _number(value: Any) -> float | None:
     if value is None or pd.isna(value):
         return None
@@ -172,6 +232,17 @@ def profile(frame: pd.DataFrame) -> list[dict]:
             item.update(
                 min=_number(series.min()), max=_number(series.max()), mean=_number(series.mean())
             )
+        dates = detect_dates(series) if kind == "text" else None
+        if dates is not None:
+            fmt, parsed, ambiguous = dates
+            item.update(
+                kind="date",
+                date_format=fmt,
+                first=_date_text(parsed.min(), fmt),
+                last=_date_text(parsed.max(), fmt),
+            )
+            if ambiguous:
+                item["date_ambiguous"] = True
         columns.append(item)
     return columns
 

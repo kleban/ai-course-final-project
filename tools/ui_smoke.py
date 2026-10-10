@@ -14,6 +14,7 @@ from playwright.sync_api import sync_playwright
 
 B = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8899"
 SAMPLE = str(Path(__file__).resolve().parents[1] / "samples" / "demo_apartments.csv")
+MELBOURNE = str(Path(__file__).resolve().parents[1] / "samples" / "melb_data.csv")
 SHOTS = Path(__file__).resolve().parents[1] / "tmp" / "ui-smoke"
 SHOTS.mkdir(parents=True, exist_ok=True)
 errors, results = [], []
@@ -89,6 +90,23 @@ with sync_playwright() as pw:
         "metadata confirmed",
         pg.get_by_text("Підтверджено").count() >= 1 and pg.locator(".role.target").count() == 1,
     )
+    pg.goto(dataset_url.split("&dataset=")[0])
+    pg.wait_for_timeout(1500)
+    pg.locator(".uploader input[type=file]").first.set_input_files(MELBOURNE)
+    pg.wait_for_timeout(6000)
+    rows_text = pg.locator(".kpi-value").first.inner_text()
+    ok("Melbourne CSV uploaded", "".join(c for c in rows_text if c.isdigit()) == "13580")
+    date_row = pg.locator(".trow").filter(has=pg.get_by_text("Date", exact=True))
+    ok(
+        "CSV date column recognised",
+        date_row.get_by_text("дата", exact=True).count() == 1
+        and date_row.get_by_text("28.01.2016").count() == 1
+        and date_row.get_by_text("23.09.2017").count() == 1,
+    )
+    date_row.get_by_text("дата", exact=True).hover()
+    pg.wait_for_timeout(600)
+    ok("date format tooltip", pg.get_by_text("Дата у файлі: ДД/ММ/РРРР").count() == 1)
+    pg.screenshot(path=str(SHOTS / "melbourne-dataset.png"), full_page=True)
     pg.goto(B + "/settings")
     pg.wait_for_timeout(1200)
     ok("settings page", pg.get_by_text("Типи проєктів та інструкції").count() == 1)

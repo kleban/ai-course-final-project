@@ -6,6 +6,7 @@ Design follows the author's dashboard «Keeping the Lights On» (see assets/styl
 
 import hashlib
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from .contracts import (
     ProjectView,
     Success,
 )
-from .datasets import KIND_TITLES, MAX_BYTES
+from .datasets import KIND_TITLES, MAX_BYTES, date_format_title
 from .icons import GROUPS, ICONS
 from .markdown_editor import MarkdownEditor
 from .metadata import KIND_TITLES as META_KINDS
@@ -106,6 +107,14 @@ def error_line(result: Failure) -> None:
 
 def date(value) -> str:
     return value.strftime("%d.%m.%Y")
+
+
+def iso_date(value: str | None) -> str:
+    """Profile dates are ISO text; show them as 28.01.2016 (with time when it is known)."""
+    if not value:
+        return "—"
+    moment = datetime.fromisoformat(value)
+    return moment.strftime("%d.%m.%Y %H:%M" if "T" in value else "%d.%m.%Y")
 
 
 def type_of(project: ProjectView):
@@ -659,15 +668,24 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
                         ui.label(
                             " — ".join(x for x in (meta.label, meta.description) if x)
                         ).classes("hint")
-                ui.label(META_KINDS[meta.kind] if meta else KIND_TITLES[column.kind]).classes(
-                    "date"
-                )
+                kind_label = ui.label(
+                    META_KINDS[meta.kind] if meta else KIND_TITLES[column.kind]
+                ).classes("date")
+                if column.date_format:
+                    hint = f"Дата у файлі: {date_format_title(column.date_format)}"
+                    if column.date_ambiguous:
+                        hint += "; значення також підходять під порядок місяць/день"
+                    kind_label.tooltip(hint)
                 ui.label(ROLE_TITLES[meta.role] if meta else "—").classes(
                     "role target" if meta and meta.role == "target" else "role"
                 )
                 ui.label(number(column.missing)).classes("num warn" if column.missing else "num")
-                ui.label(number(column.min)).classes("num")
-                ui.label(number(column.max)).classes("num")
+                if column.kind == "date":
+                    ui.label(iso_date(column.first)).classes("num")
+                    ui.label(iso_date(column.last)).classes("num")
+                else:
+                    ui.label(number(column.min)).classes("num")
+                    ui.label(number(column.max)).classes("num")
                 ui.label(number(column.mean)).classes("num")
 
     preview = service.preview(dataset_id)
