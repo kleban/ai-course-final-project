@@ -52,6 +52,10 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .nav-link .label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .nav-link.current { background:var(--shade); color:var(--primary); font-weight:600; border-left-color:var(--primary); }
 .nav-link.current .ico { color:var(--primary); }
+/* Кількість активних проєктів праворуч у пункті «Проєкти» (історія 039). */
+.nav-count { margin-left:auto; min-width:1.8em; padding:0 6px; border:1px solid var(--grid); color:var(--ink2);
+  font-size:.82em; font-weight:600; line-height:1.6; text-align:center; font-variant-numeric:tabular-nums; }
+.nav-link.current .nav-count { border-color:var(--primary); color:var(--primary); }
 .stages { padding:0; }
 .nav-item { display:flex; align-items:center; gap:8px; padding:3px 16px; font-size:.82em; color:var(--axis); }
 .nav-item .ico { color:var(--axis); width:1em; height:1em; }
@@ -271,7 +275,8 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .q-drawer--mini .brand-logo, .q-drawer--mini .brand-tagline, .q-drawer--mini .brand-row { display:none !important; }
 .q-drawer--mini .brand-mini { display:block; }
 .q-drawer--mini .brand-block { padding:8px 6px 12px; }
-.q-drawer--mini .nav-group, .q-drawer--mini .stages, .q-drawer--mini .nav-link .label { display:none; }
+.q-drawer--mini .nav-group, .q-drawer--mini .stages, .q-drawer--mini .nav-link .label,
+.q-drawer--mini .nav-count { display:none; }
 .q-drawer--mini .nav-link { justify-content:center; padding:10px 0; }
 .q-drawer--mini .nav-link .ico { width:1.3em; height:1.3em; }
 .nav-link.nav-toggle { margin-top:auto; border-top:1px solid var(--grid); color:var(--ink2); font-weight:400; }

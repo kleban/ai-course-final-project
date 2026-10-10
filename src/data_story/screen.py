@@ -252,6 +252,9 @@ class Shell:
     # --- компактна ліва навігація: пункти-блоки на всю ширину
     def _navigation(self, current: str) -> None:
         mini = bool(app.storage.general.get(NAV_MINI_KEY, False))
+        # Every project is active: archiving/deleting projects is not part of the MVP yet.
+        listing = self.service.list_projects()
+        counts = {"projects": len(listing.data)} if isinstance(listing, Success) else {}
         with (
             ui.left_drawer(value=None, top_corner=True, bottom_corner=True)
             .props("width=240 mini-width=64" + (" mini" if mini else ""))
@@ -269,6 +272,10 @@ class Shell:
                     ):
                         icon(ico)
                         ui.label(title).classes("label")
+                        if key in counts:
+                            ui.label(str(counts[key])).classes("nav-count").props(
+                                f'title="Активних проєктів: {counts[key]}"'
+                            )
             ui.label("Етапи MVP · тимчасово").classes("nav-group stages-title")
             with ui.element("div").classes("stages"):
                 for number, title, ico in STAGES:

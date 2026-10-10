@@ -61,6 +61,10 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(1500)
     ok("empty overview", pg.get_by_text("Тут з’являться ваші проєкти").count() == 1)
     ok("panel logo", pg.locator("img.brand-logo").count() == 1)
+    ok(
+        "menu count starts at 0",
+        pg.locator(".nav-link.current .nav-count").inner_text().strip() == "0",
+    )
     pg.get_by_text("Створити проєкт").first.click()
     pg.wait_for_timeout(700)
     ok("type default regression", "Регресія" in pg.locator(".type-current").inner_text())
@@ -71,6 +75,10 @@ with sync_playwright() as pw:
     pg.get_by_label("Мета дослідження (необов’язково)").fill("Що впливає на ціну")
     pg.get_by_text("Зберегти проєкт").click()
     pg.wait_for_timeout(1500)
+    ok(
+        "menu shows project count",
+        pg.locator(".nav-link.current .nav-count").inner_text().strip() == "1",
+    )
     ok("project opened", "project=" in pg.url and pg.get_by_text("Ціни на квартири").count() >= 1)
     pg.locator(".uploader input[type=file]").first.set_input_files(SAMPLE)
     pg.wait_for_timeout(3000)
