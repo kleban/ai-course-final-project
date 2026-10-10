@@ -25,7 +25,7 @@
 ## Перевірки
 
 - `Check.cmd` — повний офлайн-набір: `pip check`, ruff (правила й форматування), mypy, 62 автоматичні тести (ядро, типи й інструкції, міграція БД, контракти/API, лаунчер, іконки). Потрібне `.venv` після `Setup.cmd`.
-- `tools/ui_smoke.py` — наскрізна перевірка інтерфейсу через Playwright (43 сценарії; див. `HANDOFF.md`).
+- `tools/ui_smoke.py` — наскрізна перевірка інтерфейсу через Playwright (45 сценаріїв; див. `HANDOFF.md`).
 - `Check-Projects.cmd` — лише тести (`tools/check_projects.py`), без запуску застосунку.
 
 Для розробника: `.venv\Scripts\python.exe -B tools\check.py`; запуск без браузера: `.venv\Scripts\python.exe -B tools\start.py --no-browser`. Тимчасові тестові БД створюються в `tmp/tests/`.
