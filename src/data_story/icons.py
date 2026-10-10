@@ -89,11 +89,32 @@ ICONS = {
     "chat": '<path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M8 9.5h8M8 12.5h5"/>',
     "menu": '<path d="M4 7h16M4 12h16M4 17h16"/>',
     "lock": '<rect x="5" y="10.5" width="14" height="10" rx="1"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+    "heading": '<path d="M5 5v14M15 5v14M5 12h10M19 15v4M18 15h1"/>',
+    "bold": '<path d="M7 4h6a4 4 0 0 1 0 8H7V4zM7 12h7a4 4 0 0 1 0 8H7v-8z"/>',
+    "italic": '<path d="M10 4h9M5 20h9M15 4L9 20"/>',
+    "list": '<path d="M9 6h11M9 12h11M9 18h11M4 6h.1M4 12h.1M4 18h.1"/>',
+    "table": '<rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/>',
+    "code": '<path d="M7 7l-5 5 5 5M17 7l5 5-5 5M14 4l-4 16"/>',
+    "undo": '<path d="M8 4L3 9l5 5M3 9h10a7 7 0 0 1 0 14"/>',
+    "redo": '<path d="M16 4l5 5-5 5M21 9H11a7 7 0 0 0 0 14"/>',
+    "preview": '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/>'
+    + _C.format(12, 12, 3),
 }
 
 
 # Groups for the gallery page (/icons); every icon belongs to exactly one group.
 GROUPS = {
+    "Редактор Markdown": [
+        "heading",
+        "bold",
+        "italic",
+        "list",
+        "table",
+        "code",
+        "undo",
+        "redo",
+        "preview",
+    ],
     "Типи аналізу": ["regression", "classification", "clustering"],
     "Розділи й навігація": [
         "overview",

@@ -8,10 +8,14 @@ export default {
       <div class="markdown-tools" role="toolbar" aria-label="Форматування Markdown">
         <button v-for="tool in tools" :key="tool.command" type="button"
           class="btn ghost" :title="tool.hint" :aria-label="tool.label"
-          @mousedown.prevent @click="format(tool)">{{ tool.label }}</button>
+          @mousedown.prevent @click="format(tool)">
+          <span :class="'ico ico-' + tool.icon" aria-hidden="true"></span>
+          <span class="markdown-tooltip" role="tooltip">{{ tool.hint }}</span>
+        </button>
         <button type="button" class="btn ghost" :aria-pressed="preview"
-          title="Показати або приховати оформлений текст" @click="preview = !preview">
-          <span class="ico ico-doc" aria-hidden="true"></span>Перегляд
+          aria-label="Перегляд" title="Показати або приховати оформлений текст" @click="preview = !preview">
+          <span class="ico ico-preview" aria-hidden="true"></span>
+          <span class="markdown-tooltip" role="tooltip">Показати або приховати оформлений текст</span>
         </button>
       </div>
       <details class="markdown-help">
@@ -39,14 +43,14 @@ export default {
       preview: false,
       length: Array.from(this.value || "").length,
       tools: [
-        {label: "Заголовок", command: "heading", args: {level: 2}, hint: "Заголовок розділу: ## Назва"},
-        {label: "Жирний", command: "bold", hint: "Жирний текст: **текст** · Ctrl+B"},
-        {label: "Курсив", command: "italic", hint: "Курсив: *текст* · Ctrl+I"},
-        {label: "Список", command: "bulletList", hint: "Список: - Пункт"},
-        {label: "Таблиця", command: "table", hint: "Вставити шаблон Markdown-таблиці"},
-        {label: "Код", command: "codeBlock", hint: "Вставити блок коду"},
-        {label: "Скасувати", command: "undo", hint: "Скасувати останню зміну · Ctrl+Z"},
-        {label: "Повторити", command: "redo", hint: "Повторити скасовану зміну"},
+        {label: "Заголовок", icon: "heading", command: "heading", args: {level: 2}, hint: "Заголовок розділу: ## Назва"},
+        {label: "Жирний", icon: "bold", command: "bold", hint: "Жирний текст: **текст** · Ctrl+B"},
+        {label: "Курсив", icon: "italic", command: "italic", hint: "Курсив: *текст* · Ctrl+I"},
+        {label: "Список", icon: "list", command: "bulletList", hint: "Список: - Пункт"},
+        {label: "Таблиця", icon: "table", command: "table", hint: "Вставити шаблон Markdown-таблиці"},
+        {label: "Код", icon: "code", command: "codeBlock", hint: "Вставити блок коду"},
+        {label: "Скасувати", icon: "undo", command: "undo", hint: "Скасувати останню зміну · Ctrl+Z"},
+        {label: "Повторити", icon: "redo", command: "redo", hint: "Повторити скасовану зміну"},
       ],
     };
   },

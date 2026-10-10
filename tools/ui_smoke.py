@@ -96,6 +96,14 @@ with sync_playwright() as pw:
     editor.wait_for()
     original = markdown(pg).strip()
     ok("markdown editor mounted", len(original) > 100)
+    ok("icon toolbar", pg.locator(".markdown-tools button > .ico").count() == 9)
+    pg.get_by_role("button", name="Жирний", exact=True).hover()
+    ok(
+        "visible Ukrainian tooltip",
+        pg.get_by_role("tooltip").filter(has_text="Ctrl+B").is_visible(),
+    )
+    pg.screenshot(path=str(SHOTS / "markdown-tooltip.png"))
+    editor.hover()
     ok("preview hidden by default", not pg.locator(".toastui-editor-md-preview").is_visible())
     pg.get_by_text("Підказки Markdown", exact=True).click()
     ok("markdown help", pg.get_by_text("Виділіть текст", exact=False).is_visible())
@@ -110,6 +118,14 @@ with sync_playwright() as pw:
     pg.get_by_text("Підказки Markdown", exact=True).click()
     draft = "## Перевірка Markdown\n\nУкраїнський **текст**.\n\n- Перший пункт\n- Другий пункт\n\n| Поле | Опис |\n| --- | --- |\n| Ціна | грн |\n\n```python\nx = 1\n```"
     editor.fill(draft)
+    ok(
+        "plain Markdown source",
+        editor.evaluate("""el => [...el.querySelectorAll('[class*=toastui-editor-md-]')].every(n => {
+            const s = getComputedStyle(n);
+            return s.fontSize === '14px' && s.fontWeight === '400'
+                && s.fontStyle === 'normal' && s.color === 'rgb(38, 38, 38)';
+        })"""),
+    )
     # Save immediately after input: verifies that the last edit is not lost in transit.
     pg.get_by_text("Зберегти інструкцію", exact=True).click()
     pg.wait_for_timeout(1000)
@@ -144,6 +160,7 @@ with sync_playwright() as pw:
     pg.goto(B + "/icons")
     pg.wait_for_timeout(1200)
     ok("icons page", pg.locator(".icon-tile").count() >= 30)
+    ok("Markdown icons in gallery", pg.get_by_text("Редактор Markdown", exact=True).count() == 1)
     pg.goto(B)
     pg.wait_for_timeout(1200)
     ok("project listed with type", pg.get_by_text("Регресія").count() >= 1)

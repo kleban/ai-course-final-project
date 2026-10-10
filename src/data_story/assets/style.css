@@ -318,3 +318,22 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 }
 
 .markdown-editor:not(.show-preview) .toastui-editor-main .toastui-editor-md-splitter { display:none; }
+
+/* Source Markdown stays plain; only the separate preview renders formatting. */
+.markdown-editor { border:1px solid var(--grid); }
+.markdown-tools { border-top:0; padding:4px; }
+.markdown-tools .btn { position:relative; width:36px; height:36px; padding:6px; justify-content:center; }
+.markdown-tools .ico { width:24px; height:24px; }
+.markdown-tools .btn:nth-child(7), .markdown-tools .btn:last-child { margin-left:8px; border-left:1px solid var(--grid); }
+.markdown-tooltip { display:none; position:absolute; top:100%; left:0; z-index:20; width:max-content; max-width:240px; padding:7px 10px; background:var(--ink); color:white; font-family:var(--font); font-size:12px; font-weight:400; line-height:1.4; text-align:left; pointer-events:none; }
+.markdown-tools .btn:hover .markdown-tooltip, .markdown-tools .btn:focus-visible .markdown-tooltip { display:block; }
+.markdown-tools .btn:last-child .markdown-tooltip { left:auto; right:0; }
+.markdown-help { padding:10px 12px; }
+.markdown-status { padding:8px 12px; }
+.markdown-editor .toastui-editor-md-container .ProseMirror,
+.markdown-editor .toastui-editor-md-container .ProseMirror * {
+  font-family:var(--mono); font-size:14px; font-weight:400; font-style:normal;
+  line-height:1.65; color:var(--ink); text-decoration:none; letter-spacing:normal;
+  background:transparent; border:0; border-radius:0;
+}
+.markdown-editor .toastui-editor-md-container .ProseMirror [class*="toastui-editor-md-"] { padding:0; margin:0; }
