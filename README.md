@@ -24,8 +24,8 @@
 
 ## Перевірки
 
-- `Check.cmd` — повний офлайн-набір: `pip check`, ruff (правила й форматування), mypy, 57 автоматичних тестів (ядро, типи й інструкції, міграція БД, контракти/API, лаунчер, іконки). Потрібне `.venv` після `Setup.cmd`.
-- `tools/ui_smoke.py` — наскрізна перевірка інтерфейсу через Playwright (37 сценаріїв; див. `HANDOFF.md`).
+- `Check.cmd` — повний офлайн-набір: `pip check`, ruff (правила й форматування), mypy, 59 автоматичних тестів (ядро, типи й інструкції, міграція БД, контракти/API, лаунчер, іконки). Потрібне `.venv` після `Setup.cmd`.
+- `tools/ui_smoke.py` — наскрізна перевірка інтерфейсу через Playwright (41 сценарій; див. `HANDOFF.md`).
 - `Check-Projects.cmd` — лише тести (`tools/check_projects.py`), без запуску застосунку.
 
 Для розробника: `.venv\Scripts\python.exe -B tools\check.py`; запуск без браузера: `.venv\Scripts\python.exe -B tools\start.py --no-browser`. Тимчасові тестові БД створюються в `tmp/tests/`.
@@ -39,6 +39,7 @@
 - `src/data_story/screen.py` — сторінки: «Проєкти», «Типи проєктів» (редактор інструкцій), «Іконки», завантаження й огляд даних, опис і редагування метаданих.
 - `src/data_story/project_types.py`, `instructions/*.md` — типи проєктів і типові інструкції-промпти; `configuration.py` — збережені зміни інструкцій.
 - `src/data_story/storage.py` — з'єднання SQLite і міграції схеми (зараз v4).
+- `src/data_story/data_grid.py` — «Таблиця даних» набору: AG Grid Community 34.2 (MIT), що постачається разом із NiceGUI і працює без інтернету; лише перегляд, сортування, фільтри, українські підписи.
 - `src/data_story/datasets.py` — завантаження, перевірка, збереження й профіль наборів даних; `metadata.py` — метадані (опис набору й полів); `samples/` — синтетичні демо-дані.
 - `src/data_story/icons.py` — бібліотека іконок (єдине джерело) → `assets/icons.css`; галерея на сторінці «Іконки», завантаження й огляд даних, опис і редагування метаданих.
 - `src/data_story/assets/style.css`, `assets/fonts/plex`, `assets/fonts/stix` — стиль і шрифти IBM Plex Sans / STIX Two Text з кирилицею (SIL OFL).
