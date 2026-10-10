@@ -21,6 +21,7 @@ from .contracts import (
     ProjectView,
     Success,
 )
+from .data_grid import data_grid
 from .datasets import KIND_TITLES, MAX_BYTES, date_format_title
 from .icons import GROUPS, ICONS
 from .markdown_editor import MarkdownEditor
@@ -688,26 +689,25 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
                     ui.label(number(column.max)).classes("num")
                 ui.label(number(column.mean)).classes("num")
 
-    preview = service.preview(dataset_id)
-    ui.label("Перші рядки").classes("section-title")
-    if isinstance(preview, Failure):
-        error_line(preview)
+    table = service.table(dataset_id)
+    ui.label("Таблиця даних").classes("section-title")
+    if isinstance(table, Failure):
+        error_line(table)
         return
-    shown = len(preview.data.rows)
-    ui.label(f"Показано {shown} з {number(preview.data.total_rows)} рядків.").classes(
-        "section-lead"
-    )
-    columns = [
-        {"name": f"c{i}", "label": name, "field": f"c{i}", "align": "left"}
-        for i, name in enumerate(preview.data.columns)
-    ]
-    rows = [
-        {f"c{i}": ("—" if value is None else value) for i, value in enumerate(record)} | {"_row": n}
-        for n, record in enumerate(preview.data.rows)
-    ]
-    ui.table(columns=columns, rows=rows, row_key="_row", pagination=0).props(
-        "flat square dense bordered separator=cell"
-    ).classes("preview-table")
+    total = len(table.data.rows)
+    counter = ui.label("").classes("section-lead")
+
+    def show_count(shown: int) -> None:
+        if shown == total:
+            counter.set_text(
+                f"Усі {number(total)} рядків. Сортування — клік на заголовку, фільтр — поле "
+                "під заголовком стовпця. Дати показано як ДД.ММ.РРРР, порожні клітинки — «—»."
+            )
+        else:
+            counter.set_text(f"За фільтрами показано {number(shown)} з {number(total)} рядків.")
+
+    show_count(total)
+    data_grid(table.data, show_count)
 
 
 # ---------------------------------------------------------------- метадані (етап 02b)

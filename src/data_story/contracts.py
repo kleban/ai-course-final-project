@@ -139,6 +139,18 @@ class DatasetPreview(StrictModel):
     total_rows: int
 
 
+class TableColumn(StrictModel):
+    name: str
+    kind: Literal["number", "text", "date", "bool"]
+
+
+class DatasetTable(StrictModel):
+    """All rows for the interactive grid; dates are ISO text, missing values are null."""
+
+    columns: list[TableColumn]
+    rows: list[list[int | float | str | None]]
+
+
 class MetadataIssue(StrictModel):
     column: str
     level: Literal["warning", "info"]

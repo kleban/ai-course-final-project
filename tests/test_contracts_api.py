@@ -138,6 +138,10 @@ class ContractAndApiTests(unittest.TestCase):
         self.assertEqual([d["id"] for d in listed], [data["id"]])
         preview = self.client.get(f"/api/datasets/{data['id']}/preview").json()["data"]
         self.assertEqual(preview["rows"], [["1", "2"], ["3", None]])
+        rows = self.client.get(f"/api/datasets/{data['id']}/rows").json()["data"]
+        self.assertEqual(rows["rows"], [[1, 2], [3, None]])
+        self.assertEqual([c["kind"] for c in rows["columns"]], ["number", "number"])
+        self.assertEqual(self.client.get(f"/api/datasets/{uuid4()}/rows").status_code, 404)
         events = self.client.get(f"/api/projects/{project.id}/events").json()["data"]
         self.assertEqual(events[-1]["operation"], "dataset.uploaded")
 

@@ -67,7 +67,7 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(3000)
     ok(
         "csv uploaded -> dataset view",
-        "dataset=" in pg.url and pg.get_by_text("Перші рядки").count() == 1,
+        "dataset=" in pg.url and pg.get_by_text("Таблиця даних").count() == 1,
     )
     ok("150 rows", pg.locator(".kpi-value").first.inner_text().strip() == "150")
     dataset_url = pg.url
@@ -106,6 +106,24 @@ with sync_playwright() as pw:
     date_row.get_by_text("дата", exact=True).hover()
     pg.wait_for_timeout(600)
     ok("date format tooltip", pg.get_by_text("Дата у файлі: ДД/ММ/РРРР").count() == 1)
+    grid = pg.locator(".data-grid")
+    ok(
+        "AG Grid shows all columns and Ukrainian lead",
+        grid.locator(".ag-header-cell-text").get_by_text("Suburb", exact=True).count() == 1
+        and grid.locator(".ag-header-cell-text").get_by_text("Price", exact=True).count() == 1
+        and pg.get_by_text("Усі 13").count() == 1
+        and pg.get_by_text("Дати показано як ДД.ММ.РРРР").count() == 1,
+    )
+    ok("grid shows dates as ДД.ММ.РРРР", grid.get_by_text("03.12.2016").count() >= 1)
+    grid.locator(".ag-header-cell[col-id='c4'] .ag-header-cell-label").click()
+    pg.wait_for_timeout(800)
+    first_price = grid.locator(".ag-row[row-index='0'] .ag-cell[col-id='c4']").inner_text()
+    ok("grid sorts numbers as numbers", first_price.strip() == "85000")
+    grid.locator(".ag-floating-filter[aria-colindex='4'] input").fill("u")
+    pg.wait_for_timeout(1500)
+    ok("grid filter updates count", pg.get_by_text("За фільтрами показано 3").count() == 1)
+    grid.scroll_into_view_if_needed()
+    pg.screenshot(path=str(SHOTS / "melbourne-grid.png"))
     pg.screenshot(path=str(SHOTS / "melbourne-dataset.png"), full_page=True)
     pg.goto(B + "/settings")
     pg.wait_for_timeout(1200)

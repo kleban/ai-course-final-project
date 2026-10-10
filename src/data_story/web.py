@@ -11,6 +11,7 @@ from .config import Settings
 from .contracts import (
     HTTP_STATUS,
     DatasetPreview,
+    DatasetTable,
     DatasetView,
     EventView,
     Failure,
@@ -83,6 +84,10 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/datasets/{dataset_id}/preview", response_model=Success[DatasetPreview] | Failure)
     def preview_dataset(dataset_id: str):
         return response(service.preview(dataset_id))
+
+    @api.get("/datasets/{dataset_id}/rows", response_model=Success[DatasetTable] | Failure)
+    def dataset_rows(dataset_id: str):
+        return response(service.table(dataset_id))
 
     @api.get("/datasets/{dataset_id}/metadata", response_model=Success[MetadataView] | Failure)
     def get_metadata(dataset_id: str):

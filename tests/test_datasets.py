@@ -136,6 +136,55 @@ class DatasetTests(unittest.TestCase):
         self.assertEqual(kinds["район"], "text")
 
 
+class TableTests(unittest.TestCase):
+    """Typed rows for the interactive grid (AG Grid)."""
+
+    def test_rows_are_typed_and_dates_are_iso(self):
+        temporary_root = ROOT / "tmp" / "tests"
+        temporary_root.mkdir(parents=True, exist_ok=True)
+        content = "дата;ціна;район;площа\n3/12/2016;100;Центр;45.5\n28/01/2016;;;\n".encode()
+        with tempfile.TemporaryDirectory(dir=temporary_root) as directory:
+            database = Path(directory) / "story.sqlite3"
+            project = ProjectStore(database).create("Таблиця")
+            store = DatasetStore(database)
+            table = store.table(store.add(project.id, "t.csv", content).id)
+        self.assertEqual(
+            table.columns,
+            [
+                {"name": "дата", "kind": "date"},
+                {"name": "ціна", "kind": "number"},
+                {"name": "район", "kind": "text"},
+                {"name": "площа", "kind": "number"},
+            ],
+        )
+        self.assertEqual(
+            table.rows, [["2016-12-03", 100, "Центр", 45.5], ["2016-01-28", None, None, None]]
+        )
+        self.assertIsInstance(table.rows[0][1], int)
+
+    def test_grid_options_match_column_kinds(self):
+        from data_story.contracts import DatasetTable
+        from data_story.data_grid import grid_options
+
+        options = grid_options(
+            DatasetTable.model_validate(
+                {
+                    "columns": [{"name": "d", "kind": "date"}, {"name": "x", "kind": "number"}],
+                    "rows": [["2016-12-03", 1], [None, 2.5]],
+                }
+            )
+        )
+        date, number = options["columnDefs"]
+        self.assertEqual(date["filter"], "agDateColumnFilter")
+        self.assertIn(":comparator", date["filterParams"])
+        self.assertEqual(
+            (number["filter"], number["type"]), ("agNumberColumnFilter", "rightAligned")
+        )
+        self.assertEqual(options["rowData"][1], {"c0": None, "c1": 2.5})
+        self.assertEqual(options["localeText"]["contains"], "Містить")
+        self.assertIn("replace('.', ',')", number[":valueFormatter"])
+
+
 def column(values: list, name: str = "дата") -> dict:
     [item] = profile(pd.DataFrame({name: pd.Series(values, dtype="str")}))
     return item

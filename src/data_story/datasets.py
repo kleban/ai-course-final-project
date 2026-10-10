@@ -81,6 +81,15 @@ class Preview:
     total_rows: int
 
 
+@dataclass(frozen=True)
+class Table:
+    """All rows with typed values for the interactive grid: numbers stay numbers,
+    recognised dates become ISO text, everything else is text; missing values are None."""
+
+    columns: list[dict[str, str]]
+    rows: list[list[Any]]
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -247,6 +256,13 @@ def profile(frame: pd.DataFrame) -> list[dict]:
     return columns
 
 
+def _typed_number(value: Any) -> int | float | None:
+    if value is None or pd.isna(value):
+        return None
+    number = float(value)
+    return int(number) if number.is_integer() and abs(number) < 2**53 else number
+
+
 def _cell(value: Any) -> str | None:
     if value is None or (not isinstance(value, (list, dict)) and pd.isna(value)):
         return None
@@ -363,3 +379,31 @@ class DatasetStore:
         )
         values = [[_cell(v) for v in record] for record in frame.itertuples(index=False)]
         return Preview(list(frame.columns), values, dataset.row_count)
+
+    def table(self, dataset_id: str) -> Table:
+        dataset = self.get(dataset_id)
+        path = (self.files_root / dataset.stored_path).resolve()
+        if not path.is_relative_to(self.files_root) or not path.is_file():
+            raise DatasetNotFound("Файл набору даних відсутній у сховищі.")
+        frame, _ = read_table(path.read_bytes(), dataset.file_format, meta=dataset.profile)
+        described = {c["name"]: c for c in dataset.profile.get("columns", [])}
+        columns: list[dict[str, str]] = []
+        data: list[list[Any]] = []
+        for name in frame.columns:
+            item = described.get(name, {})
+            kind = item.get("kind", "text")
+            series = frame[name]
+            if kind == "date" and item.get("date_format"):
+                fmt = item["date_format"]
+                parsed = pd.to_datetime(
+                    series.astype("string").str.strip(), format=fmt, errors="coerce"
+                )
+                values: list[Any] = [None if pd.isna(v) else _date_text(v, fmt) for v in parsed]
+            elif kind == "number":
+                values = [_typed_number(v) for v in series]
+            else:
+                kind = "text" if kind != "bool" else kind
+                values = [_cell(v) for v in series]
+            columns.append({"name": name, "kind": kind})
+            data.append(values)
+        return Table(columns, [list(row) for row in zip(*data, strict=True)] if data else [])

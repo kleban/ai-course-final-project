@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 from .configuration import InstructionStore
 from .contracts import (
     DatasetPreview,
+    DatasetTable,
     DatasetView,
     ErrorInfo,
     EventView,
@@ -193,6 +194,13 @@ class ProjectService:
         def action() -> DatasetPreview:
             validated = str(validate_input(ProjectId, {"id": dataset_id}).id)
             return DatasetPreview.model_validate(self.datasets.preview(validated))
+
+        return execute(action)
+
+    def table(self, dataset_id: str) -> Success[DatasetTable] | Failure:
+        def action() -> DatasetTable:
+            validated = str(validate_input(ProjectId, {"id": dataset_id}).id)
+            return DatasetTable.model_validate(self.datasets.table(validated))
 
         return execute(action)
 
