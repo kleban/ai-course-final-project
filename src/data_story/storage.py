@@ -1,0 +1,121 @@
+"""One SQLite file for the whole local service: connection rules and schema migrations."""
+
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+
+SCHEMA_VERSION = 4
+
+_V1 = """
+    CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        purpose TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE TABLE project_events (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        operation TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        payload TEXT NOT NULL
+    );
+    CREATE INDEX project_events_project ON project_events(project_id, occurred_at);
+"""
+
+# v2: project type; editable analysis instructions; audit trail of configuration changes.
+# Existing projects become regression projects — the only type that existed in practice.
+_V2 = """
+    ALTER TABLE projects ADD COLUMN project_type TEXT NOT NULL DEFAULT 'regression';
+    CREATE TABLE instructions (
+        project_type TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE TABLE config_events (
+        id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        payload TEXT NOT NULL
+    );
+"""
+
+# v3: uploaded datasets. The original file lives under runtime/projects/<project>/datasets/<id>/;
+# the row keeps its metadata and the column profile computed once at upload time.
+_V3 = """
+    CREATE TABLE datasets (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        name TEXT NOT NULL,
+        file_format TEXT NOT NULL,
+        stored_path TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        row_count INTEGER NOT NULL,
+        column_count INTEGER NOT NULL,
+        profile TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX datasets_project ON datasets(project_id, created_at);
+"""
+
+# v4: data dictionary per dataset (one JSON document) and raw descriptions the author attached.
+_V4 = """
+    CREATE TABLE dataset_metadata (
+        dataset_id TEXT PRIMARY KEY REFERENCES datasets(id),
+        document TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        confirmed_at TEXT
+    );
+    CREATE TABLE metadata_sources (
+        id TEXT PRIMARY KEY,
+        dataset_id TEXT NOT NULL REFERENCES datasets(id),
+        kind TEXT NOT NULL,
+        name TEXT NOT NULL,
+        stored_path TEXT,
+        text TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX metadata_sources_dataset ON metadata_sources(dataset_id, created_at);
+"""
+
+
+@contextmanager
+def connect(database: Path) -> Iterator[sqlite3.Connection]:
+    connection = sqlite3.connect(database, timeout=5)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
+
+def ensure_schema(database: Path) -> Path:
+    """Create or upgrade the schema in one transaction; never touch unknown or newer files."""
+    database = Path(database).resolve()
+    database.parent.mkdir(parents=True, exist_ok=True)
+    with connect(database) as connection:
+        version = connection.execute("PRAGMA user_version").fetchone()[0]
+        if version not in (0, 1, 2, 3, SCHEMA_VERSION):
+            raise RuntimeError("Непідтримувана версія бази даних; файл не змінено.")
+        if version == 0:
+            tables = connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+            if tables:
+                raise RuntimeError("Невідома схема бази даних; файл не змінено.")
+        steps = {
+            0: _V1 + _V2 + _V3 + _V4,
+            1: _V2 + _V3 + _V4,
+            2: _V3 + _V4,
+            3: _V4,
+        }.get(version)
+        if steps:
+            connection.executescript(
+                f"BEGIN; {steps} PRAGMA user_version = {SCHEMA_VERSION}; COMMIT;"
+            )
+    return database

@@ -1,0 +1,273 @@
+/* Data Story — dashboard style.
+   Layout, palette and "academic" rules (no rounded corners, no shadows, thin rules instead of cards)
+   follow the author's dashboard «Keeping the Lights On» (assets/f3.css, theme F3 «Гібрид»).
+   Fonts as in the dashboard and the talk: IBM Plex Sans (text) and STIX Two Text (headings, leads,
+   emphasis). Files are Google Fonts builds with Cyrillic + Latin subsets (fonts/plex, fonts/stix; SIL OFL). */
+@font-face { font-family:'IBM Plex Sans'; font-weight:400; font-style:normal; font-display:swap; src:url('/assets/fonts/plex/ibm-plex-sans-regular.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Sans'; font-weight:400; font-style:italic; font-display:swap; src:url('/assets/fonts/plex/ibm-plex-sans-italic.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Sans'; font-weight:600; font-style:normal; font-display:swap; src:url('/assets/fonts/plex/ibm-plex-sans-600.woff2') format('woff2'); }
+@font-face { font-family:'IBM Plex Sans'; font-weight:700; font-style:normal; font-display:swap; src:url('/assets/fonts/plex/ibm-plex-sans-700.woff2') format('woff2'); }
+@font-face { font-family:'STIX Two Text'; font-weight:400; font-style:normal; font-display:swap; src:url('/assets/fonts/stix/stix-two-text-regular.woff2') format('woff2'); }
+@font-face { font-family:'STIX Two Text'; font-weight:400; font-style:italic; font-display:swap; src:url('/assets/fonts/stix/stix-two-text-italic.woff2') format('woff2'); }
+@font-face { font-family:'STIX Two Text'; font-weight:600; font-style:normal; font-display:swap; src:url('/assets/fonts/stix/stix-two-text-600.woff2') format('woff2'); }
+@font-face { font-family:'STIX Two Text'; font-weight:700; font-style:normal; font-display:swap; src:url('/assets/fonts/stix/stix-two-text-700.woff2') format('woff2'); }
+@font-face { font-family:'JetBrains Mono'; src:url('/assets/fonts/JetBrainsMono.ttf') format('truetype'); font-weight:100 800; font-display:swap; }
+
+/* Акцент (--primary) — синій із логотипа автора #174690 (історія 025). */
+:root {
+  --primary:#174690; --secondary:#e07b00; --accent:#c0392b; --ok:#2b9348;
+  --band:#e1e7f3; --shade:#f3f4f6; --ink:#262626; --ink2:#5f5f5f; --grid:#ebebeb; --axis:#8c8c8c;
+  --font:'IBM Plex Sans',Arial,sans-serif; --serif:'STIX Two Text',Georgia,serif;
+  --mono:'JetBrains Mono',Consolas,monospace; --nav-w:264px; --top-h:56px;
+}
+*, *::before, *::after { border-radius:0 !important; box-shadow:none !important; }
+html, body { background:#fff; color:var(--ink); font-family:var(--font); font-size:14px; line-height:1.45; }
+.q-layout, .q-page-container, .nicegui-content { background:#fff; }
+.nicegui-content { padding:0; }
+
+/* верхня панель */
+.topbar { background:#fff !important; color:var(--ink) !important; border-bottom:1px solid var(--grid); height:var(--top-h);
+  padding:0 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.brand-box { display:flex; align-items:center; gap:10px; min-width:0; }
+.brand-ico { color:var(--primary); width:1.6em; height:1.6em; }
+.brand { font-weight:700; font-size:1.15em; letter-spacing:.01em; color:var(--ink); white-space:nowrap; }
+.brand-sub { color:var(--ink2); font-size:.9em; font-family:var(--serif); font-style:italic; white-space:nowrap; }
+.header-right { display:flex; align-items:center; gap:10px; min-width:0; }
+.badge { display:inline-flex; align-items:center; gap:6px; font-size:.82em; padding:3px 10px; border:1px solid var(--grid);
+  color:var(--ink2); white-space:nowrap; max-width:42vw; overflow:hidden; text-overflow:ellipsis; }
+.badge .ico { color:var(--ink2); }
+.badge.project { border-color:var(--primary); color:var(--primary); font-weight:600; }
+.badge.project .ico { color:var(--primary); }
+
+/* ліва навігація — як у дашборді автора: суцільний список на всю ширину, без рамок і проміжків;
+   групи відокремлено підписом і тонкою лінією, поточний пункт — сіре тло, синій жирний текст і смуга зліва */
+.nav { background:#fff !important; border-right:1px solid var(--grid); padding:12px 0 20px; }
+.nav, .nav .q-drawer__content, .nav .nicegui-drawer { gap:0 !important; row-gap:0 !important; }
+.nav-group { font-size:.78em; font-weight:600; color:var(--ink2); padding:14px 16px 6px; margin:0; border-top:1px solid var(--grid); }
+.nav-group:first-child { border-top:none; padding-top:2px; }
+.nav-link { display:flex; align-items:center; gap:10px; width:100%; padding:8px 16px 8px 13px; margin:0; cursor:pointer;
+  border-left:3px solid transparent; color:var(--ink); font-size:.95em; }
+.nav-link:hover { background:var(--shade); }
+.nav-link .ico { color:var(--ink2); }
+.nav-link .label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nav-link.current { background:var(--shade); color:var(--primary); font-weight:600; border-left-color:var(--primary); }
+.nav-link.current .ico { color:var(--primary); }
+.stages { padding:0; }
+.nav-item { display:flex; align-items:center; gap:8px; padding:3px 16px; font-size:.82em; color:var(--axis); }
+.nav-item .ico { color:var(--axis); width:1em; height:1em; }
+.nav-item .num { width:1.5em; font-variant-numeric:tabular-nums; }
+.nav-item.done { color:var(--ink); } .nav-item.done .ico { color:var(--ok); }
+.nav .nav-link, .nav .nav-group, .nav .stages { align-self:stretch; }
+.icon-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; color:var(--primary); cursor:pointer;
+  border:1px solid transparent; }
+.icon-btn:hover { border-color:var(--primary); }
+.brand-link { display:flex; align-items:center; gap:10px; cursor:pointer; }
+
+/* основна область */
+.page { width:100%; max-width:1180px; padding:24px 32px 60px; gap:0; }
+.page-header { margin-bottom:18px; max-width:1000px; }
+.kicker { display:flex; align-items:center; gap:8px; font-size:.88em; font-weight:600; color:var(--ink2); }
+.kicker .ico { width:1.4em; height:1.4em; color:var(--primary); }
+.page-title { font-family:var(--serif); font-size:2em; font-weight:700; line-height:1.2; margin:6px 0 8px; color:var(--ink);
+  overflow-wrap:anywhere; }
+.lead { font-family:var(--serif); font-size:1.12em; line-height:1.5; color:var(--ink2); margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
+.section-title { font-family:var(--serif); font-size:1.3em; font-weight:700; margin:30px 0 4px; color:var(--ink); }
+.section-bar { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; width:100%; margin-bottom:8px; }
+.section-bar .section-title { margin-bottom:0; }
+.dialog-actions { display:flex; justify-content:flex-end; gap:8px; width:100%; }
+.nav-link:focus, .btn:focus { outline:none; } .btn:focus-visible, .nav-link:focus-visible { outline:2px solid var(--primary); outline-offset:1px; }
+.section-lead { color:var(--ink2); margin:0 0 10px; }
+
+/* KPI — число над тонкою лінією, без плашок */
+.grid { display:grid; gap:22px; width:100%; margin:6px 0 8px; }
+.grid-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.grid-4 { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.kpi { border-top:1px solid var(--axis); padding:10px 0 0; min-width:0; }
+.kpi-label { display:flex; align-items:center; gap:6px; font-size:.86em; font-weight:600; color:var(--ink2); }
+.kpi-label .ico { color:var(--primary); }
+.kpi-value { font-size:1.55em; font-weight:700; line-height:1.15; margin-top:4px; font-variant-numeric:tabular-nums;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kpi-value.accent { color:var(--primary); }
+.kpi-sub { font-size:.8em; color:var(--ink2); margin-top:2px; }
+.mono { font-family:var(--mono); font-size:.92em; }
+
+/* таблиця проєктів і журнал */
+.trows { width:100%; border-top:1px solid var(--axis); }
+.trow-head, .trow { display:grid; grid-template-columns:minmax(0,2.2fr) minmax(0,3fr) 110px 120px; gap:16px; align-items:center;
+  padding:9px 4px; border-bottom:1px solid var(--grid); }
+.trow-head { font-size:.82em; font-weight:600; color:var(--ink2); }
+.trow:hover { background:var(--shade); }
+.trow.current { background:var(--band); }
+.trow .name { display:flex; align-items:center; gap:8px; font-weight:600; min-width:0; }
+.trow .name > :last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trow .name .ico { color:var(--primary); }
+.trow .purpose { color:var(--ink2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trow .date { color:var(--ink2); font-variant-numeric:tabular-nums; }
+.log .trow { grid-template-columns:28px minmax(0,1fr) 180px; }
+.projects .trow-head, .projects .trow { grid-template-columns:minmax(0,2fr) 150px minmax(0,2.4fr) 100px 110px; }
+.trow .kind { display:flex; align-items:center; gap:6px; color:var(--ink2); }
+.trow .kind .ico { color:var(--primary); }
+.log .trow .ico { color:var(--ok); }
+.log .trow .ico.ico-when { color:var(--primary); }
+
+/* кнопки */
+.btn { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; font:inherit; font-size:.9em; border:1px solid var(--grid);
+  background:#fff; color:var(--ink); cursor:pointer; white-space:nowrap; }
+.btn:hover { border-color:var(--primary); color:var(--primary); }
+.btn.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
+.btn.primary:hover { background:#123a78; color:#fff; }
+.btn.ghost { border-color:transparent; color:var(--ink2); }
+.btn.small { font-size:.82em; padding:3px 10px; justify-self:end; }
+.q-btn { text-transform:none; font-weight:600; }
+
+/* «Як працювати» — як howto у дашборді: тонкі лінії згори й знизу */
+.howto { border-top:1px solid var(--grid); border-bottom:1px solid var(--grid); padding:4px 0; margin:4px 0 18px; max-width:1000px; }
+.howto summary { cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600; color:var(--ink); padding:6px 0; }
+.howto summary .ico { color:var(--primary); }
+.howto ol { margin:4px 0 10px; padding-left:1.4em; color:var(--ink2); } .howto li { margin-bottom:4px; }
+
+/* маршрут проєкту */
+.steps { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; width:100%; }
+.step { border-top:1px solid var(--grid); padding-top:8px; color:var(--ink2); font-size:.9em; }
+.step .t { display:flex; align-items:center; gap:6px; font-weight:600; color:var(--ink); }
+.step .t .ico { color:var(--ink2); }
+.step.done .t .ico { color:var(--ok); }
+
+/* діалог і повідомлення */
+.create-dialog { width:min(560px,calc(100vw - 32px)); background:#fff; padding:22px 24px; gap:14px; border-top:3px solid var(--primary); }
+.dialog-title { display:flex; align-items:center; gap:8px; font-family:var(--serif); font-size:1.35em; font-weight:700; }
+.dialog-title .ico { color:var(--primary); }
+.q-field--outlined .q-field__control:before { border-color:var(--axis); }
+.error-message { color:var(--accent); font-size:.92em; display:flex; align-items:center; gap:6px; }
+.empty { border-top:1px solid var(--axis); border-bottom:1px solid var(--grid); padding:22px 4px; width:100%; color:var(--ink2); }
+.empty .t { font-family:var(--serif); font-size:1.2em; font-weight:700; color:var(--ink); margin-bottom:4px; }
+.footnote { margin-top:28px; font-size:.78em; color:var(--ink2); display:flex; align-items:center; gap:6px; }
+
+@media (max-width:1100px) { .grid-3, .grid-4, .steps { grid-template-columns:1fr; } .brand-sub { display:none; }
+  .trow-head { display:none; } .trow { grid-template-columns:minmax(0,1fr) auto; } .trow .purpose, .trow .date { display:none; }
+  .log .trow { grid-template-columns:28px minmax(0,1fr); } .log .trow .date { display:block; grid-column:2; }
+  .page { padding:18px 16px 40px; } }
+
+/* тонкий повзунок прокрутки в меню */
+.nav .q-scrollarea__thumb { width:4px; right:1px; opacity:.25; }
+@media (max-width:640px) { .topbar { height:auto; min-height:var(--top-h); padding:8px 12px; flex-wrap:nowrap; }
+  .badge:not(.project) { display:none; } .badge.project { max-width:46vw; } .page-title { font-size:1.6em; } }
+
+/* вибір типу проєкту — випадаючий список з іконками */
+.field-label { font-size:.86em; font-weight:600; color:var(--ink2); margin-bottom:-6px; }
+.type-trigger { display:flex; align-items:center; gap:10px; width:100%; padding:8px 12px; border:1px solid var(--axis); cursor:pointer; background:#fff; }
+.type-trigger:hover, .type-trigger:focus { border-color:var(--primary); outline:none; }
+.type-current { display:flex; align-items:center; gap:12px; flex:1; min-width:0; }
+.type-trigger .chevron { color:var(--ink2); }
+.type-ico { width:1.9em; height:1.9em; color:var(--primary); }
+.type-ico.big { width:2.6em; height:2.6em; }
+.type-text { display:flex; flex-direction:column; min-width:0; }
+.type-title { display:flex; align-items:center; gap:8px; font-weight:600; color:var(--ink); }
+.type-desc { font-size:.84em; color:var(--ink2); }
+.type-menu { border:1px solid var(--axis); }
+.type-option { display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid var(--grid); min-height:56px; }
+.type-option.disabled .type-ico { color:var(--axis); }
+.q-item.disabled { opacity:.55 !important; }
+.tag { font-size:.72em; font-weight:600; color:var(--secondary); border:1px solid var(--secondary); padding:0 6px; line-height:1.5; }
+
+/* сторінка «Типи проєктів» */
+.seg { display:inline-flex; border:1px solid var(--axis); margin:6px 0 18px; }
+.seg-item { display:flex; align-items:center; gap:8px; padding:7px 14px; cursor:pointer; border-right:1px solid var(--grid); color:var(--ink2); }
+.seg-item:last-child { border-right:none; }
+.seg-item:hover { background:var(--shade); color:var(--ink); }
+.seg-item .ico { color:var(--primary); }
+.seg-item.current { background:var(--primary); color:#fff; font-weight:600; }
+.seg-item.current .ico { color:#fff; } .seg-item.current .tag { color:#fff; border-color:#fff; }
+.type-head { display:flex; align-items:center; gap:16px; width:100%; border-top:1px solid var(--axis); padding-top:12px; margin-bottom:10px; }
+.type-head .section-title.flush { margin:0; }
+.type-head .section-lead { margin:0; }
+.type-state { margin-left:auto; text-align:right; font-size:.86em; font-weight:600; }
+.type-state .muted { font-weight:400; color:var(--ink2); }
+.instruction-editor textarea { font-family:var(--mono); font-size:13px; line-height:1.55; min-height:420px; }
+.dialog-actions.left { justify-content:flex-start; margin-top:8px; }
+
+/* інструкція на сторінці проєкту */
+.instruction .md { font-size:.95em; color:var(--ink); max-width:900px; }
+.instruction .md h1 { font-family:var(--serif); font-size:1.3em; margin:8px 0; }
+.instruction .md h2 { font-family:var(--serif); font-size:1.1em; margin:14px 0 4px; }
+.instruction .md li { margin-bottom:3px; }
+
+/* бібліотека іконок */
+.icon-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; width:100%; }
+.icon-tile { display:flex; flex-direction:column; align-items:center; gap:8px; padding:14px 6px 10px; border:1px solid var(--grid); color:var(--ink); }
+.icon-tile .big { width:2.2em; height:2.2em; color:var(--primary); }
+.icon-tile .mono { font-size:.8em; color:var(--ink2); }
+@media (max-width:1100px) { .projects .trow { grid-template-columns:minmax(0,1fr) auto; } .trow .kind { display:none; } .type-state { display:none; } }
+
+/* етап 02: дані */
+.uploader { width:100%; max-width:720px; margin:4px 0 14px; border:1px dashed var(--axis) !important; }
+.uploader .q-uploader__header { background:var(--shade); color:var(--ink); }
+.uploader .q-uploader__title { font-weight:600; font-size:.95em; white-space:normal; }
+.uploader .q-uploader__list { min-height:0; padding:0; }
+.datasets .trow-head, .datasets .trow { grid-template-columns:minmax(0,2.4fr) 70px 150px 90px 110px 100px; }
+.columns .trow-head, .columns .trow { grid-template-columns:minmax(0,2.4fr) 100px 120px 90px repeat(3,minmax(0,1fr)); }
+.trow .num { text-align:right; font-variant-numeric:tabular-nums; }
+.columns .trow-head > :nth-child(n+4) { text-align:right; }
+.trow .num.warn { color:var(--accent); font-weight:600; }
+.btn.back { margin-bottom:10px; }
+.preview-table { width:100%; max-width:100%; }
+.preview-table .q-table th { font-weight:600; color:var(--ink2); white-space:nowrap; }
+.preview-table .q-table td { font-variant-numeric:tabular-nums; white-space:nowrap; max-width:280px; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:1100px) { .datasets .trow, .columns .trow { grid-template-columns:minmax(0,1fr) auto; }
+  .datasets .trow > :nth-child(n+2):not(:last-child), .columns .trow > :nth-child(n+3) { display:none; } }
+
+/* етап 02b: метадані */
+.colname { display:flex; flex-direction:column; min-width:0; }
+.colname .hint { font-size:.8em; color:var(--ink2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trow .role { color:var(--ink2); } .trow .role.target { color:var(--primary); font-weight:600; }
+.lead.small { font-size:1em; margin-bottom:8px; }
+.issues { display:flex; flex-direction:column; gap:4px; margin:4px 0 10px; width:100%; }
+.issue { display:flex; align-items:center; gap:8px; font-size:.9em; padding:4px 8px; border-left:3px solid var(--grid); }
+.issue.warning { border-left-color:var(--accent); color:var(--accent); }
+.issue.info { border-left-color:var(--primary); color:var(--ink2); }
+.source { border-top:1px solid var(--grid); padding:8px 0; }
+.source-text { white-space:pre-wrap; font-family:var(--mono); font-size:12px; color:var(--ink); max-height:240px; overflow:auto; }
+.meta-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px 14px; width:100%; }
+.meta-grid.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.meta-grid .wide { grid-column:span 2; }
+.meta-grid .full { grid-column:1 / -1; }
+.meta-card { width:100%; border-top:1px solid var(--axis); padding:12px 0 16px; }
+.meta-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.meta-head .name { font-family:var(--mono); font-weight:600; font-size:1em; }
+.meta-head .facts { font-size:.84em; color:var(--axis); }
+.sticky-actions { position:sticky; bottom:0; background:#fff; border-top:1px solid var(--grid); padding:10px 0; z-index:5; }
+@media (max-width:1100px) { .meta-grid, .meta-grid.three { grid-template-columns:1fr; } .meta-grid .wide { grid-column:auto; }
+  .columns .trow > :nth-child(3) { display:none; } }
+
+/* макет: панель на всю висоту з логотипом, тонка смуга з контекстом праворуч */
+.brand-block { padding:6px 16px 16px; margin-bottom:6px; border-bottom:1px solid var(--grid); cursor:pointer; align-self:stretch; }
+.brand-logo { display:block; width:100%; max-width:208px; height:auto; }
+.brand-mini { display:none; width:44px; height:auto; margin:0 auto; }
+.brand-row { display:flex; align-items:center; gap:10px; }
+.brand-row .brand-ico { width:2.6em; height:2.6em; color:var(--primary); }
+.brand-words { display:flex; flex-direction:column; line-height:1; }
+.brand-data { font-weight:700; font-size:1.45em; letter-spacing:.02em; color:var(--ink); }
+.brand-story { font-weight:400; font-size:1.45em; letter-spacing:.02em; color:var(--primary); }
+.brand-tagline { margin-top:8px; font-size:.66em; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ink2); }
+.nav .brand-block + .nav-group { border-top:none; }
+.crumbs { display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; }
+.crumb { color:var(--ink2); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px; }
+.crumb:hover { color:var(--primary); }
+.crumb.here { color:var(--ink); font-weight:600; cursor:default; }
+.crumb-sep { color:var(--axis); width:.9em; height:.9em; }
+.topbar { height:48px; }
+.menu-btn { display:none; }
+@media (max-width:1023px) { .menu-btn { display:inline-flex; } }
+
+/* згорнуте меню (Quasar mini): лише знак та іконки пунктів */
+.q-drawer--mini .brand-logo, .q-drawer--mini .brand-tagline, .q-drawer--mini .brand-row { display:none !important; }
+.q-drawer--mini .brand-mini { display:block; }
+.q-drawer--mini .brand-block { padding:8px 6px 12px; }
+.q-drawer--mini .nav-group, .q-drawer--mini .stages, .q-drawer--mini .nav-link .label { display:none; }
+.q-drawer--mini .nav-link { justify-content:center; padding:10px 0; }
+.q-drawer--mini .nav-link .ico { width:1.3em; height:1.3em; }
+.nav-link.nav-toggle { margin-top:auto; border-top:1px solid var(--grid); color:var(--ink2); font-weight:400; }
+.nav-link.nav-toggle .ico { color:var(--ink2); }
+.q-drawer--mini .collapse-ico { transform:rotate(180deg); }
+.nav .q-drawer__content { display:flex; flex-direction:column; }
+@media (max-width:1023px) { .nav-link.nav-toggle { display:none; } }
