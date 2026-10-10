@@ -27,6 +27,8 @@ from .contracts import (
     ProjectView,
     RowsPage,
     RowsQuery,
+    StatisticsPage,
+    StatisticsQuery,
     Success,
 )
 from .datasets import MAX_BYTES
@@ -46,6 +48,10 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/projects", response_model=Success[list[ProjectView]] | Failure)
     def list_projects():
         return response(service.list_projects())
+
+    @api.post("/projects/{project_id}/statistics", response_model=Success[StatisticsPage] | Failure)
+    def statistics(project_id: str, query: StatisticsQuery):
+        return response(service.statistics(project_id, query.model_dump(mode="json")))
 
     @api.post(
         "/projects",
@@ -192,7 +198,7 @@ def configure(settings: Settings) -> None:
 
     @app.get("/health")
     def health():
-        return {"application": "data-story", "instance": settings.instance, "stage": "metadata"}
+        return {"application": "data-story", "instance": settings.instance, "stage": "statistics"}
 
     @app.post("/shutdown")
     async def shutdown(request: Request):

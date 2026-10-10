@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from nicegui import app, ui
 
@@ -19,6 +20,7 @@ from .contracts import (
     InstructionView,
     ProjectTypeView,
     ProjectView,
+    StatisticsPage,
     Success,
 )
 from .data_grid import data_grid
@@ -65,6 +67,7 @@ EVENT_TITLES = {
     "metadata.saved": ("Збережено метадані", "doc"),
     "metadata.confirmed": ("Підтверджено метадані", "check"),
     "metadata.source_added": ("Додано опис даних", "doc"),
+    "statistics.calculated": ("Розраховано статистику", "compare"),
 }
 FORMAT_TITLES = {"csv": "CSV"}
 
@@ -116,7 +119,14 @@ def iso_date(value: str | None) -> str:
     if not value:
         return "—"
     moment = datetime.fromisoformat(value)
-    return moment.strftime("%d.%m.%Y %H:%M" if "T" in value else "%d.%m.%Y")
+    fmt = (
+        "%d.%m.%Y %H:%M:%S"
+        if "T" in value and len(value) > 16
+        else "%d.%m.%Y %H:%M"
+        if "T" in value
+        else "%d.%m.%Y"
+    )
+    return moment.strftime(fmt)
 
 
 def type_of(project: ProjectView):
@@ -140,7 +150,7 @@ class Shell:
         ui.colors(primary="#174690", negative="#c0392b")
         self._dialog()
         self._header(trail or [])
-        self._navigation(current)
+        self._navigation(current, active)
 
     def open_project(self, project_id: str) -> None:
         result = self.service.get(project_id, opened=True)
@@ -251,7 +261,7 @@ class Shell:
                     ui.label("Локально")
 
     # --- компактна ліва навігація: пункти-блоки на всю ширину
-    def _navigation(self, current: str) -> None:
+    def _navigation(self, current: str, active: ProjectView | None = None) -> None:
         mini = bool(app.storage.general.get(NAV_MINI_KEY, False))
         # Every project is active: archiving/deleting projects is not part of the MVP yet.
         listing = self.service.list_projects()
@@ -262,7 +272,23 @@ class Shell:
             .classes("nav") as drawer
         ):
             brand()
-            for group, items in NAV:
+            navigation = list(NAV)
+            if active:
+                navigation.insert(
+                    1,
+                    (
+                        "Поточний проєкт",
+                        [
+                            (
+                                "statistics",
+                                f"/?project={active.id}&view=statistics",
+                                "Статистика",
+                                "compare",
+                            )
+                        ],
+                    ),
+                )
+            for group, items in navigation:
                 ui.label(group).classes("nav-group")
                 for key, target, title, ico in items:
                     with (
@@ -371,19 +397,23 @@ def projects_screen(
     ui.page_title(f"{active.name} · Data Story" if active else "Data Story · Проєкти")
     trail: list[tuple[str, str | None]] = [("Проєкти", "/" if active else None)]
     if active:
-        trail.append((active.name, f"/?project={active.id}" if dataset_id else None))
+        trail.append((active.name, f"/?project={active.id}" if dataset_id or view else None))
     if active and dataset_id:
         found = service.dataset(dataset_id)
         name = found.data.name if isinstance(found, Success) else "Набір даних"
         link = f"/?project={active.id}&dataset={dataset_id}"
-        trail.append((name, link if view == "metadata" else None))
+        trail.append((name, link if view in ("metadata", "statistics") else None))
         if view == "metadata":
             trail.append(("Метадані", None))
-    shell = Shell(service, "projects", active, trail)
+    if active and view == "statistics":
+        trail.append(("Статистика", None))
+    shell = Shell(service, "statistics" if view == "statistics" else "projects", active, trail)
     with ui.column().classes("page"):
         if isinstance(active_result, Failure):
             error_line(active_result)
-        if active and dataset_id and view == "metadata":
+        if active and view == "statistics":
+            statistics_screen(service, active, dataset_id)
+        elif active and dataset_id and view == "metadata":
             metadata_editor(service, active, dataset_id)
         elif active and dataset_id:
             dataset_view(service, active, dataset_id)
@@ -481,6 +511,9 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
         kpi("journal", "Подій у журналі", str(len(events)), f"відкрито {opened} раз(и)")
 
     datasets_section(service, active, datasets_result)
+    button(
+        "Статистика", partial(ui.navigate.to, f"/?project={active.id}&view=statistics"), "compare"
+    )
 
     ui.label("Інструкція аналізу").classes("section-title")
     instruction = service.instruction(active.project_type)
@@ -513,10 +546,34 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
             title, ico = EVENT_TITLES.get(event.operation, (event.operation, "info"))
             if event.operation.startswith(("dataset.", "metadata.")):
                 title = f"{title}: {event.payload.get('name', '')}"
+            if event.operation == "statistics.calculated":
+                view_title = STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
+                title = f"{view_title}: {event.payload.get('dataset_name', '')} · " + (
+                    "помилка" if event.payload.get("status") == "error" else "розраховано"
+                )
             with ui.element("div").classes("trow"):
                 icon(ico)
                 ui.label(title)
                 ui.label(event.occurred_at.strftime("%d.%m.%Y %H:%M UTC")).classes("date")
+            if event.operation == "statistics.calculated":
+                with ui.element("details").classes("howto stat-audit"):
+                    with ui.element("summary"):
+                        ui.label("Деталі розрахунку")
+                    for key, label in (
+                        ("row_count", "Рядків"),
+                        ("fields", "Поля"),
+                        ("sha256", "SHA-256"),
+                        ("metadata_state", "Стан метаданих"),
+                        ("metadata_updated_at", "Версія метаданих"),
+                        ("method", "Метод"),
+                        ("duration_ms", "Тривалість, мс"),
+                        ("error", "Помилка"),
+                    ):
+                        value = event.payload.get(key)
+                        if value is not None:
+                            ui.label(
+                                f"{label}: {', '.join(value) if isinstance(value, list) else value}"
+                            )
     with ui.element("div").classes("footnote"):
         icon("shield")
         ui.label(
@@ -715,6 +772,11 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
         else:
             details.append("копія набору з іншого проєкту")
     page_header("Набір даних · " + active.name, "data", data.name, " · ".join(details))
+    button(
+        "Статистика",
+        partial(ui.navigate.to, f"/?project={active.id}&dataset={dataset_id}&view=statistics"),
+        "compare",
+    )
 
     cells = data.row_count * data.column_count
     missing = sum(c.missing for c in data.columns)
@@ -795,6 +857,266 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
 
 
 # ---------------------------------------------------------------- метадані (етап 02b)
+
+
+STAT_VIEWS = {
+    "descriptive": "Описові показники",
+    "missing": "Пропуски",
+    "correlations": "Кореляції",
+}
+STAT_METHOD_TEXT = {
+    "descriptive": "Стандартне відхилення — вибіркове (n−1). Квартилі — з лінійною інтерполяцією. Коди пропусків і нескінченні числа не входять у формули.",
+    "missing": "Базові пропуски визначає читання CSV, додаткові — явні коди метаданих. Частки рахуються від усіх рядків. Нескінченні числа показано окремо.",
+    "correlations": "Pearson описує лінійний зв’язок і не доводить причинності. Пропуски та нескінченні числа вилучено попарно; потрібно n ≥ 3. Натисніть клітинку, щоб побачити n і причину.",
+}
+
+
+def stat_number(value, decimals: int = 3) -> str:
+    if value is None:
+        return "—"
+    return f"{value:,.{decimals}f}".rstrip("0").rstrip(".").replace(",", "\u202f").replace(".", ",")
+
+
+def statistics_screen(service: ProjectService, active: ProjectView, dataset_id: str | None) -> None:
+    project_id = str(active.id)
+    button("До проєкту", partial(ui.navigate.to, f"/?project={project_id}"), "prev", "small back")
+    page_header(
+        "Статистика · " + active.name,
+        "compare",
+        "Статистика",
+        "Один набір, один перегляд. Розрахунки локальні, без AI.",
+    )
+    listing = service.list_datasets(project_id)
+    if isinstance(listing, Failure):
+        error_line(listing)
+        return
+    if not listing.data:
+        ui.label("Для статистики потрібен набір даних. Завантажте CSV у цей проєкт.").classes(
+            "section-lead"
+        )
+        datasets_section(service, active, listing)
+        return
+    choices = {str(d.id): d.name for d in listing.data}
+    if dataset_id and dataset_id not in choices:
+        ui.label("Набір не належить цьому проєкту або не знайдений.").classes("error-message")
+        return
+    selected = dataset_id or next(iter(choices))
+    with ui.element("div").classes("stat-controls"):
+        ui.select(
+            choices,
+            value=selected,
+            label="Набір даних",
+            on_change=lambda e: ui.navigate.to(
+                f"/?project={project_id}&dataset={e.value}&view=statistics"
+            ),
+        ).props("outlined square").classes("stat-dataset")
+        button(
+            "Огляд і метадані",
+            partial(ui.navigate.to, f"/?project={project_id}&dataset={selected}"),
+            "data",
+        )
+    state: dict[str, Any] = {"view": "descriptive", "start": 0, "fields": None}
+    view_buttons: dict[str, Any] = {}
+
+    def change_view(key: str) -> None:
+        state.update(view=key, start=0)
+        for name, element in view_buttons.items():
+            element.props(f'aria-pressed="{str(name == key).lower()}"')
+        render.refresh()
+
+    with ui.element("div").classes("stat-controls stat-views"):
+        for key, title in STAT_VIEWS.items():
+            view_buttons[key] = button(title, partial(change_view, key)).props(
+                f'aria-pressed="{str(key == "descriptive").lower()}"'
+            )
+        button("Оновити розрахунок", lambda: render.refresh(), "compare")
+
+    def move(offset: int) -> None:
+        state["start"] = max(0, state["start"] + offset)
+        render.refresh()
+
+    @ui.refreshable
+    def render() -> None:
+        response = service.statistics(
+            project_id,
+            {
+                "dataset_id": selected,
+                "view": state["view"],
+                "start": state["start"],
+                "limit": 10,
+                "fields": state["fields"] if state["view"] == "correlations" else None,
+            },
+        )
+        if isinstance(response, Failure):
+            error_line(response)
+            return
+        data = response.data
+        ui.label(
+            f"{active.name} · {choices[selected]} · Увесь набір: {number(data.row_count)} рядків"
+        ).classes("stat-context")
+        ui.label(
+            {
+                "confirmed": "Метадані підтверджено",
+                "draft": "Метадані не підтверджено · збережена чернетка",
+                "none": "Метадані не підтверджено · визначено з даних",
+            }[data.metadata_state]
+        ).classes("section-lead")
+        ui.label(STAT_METHOD_TEXT[data.view]).classes("section-lead")
+        if data.view == "correlations":
+            with ui.element("div").classes("stat-controls"):
+                fields = (
+                    ui.select(
+                        {
+                            c.name: f"{c.label} ({c.name})" if c.label else c.name
+                            for c in data.eligible
+                        },
+                        value=[c.name for c in data.fields],
+                        multiple=True,
+                        label="Числові поля для кореляції",
+                    )
+                    .props("outlined square use-chips")
+                    .classes("stat-fields")
+                )
+
+                def apply_fields() -> None:
+                    state.update(fields=list(fields.value), start=0)
+                    render.refresh()
+
+                button("Застосувати поля", apply_fields, "check")
+            if data.excluded:
+                with ui.element("details").classes("howto"):
+                    with ui.element("summary"):
+                        ui.label(f"Виключені поля ({len(data.excluded)})")
+                    for name, reason in data.excluded.items():
+                        ui.label(f"{name}: {reason}")
+        if data.view == "missing":
+            share = stat_number(data.rows_with_missing_percent, 2)
+            share += "%" if data.rows_with_missing_percent is not None else " (частка не визначена)"
+            ui.label(
+                f"Рядків хоча б з одним пропуском: {number(data.rows_with_missing)} · {share} (серед усіх полів, включно з id та ignore)"
+            ).classes("stat-summary")
+        if data.reason:
+            ui.label(data.reason).classes("section-lead")
+        if data.rows and not (data.view == "correlations" and data.reason):
+            statistics_table(data)
+        with ui.element("div").classes("stat-controls stat-pager"):
+            previous = button("Попередні поля", partial(move, -10), "prev")
+            if data.start == 0:
+                previous.props("disabled")
+            ui.label(
+                f"Поля {min(data.start + 1, data.total)}–{min(data.start + len(data.rows), data.total)} з {data.total}"
+            )
+            following = button("Наступні поля", partial(move, 10), "next")
+            if data.start + 10 >= data.total:
+                following.props("disabled")
+
+    render()
+
+
+def statistics_table(data: StatisticsPage) -> None:
+    numeric_keys = ("mean", "std", "min", "q1", "median", "q3", "max")
+    numeric_titles = ("Середнє", "Ст. відх.", "Мін", "Q1", "Медіана", "Q3", "Макс")
+    missing_keys = (
+        "base_missing",
+        "additional_missing",
+        "missing",
+        "missing_percent",
+        "invalid_infinite",
+    )
+    pair_info = (
+        ui.label("Оберіть клітинку матриці для перегляду кількості спільних значень.").classes(
+            "stat-pair"
+        )
+        if data.view == "correlations"
+        else None
+    )
+    titles = ["Поле · тип · роль"]
+    if data.view == "descriptive":
+        titles += ["n", *numeric_titles, "Інші показники / зауваження"]
+    elif data.view == "missing":
+        titles += ["Базові", "За кодами", "Разом", "% рядків", "Нескінченні", "Зауваження"]
+    else:
+        titles += [f"{c.label} ({c.name})" if c.label else c.name for c in data.fields]
+    with ui.element("div").classes("stat-table-wrap"):
+        with ui.element("table").classes("stat-table"):
+            with ui.element("caption"):
+                ui.label(STAT_VIEWS[data.view])
+            with ui.element("thead"), ui.element("tr"):
+                for title in titles:
+                    with ui.element("th").props('scope="col"'):
+                        ui.label(title)
+            with ui.element("tbody"):
+                for row in data.rows:
+                    with ui.element("tr") as table_row:
+                        table_row.props["data-field"] = row.name
+                        with ui.element("th").props('scope="row"'):
+                            ui.label(row.label or row.name).classes("stat-name")
+                            if row.label:
+                                ui.label(row.name).classes("hint")
+                            ui.label(
+                                " · ".join(
+                                    v
+                                    for v in (META_KINDS[row.kind], ROLE_TITLES[row.role], row.unit)
+                                    if v
+                                )
+                            ).classes("hint target" if row.role == "target" else "hint")
+                        if data.view == "correlations":
+                            assert pair_info is not None
+                            for field in data.fields:
+                                value = row.values.get(field.name)
+                                reason = row.reasons.get(field.name)
+                                detail = (
+                                    f"{row.name} × {field.name}: r = {stat_number(value)}, n = {row.counts.get(field.name, 0)}"
+                                    + (f". {reason}" if reason else "")
+                                )
+                                with ui.element("td"):
+                                    button(
+                                        stat_number(value), partial(pair_info.set_text, detail)
+                                    ).classes("stat-correlation").tooltip(detail)
+                        else:
+                            if data.view == "descriptive":
+                                with ui.element("td"):
+                                    ui.label(stat_number(row.values.get("count")))
+                                keys: tuple[str, ...] = numeric_keys
+                            else:
+                                keys = missing_keys
+                            for key in keys:
+                                with ui.element("td"):
+                                    value = row.values.get(key)
+                                    ui.label(
+                                        stat_number(value, 2 if key == "missing_percent" else 3)
+                                    ).tooltip(row.reasons.get(key, row.reason or ""))
+                            other = []
+                            if (
+                                data.view == "descriptive"
+                                and row.kind in ("category", "text", "bool")
+                                and row.values
+                            ):
+                                other = [
+                                    f"Унікальних: {row.values['unique']}",
+                                    f"Найчастіше: {row.values['top'] or '—'}; частота: {row.values['frequency'] or '—'}",
+                                ]
+                                if row.values.get("tied"):
+                                    other.append(
+                                        "Рівні частоти: обрано перше за текстовим порядком."
+                                    )
+                            if row.kind == "date" and row.values and data.view == "descriptive":
+                                other = [
+                                    f"Унікальних: {row.values['unique']}",
+                                    f"{iso_date(str(row.values['first']) if row.values.get('first') else None)}–{iso_date(str(row.values['last']) if row.values.get('last') else None)}",
+                                ]
+                            other += list(
+                                dict.fromkeys(
+                                    [
+                                        v
+                                        for v in (row.reason, row.warning, *row.reasons.values())
+                                        if v
+                                    ]
+                                )
+                            )
+                            with ui.element("td").classes("stat-notes"):
+                                for text in other:
+                                    ui.label(text)
 
 
 def metadata_status(meta) -> str:

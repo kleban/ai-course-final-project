@@ -366,3 +366,30 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .copy-dialog { width:min(720px, 94vw); max-width:94vw; }
 .candidates .trow { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; }
 .candidates .trow .colname { min-width:0; }
+
+/* Етап 03: таблиці в чинному стилі дашборда; прокрутка лише всередині таблиці. */
+.stat-controls { display:flex; align-items:center; flex-wrap:wrap; gap:10px; width:100%; }
+.stat-dataset { width:min(420px,100%); }
+.stat-fields { width:min(700px,100%); }
+.stat-views .btn[aria-pressed="true"] { border-color:var(--primary); color:var(--primary); background:var(--shade); }
+.btn:disabled { opacity:.45; cursor:default; }
+.btn:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+.stat-context, .stat-summary { font-weight:600; }
+.stat-table-wrap { width:100%; max-width:100%; overflow-x:auto; border-top:1px solid var(--grid); }
+.stat-table { width:100%; border-collapse:collapse; font-size:13px; }
+.stat-table caption { text-align:left; font-size:16px; font-weight:600; padding:10px 0; }
+.stat-table th, .stat-table td { padding:8px; border-bottom:1px solid var(--grid); vertical-align:top; }
+.stat-table thead th { color:var(--ink2); font-weight:600; text-align:right; white-space:nowrap; }
+.stat-table th:first-child { text-align:left; min-width:155px; }
+.stat-table tbody th { font-weight:400; }
+.stat-table td { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.stat-table .hint { color:var(--axis); font-size:12px; white-space:normal; }
+.stat-table .target { color:var(--primary); font-weight:600; }
+.stat-table .stat-name { font-weight:600; }
+.stat-table .stat-notes { text-align:left; min-width:180px; max-width:330px; white-space:normal; }
+.stat-table tbody tr:hover { background:var(--shade); }
+.stat-correlation { border:0; padding:0; width:100%; justify-content:flex-end; background:transparent; font-size:13px; font-weight:400; }
+.stat-pair { color:var(--ink2); font-size:14px; }
+.stat-pager { padding:8px 0; font-size:13px; }
+.stat-audit { margin-left:28px; overflow-wrap:anywhere; }
+@media (max-width:700px) { .stat-views .btn { flex:1 1 150px; } .stat-table { font-size:13px; } }

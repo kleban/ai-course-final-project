@@ -80,6 +80,12 @@ with sync_playwright() as pw:
         pg.locator(".nav-link.current .nav-count").inner_text().strip() == "1",
     )
     ok("project opened", "project=" in pg.url and pg.get_by_text("Ціни на квартири").count() >= 1)
+    project_url = pg.url
+    pg.get_by_role("button", name="Статистика", exact=True).click()
+    pg.get_by_text("Для статистики потрібен набір даних.", exact=False).wait_for()
+    ok("statistics empty state has upload", pg.locator(".uploader input[type=file]").count() == 1)
+    pg.goto(project_url)
+    pg.wait_for_timeout(1500)
     pg.locator(".uploader input[type=file]").first.set_input_files(SAMPLE)
     pg.wait_for_timeout(3000)
     ok(
@@ -149,6 +155,109 @@ with sync_playwright() as pw:
     )
     grid.scroll_into_view_if_needed()
     pg.screenshot(path=str(SHOTS / "melbourne-grid.png"))
+    melbourne_url = pg.url
+    pg.get_by_role("button", name="Статистика", exact=True).click()
+    pg.locator(".stat-table tbody tr").first.wait_for()
+    ok(
+        "statistics context entire Melbourne",
+        "13\u202f580" in pg.locator(".stat-context").inner_text(),
+    )
+    ok("statistics descriptive page is 10 fields", pg.locator(".stat-table tbody tr").count() == 10)
+    price = pg.locator(".stat-table tr[data-field='Price']")
+    ok("statistics price matches control", "1\u202f075\u202f684,079" in price.inner_text())
+    ok(
+        "statistics draft visible",
+        pg.get_by_text("Метадані не підтверджено", exact=False).count() >= 1,
+    )
+    pg.screenshot(path=str(SHOTS / "statistics-descriptive.png"))
+    pg.get_by_role("button", name="Наступні поля", exact=True).click()
+    pg.locator(".stat-table tr[data-field='BuildingArea']").wait_for()
+    ok(
+        "statistics server pagination",
+        pg.locator(".stat-table tr[data-field='Price']").count() == 0,
+    )
+    pg.get_by_role("button", name="Пропуски", exact=True).click()
+    pg.locator(".stat-summary").wait_for()
+    ok("statistics missing row union", "7\u202f384" in pg.locator(".stat-summary").inner_text())
+    pg.screenshot(path=str(SHOTS / "statistics-missing.png"))
+    pg.get_by_role("button", name="Кореляції", exact=True).click()
+    pg.get_by_label("Числові поля для кореляції").wait_for()
+    x = pg.locator(".stat-table tr[data-field='Price']")
+    # Numeric fields begin Rooms, Price, Distance...; first cell is Price x Rooms.
+    x.locator(".stat-correlation").first.click()
+    pg.wait_for_timeout(400)
+    ok(
+        "statistics Pearson pair n",
+        "0,497" in pg.locator(".stat-pair").inner_text()
+        and "13580" in pg.locator(".stat-pair").inner_text(),
+    )
+    pg.screenshot(path=str(SHOTS / "statistics-correlations.png"))
+    for field in (
+        "Distance",
+        "Postcode",
+        "Bedroom2",
+        "Bathroom",
+        "Car",
+        "Landsize",
+        "BuildingArea",
+        "YearBuilt",
+        "Lattitude",
+        "Longtitude",
+        "Propertycount",
+    ):
+        pg.locator(".stat-fields .q-chip").filter(has_text=field).locator(
+            ".q-chip__icon--remove"
+        ).click()
+        pg.wait_for_timeout(300)
+    pg.get_by_role("button", name="Застосувати поля", exact=True).click()
+    pg.wait_for_timeout(700)
+    ok(
+        "statistics selected fields only",
+        pg.locator(".stat-table tbody tr").count() == 2
+        and pg.locator(".stat-table thead th").count() == 3,
+    )
+    pg.locator(".stat-fields .q-chip").filter(has_text="Price").locator(
+        ".q-chip__icon--remove"
+    ).click()
+    pg.get_by_role("button", name="Застосувати поля", exact=True).click()
+    pg.get_by_text("Оберіть щонайменше два придатні числові поля.", exact=True).wait_for()
+    ok("statistics explains fewer than two fields", pg.locator(".stat-table").count() == 0)
+    pg.reload()
+    pg.locator(".stat-table tbody tr").first.wait_for()
+    pg.get_by_role("button", name="Кореляції", exact=True).click()
+    pg.get_by_label("Числові поля для кореляції").wait_for()
+    pg.get_by_text("Виключені поля", exact=False).click()
+    ok("statistics excludes date", "Date: До Pearson" in pg.locator(".howto").last.inner_text())
+    pg.set_viewport_size({"width": 390, "height": 800})
+    pg.wait_for_timeout(500)
+    ok(
+        "statistics mobile contained scroll",
+        pg.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+    )
+    pg.screenshot(path=str(SHOTS / "statistics-mobile.png"))
+    pg.set_viewport_size({"width": 1400, "height": 900})
+    pg.get_by_role("button", name="Огляд і метадані", exact=True).click()
+    pg.get_by_text("Редагувати метадані", exact=True).click()
+    pg.locator(".meta-card").first.wait_for()
+    postcode_card = pg.locator(".meta-card").nth(9)
+    postcode_card.get_by_label("Тип").click()
+    pg.get_by_role("option", name="категорія", exact=True).click()
+    pg.get_by_text("Зберегти й підтвердити", exact=True).click()
+    pg.get_by_role("button", name="Статистика", exact=True).wait_for()
+    pg.get_by_role("button", name="Статистика", exact=True).click()
+    pg.get_by_role("button", name="Кореляції", exact=True).click()
+    pg.get_by_label("Числові поля для кореляції").wait_for()
+    pg.get_by_text("Виключені поля", exact=False).click()
+    ok(
+        "statistics reflects saved metadata",
+        "Postcode: До Pearson" in pg.locator(".howto").last.inner_text(),
+    )
+    ok(
+        "statistics confirmed state",
+        pg.get_by_text("Метадані підтверджено", exact=True).count() == 1,
+    )
+    pg.goto(melbourne_url)
+    pg.wait_for_timeout(1500)
     # stage 02c: a second project takes an independent copy of the Melbourne dataset
     pg.goto(B)
     pg.wait_for_timeout(1200)
@@ -165,7 +274,7 @@ with sync_playwright() as pw:
         "copy dialog lists datasets of other projects",
         dialog.locator(".trow").count() == 2
         and dialog.get_by_text("проєкт «Ціни на квартири»").count() == 2
-        and dialog.get_by_text("метадані підтверджено").count() == 1,
+        and dialog.get_by_text("метадані підтверджено").count() == 2,
     )
     pg.screenshot(path=str(SHOTS / "copy-dialog.png"))
     dialog.locator(".trow").filter(has=pg.get_by_text("melb_data.csv", exact=True)).get_by_text(

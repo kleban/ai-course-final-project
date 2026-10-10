@@ -30,6 +30,10 @@ from .contracts import (
     ProjectView,
     RowsPage,
     RowsQuery,
+    StatisticsField,
+    StatisticsPage,
+    StatisticsQuery,
+    StatisticsRow,
     Success,
 )
 from .dataset_copy import DatasetCopier
@@ -37,6 +41,7 @@ from .datasets import DatasetError, DatasetNotFound, DatasetStore
 from .metadata import MetadataError, MetadataStore, issues
 from .project_types import PROJECT_TYPES
 from .projects import ProjectNotFound, ProjectStore
+from .statistics import StatisticsError, StatisticsStore
 
 T = TypeVar("T")
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
@@ -77,7 +82,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         return Success(data=action())
     except InputValidation as error:
         return validation_failure(error.error.errors(include_input=False))
-    except (DatasetError, MetadataError) as error:
+    except (DatasetError, MetadataError, StatisticsError) as error:
         return Failure(
             error=ErrorInfo(
                 code="invalid_input",
@@ -117,6 +122,7 @@ class ProjectService:
         self.datasets = datasets or DatasetStore(store.database)
         self.metadata_store = MetadataStore(store.database, self.datasets)
         self.copier = DatasetCopier(self.datasets)
+        self.statistics_store = StatisticsStore(self.datasets)
 
     def create(self, raw: object) -> Success[ProjectView] | Failure:
         def action() -> ProjectView:
@@ -244,6 +250,109 @@ class ProjectService:
                 for i in issues(item.document)
             ],
         )
+
+    def statistics(self, project_id: str, raw: object) -> Success[StatisticsPage] | Failure:
+        def action() -> StatisticsPage:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(StatisticsQuery, raw)
+            result = self.statistics_store.calculate(
+                validated, str(query.dataset_id), query.view, query.fields
+            )
+            descriptors = {
+                c["name"]: {key: c[key] for key in ("name", "label", "unit", "kind", "role")}
+                for c in result["columns"]
+            }
+            names = result.get("fields", list(descriptors))
+            rows = []
+            for index in range(query.start, min(query.start + query.limit, len(names))):
+                name = names[index]
+                column = next(c for c in result["columns"] if c["name"] == name)
+                values, counts, reasons = {}, {}, {}
+                if query.view == "correlations":
+                    values = dict(zip(names, result["r"][index])) if result["r"] else {}
+                    counts = dict(zip(names, result["n"][index])) if result["n"] else {}
+                    reasons = (
+                        {n: reason for n, reason in zip(names, result["reasons"][index]) if reason}
+                        if result["reasons"]
+                        else {}
+                    )
+                elif query.view == "missing":
+                    values = {
+                        key: column[key]
+                        for key in (
+                            "base_missing",
+                            "additional_missing",
+                            "missing",
+                            "missing_percent",
+                            "invalid_infinite",
+                        )
+                    }
+                else:
+                    summary = column["statistics"] or {}
+                    values = {
+                        key: value
+                        for key, value in summary.items()
+                        if not key.endswith("reason") and key != "reasons"
+                    }
+                    reasons = summary.get("reasons", {})
+                    if summary.get("empty_reason"):
+                        reasons["empty"] = summary["empty_reason"]
+                rows.append(
+                    StatisticsRow(
+                        **descriptors[name],
+                        values=values,
+                        counts=counts,
+                        reasons=reasons,
+                        reason=column["reason"],
+                        warning=" ".join(
+                            [
+                                column.get("warning") or "",
+                                *[
+                                    issue["message"]
+                                    for issue in result["issues"]
+                                    if issue["column"] == name
+                                ],
+                            ]
+                        ).strip()
+                        or None,
+                    )
+                )
+            selected = result.get("fields", [])
+            excluded = result.get("excluded", {})
+            return StatisticsPage(
+                **{
+                    key: result[key]
+                    for key in (
+                        "project_id",
+                        "dataset_id",
+                        "sha256",
+                        "view",
+                        "method",
+                        "row_count",
+                        "metadata_state",
+                        "metadata_updated_at",
+                        "warnings",
+                    )
+                },
+                rows=rows,
+                total=len(names),
+                start=query.start,
+                limit=query.limit,
+                fields=[StatisticsField.model_validate(descriptors[name]) for name in selected],
+                eligible=[
+                    StatisticsField.model_validate(d)
+                    for name, d in descriptors.items()
+                    if name not in excluded
+                ]
+                if query.view == "correlations"
+                else [],
+                excluded=excluded,
+                rows_with_missing=result.get("rows_with_missing"),
+                rows_with_missing_percent=result.get("rows_with_missing_percent"),
+                reason=result.get("reason"),
+            )
+
+        return execute(action)
 
     def metadata(self, dataset_id: str) -> Success[MetadataView] | Failure:
         def action() -> MetadataView:

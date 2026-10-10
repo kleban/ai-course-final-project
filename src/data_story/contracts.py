@@ -3,11 +3,12 @@
 from typing import Annotated, Any, Generic, Literal, TypeVar
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, FiniteFloat, field_validator
 
 from .configuration import INSTRUCTION_LIMIT
 from .metadata import MetadataDocument
 from .project_types import DEFAULT_TYPE, ProjectTypeKey, require_enabled
+from .statistics import View
 from .validation import NAME_LIMIT, PURPOSE_LIMIT, text
 
 T = TypeVar("T")
@@ -85,9 +86,10 @@ class EventView(StrictModel):
         "metadata.saved",
         "metadata.confirmed",
         "metadata.source_added",
+        "statistics.calculated",
     ]
     occurred_at: AwareDatetime
-    payload: dict[str, str]
+    payload: dict[str, Any]
 
 
 class ColumnProfile(StrictModel):
@@ -183,6 +185,52 @@ class RowsPage(StrictModel):
     rows: list[dict[str, int | float | str | None]]
     total: int
     all_rows: int
+
+
+class StatisticsQuery(StrictModel):
+    dataset_id: UUID
+    view: View = "descriptive"
+    fields: list[Annotated[str, Field(strict=True, min_length=1)]] | None = None
+    start: Annotated[int, Field(strict=True, ge=0)] = 0
+    limit: Annotated[int, Field(strict=True, ge=1, le=50)] = 10
+
+
+class StatisticsField(StrictModel):
+    name: str
+    label: str
+    unit: str
+    kind: str
+    role: str
+
+
+class StatisticsRow(StatisticsField):
+    values: dict[str, int | FiniteFloat | str | bool | None]
+    counts: dict[str, int] = Field(default_factory=dict)
+    reasons: dict[str, str] = Field(default_factory=dict)
+    reason: str | None = None
+    warning: str | None = None
+
+
+class StatisticsPage(StrictModel):
+    project_id: UUID
+    dataset_id: UUID
+    sha256: str
+    view: View
+    method: str
+    row_count: int
+    metadata_state: Literal["confirmed", "draft", "none"]
+    metadata_updated_at: AwareDatetime | None
+    warnings: list[str]
+    rows: list[StatisticsRow]
+    total: int
+    start: int
+    limit: int
+    fields: list[StatisticsField] = Field(default_factory=list)
+    eligible: list[StatisticsField] = Field(default_factory=list)
+    excluded: dict[str, str] = Field(default_factory=dict)
+    rows_with_missing: int | None = None
+    rows_with_missing_percent: FiniteFloat | None = None
+    reason: str | None = None
 
 
 class MetadataIssue(StrictModel):

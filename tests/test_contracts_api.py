@@ -42,6 +42,69 @@ class ContractAndApiTests(unittest.TestCase):
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(schema["properties"]["name"]["maxLength"], 120)
 
+    def test_statistics_pages_views_and_journal_over_http(self):
+        project = self.store.create("Статистика")
+        dataset = self.service.datasets.add(
+            project.id, "test.csv", b"x,y,s\n1,2,A\n2,4,B\n3,6,A\n4,,B\n"
+        )
+        url = f"/api/projects/{project.id}/statistics"
+        query = {"dataset_id": dataset.id, "limit": 1}
+        first = self.client.post(url, json=query)
+        self.assertEqual(first.status_code, 200, first.text)
+        data = first.json()["data"]
+        self.assertEqual((len(data["rows"]), data["total"], data["row_count"]), (1, 3, 4))
+        self.assertEqual(data["rows"][0]["values"]["mean"], 2.5)
+        second = self.client.post(url, json={**query, "start": 1}).json()["data"]
+        self.assertEqual(second["rows"][0]["name"], "y")
+        for view in ("missing", "correlations"):
+            response = self.client.post(url, json={**query, "view": view})
+            self.assertEqual(response.status_code, 200, response.text)
+            result = response.json()["data"]
+            if view == "missing":
+                self.assertEqual(result["rows_with_missing"], 1)
+            else:
+                self.assertEqual([c["name"] for c in result["fields"]], ["x", "y"])
+                self.assertEqual(result["rows"][0]["counts"]["y"], 3)
+                self.assertAlmostEqual(result["rows"][0]["values"]["y"], 1)
+                self.assertIn("s", result["excluded"])
+        events = self.client.get(f"/api/projects/{project.id}/events")
+        self.assertEqual(events.status_code, 200, events.text)
+        calculations = [
+            e for e in events.json()["data"] if e["operation"] == "statistics.calculated"
+        ]
+        self.assertEqual(len(calculations), 4)
+        self.assertEqual(calculations[-1]["payload"]["dataset_name"], "test.csv")
+
+    def test_statistics_metadata_refresh_validation_and_isolation(self):
+        project = self.store.create("Один")
+        other = self.store.create("Інший")
+        dataset = self.service.datasets.add(project.id, "test.csv", b"x,y\n0,1\n1,2\n2,3\n")
+        url = f"/api/projects/{project.id}/statistics"
+        query = {"dataset_id": dataset.id}
+        for invalid in ({"limit": 51}, {"start": -1}, {"view": "invalid"}, {"extra": 1}):
+            self.assertEqual(self.client.post(url, json={**query, **invalid}).status_code, 422)
+        denied = self.client.post(f"/api/projects/{other.id}/statistics", json=query)
+        self.assertEqual(denied.status_code, 422)
+        self.assertNotIn("rows", denied.json())
+        meta = self.service.metadata_store.get(dataset.id).document
+        meta.columns[0].missing_codes = ["0"]
+        self.service.metadata_store.save(dataset.id, meta.model_dump(), confirm=True)
+        response = self.client.post(url, json=query).json()["data"]
+        self.assertEqual(response["metadata_state"], "confirmed")
+        self.assertEqual(response["rows"][0]["values"]["mean"], 1.5)
+        self.assertEqual(
+            self.client.post(url, json={**query, "view": "correlations", "fields": []}).json()[
+                "data"
+            ]["total"],
+            0,
+        )
+        path = self.service.datasets.files_root / dataset.stored_path
+        path.write_bytes(b"broken")
+        error = self.client.post(url, json=query)
+        self.assertEqual(error.status_code, 422)
+        self.assertNotIn(str(path), error.text)
+        self.assertEqual(self.client.get(f"/api/projects/{project.id}/events").status_code, 200)
+
     def test_http_and_ui_service_return_same_validated_project(self):
         response = self.client.post("/api/projects", json={"name": "  Дані України  "})
         self.assertEqual(response.status_code, 200)

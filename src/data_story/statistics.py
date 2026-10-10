@@ -238,6 +238,7 @@ class StatisticsStore:
             dataset = self.datasets.get(dataset_id)
             if dataset.project_id != project_id:
                 raise StatisticsError("Набір не належить поточному проєкту.")
+            audit["dataset_name"] = dataset.name
             path = (self.datasets.files_root / dataset.stored_path).resolve()
             if not path.is_relative_to(self.datasets.files_root) or not path.is_file():
                 raise StatisticsError("Файл набору даних відсутній у сховищі.")
