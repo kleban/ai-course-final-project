@@ -35,21 +35,6 @@ from .service import ProjectService
 
 ASSETS = Path(__file__).parent / "assets"
 
-# Тимчасово: маршрут MVP з planning/plan.md — лише показ плану, не кнопки.
-STAGES = [
-    ("01", "Проєкти", "folder"),
-    ("02", "Дані", "data"),
-    ("03", "Статистика", "compare"),
-    ("04", "Графіки й формули", "formula"),
-    ("05", "Підготовка даних", "methods"),
-    ("06", "Регресія", "regression"),
-    ("07", "База знань (RAG)", "sources"),
-    ("08", "Налаштування AI", "settings"),
-    ("09", "AI-агент", "spark"),
-    ("10", "Звіти", "doc"),
-    ("11", "Підсумок-історія", "story"),
-]
-DONE_STAGES = {"01"}
 NAV = [
     ("Робота", [("projects", "/", "Проєкти", "overview")]),
     (
@@ -329,14 +314,6 @@ class Shell:
                             )
                 if group == "Робота":
                     project_blocks()
-            ui.label("Етапи MVP · тимчасово").classes("nav-group stages-title")
-            with ui.element("div").classes("stages"):
-                for number, title, ico in STAGES:
-                    done = number in DONE_STAGES
-                    with ui.element("div").classes("nav-item done" if done else "nav-item"):
-                        ui.label(number).classes("num")
-                        icon("check" if done else ico)
-                        ui.label(title)
 
             def collapse() -> None:
                 state = not bool(app.storage.general.get(NAV_MINI_KEY, False))
