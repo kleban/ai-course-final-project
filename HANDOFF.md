@@ -28,7 +28,7 @@
 
 ## Продовження
 
-Далі за планом — 08: налаштування й адаптер OpenAI. D-66/D-67: цілі блоки без зупинки на дрібних задачах; пуш лише з дозволу.
+Далі за планом — 08: адаптер OpenAI. Ключ — у `.env` (`OPENAI_API_KEY`, у `.gitignore`, шаблон `.env.example`, D-76). Після підключення — пройти всі етапи й визначити місця для AI (D-75). D-66/D-67: цілі блоки без зупинки на дрібних задачах; пуш лише з дозволу.
 
 ## Запуск і карта
 
@@ -36,4 +36,4 @@
 
 `preparation*.py`, `prepared_datasets.py` — плани й незалежні набори; `training_data.py`/`training_store.py`/`training_screen.py` — вибірки; `model.py` — навчання й показники; `model_store.py` — збереження/журнал; `model_screen.py` — екран; `assistant_tools.py` — операції для AI; `service.py` — спільний API/UI.
 
-Runtime і tmp поза Git, всередині репозиторію. Наступний номер історії — **068**. Правило D-71: короткі питання й відповіді (`AGENTS.md`). Гілка `main`, origin `https://github.com/kleban/ai-course-final-project.git`; коміти 063–067 локальні, не відправлені.
+Runtime і tmp поза Git, всередині репозиторію. Наступний номер історії — **069**. Правило D-71: короткі питання й відповіді (`AGENTS.md`). Гілка `main`, origin `https://github.com/kleban/ai-course-final-project.git`; коміти 063–067 локальні, не відправлені.
