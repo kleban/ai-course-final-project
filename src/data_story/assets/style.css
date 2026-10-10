@@ -41,7 +41,8 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 
 /* ліва навігація — як у дашборді автора: суцільний список на всю ширину, без рамок і проміжків;
    групи відокремлено підписом і тонкою лінією, поточний пункт — сіре тло, синій жирний текст і смуга зліва */
-.nav { background:#fff !important; border-right:1px solid var(--grid); padding:12px 0 20px; }
+.nav { background:#fff !important; border-right:1px solid var(--grid); padding:4px 0 20px; top:0 !important; }
+.nav .q-drawer__content, .nav .nicegui-drawer { justify-content:flex-start !important; }
 .nav, .nav .q-drawer__content, .nav .nicegui-drawer { gap:0 !important; row-gap:0 !important; }
 .nav-group { font-size:.78em; font-weight:600; color:var(--ink2); padding:14px 16px 6px; margin:0; border-top:1px solid var(--grid); }
 .nav-group:first-child { border-top:none; padding-top:2px; }
@@ -252,9 +253,9 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
   .columns .trow > :nth-child(3) { display:none; } }
 
 /* макет: панель на всю висоту з логотипом, тонка смуга з контекстом праворуч */
-.brand-block { padding:6px 16px 16px; margin-bottom:6px; border-bottom:1px solid var(--grid); cursor:pointer; align-self:stretch; }
-.brand-logo { display:block; width:100%; max-width:208px; height:auto; }
-.brand-mini { display:none; width:44px; height:auto; margin:0 auto; }
+.brand-block { padding:28px 32px 24px; margin-bottom:6px; border-bottom:1px solid var(--grid); cursor:pointer; align-self:stretch; }
+.brand-logo { display:block; width:100%; max-width:125px; height:auto; margin:0 auto; }
+.brand-mini { display:none; width:34px; height:auto; margin:0 auto; }
 .brand-row { display:flex; align-items:center; gap:10px; }
 .brand-row .brand-ico { width:2.6em; height:2.6em; color:var(--primary); }
 .brand-words { display:flex; flex-direction:column; line-height:1; }
@@ -274,7 +275,7 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 /* згорнуте меню (Quasar mini): лише знак та іконки пунктів */
 .q-drawer--mini .brand-logo, .q-drawer--mini .brand-tagline, .q-drawer--mini .brand-row { display:none !important; }
 .q-drawer--mini .brand-mini { display:block; }
-.q-drawer--mini .brand-block { padding:8px 6px 12px; }
+.q-drawer--mini .brand-block { padding:16px 10px 14px; }
 .q-drawer--mini .nav-group, .q-drawer--mini .stages, .q-drawer--mini .nav-link .label,
 .q-drawer--mini .nav-count { display:none; }
 .q-drawer--mini .nav-link { justify-content:center; padding:10px 0; }

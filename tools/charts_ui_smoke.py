@@ -101,6 +101,7 @@ with sync_playwright() as pw:
         page.locator(".histogram .chart-item").count() == 10
         and page.locator(".histogram .median-line").count() == 0,
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "settings-histogram.png"), full_page=True)
     page.get_by_role("button", name="Розсіювання", exact=True).click()
     page.locator(".scatter circle").first.wait_for()
@@ -110,6 +111,7 @@ with sync_playwright() as pw:
     ok("settings missing preview", page.locator(".missing-chart .chart-item").count() == 5)
     page.get_by_role("button", name="Відновити початкові налаштування", exact=True).click()
     page.wait_for_timeout(800)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "settings.png"), full_page=True)
     ok(
         "reset restores defaults",
@@ -145,6 +147,7 @@ with sync_playwright() as pw:
     )
     page.evaluate("scrollTo(0,0)")
     page.wait_for_timeout(200)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "heatmap.png"), full_page=True)
     page.get_by_text("Тимчасове оформлення графіка", exact=True).click()
     page.get_by_role("checkbox", name="Акцент за порогом |r|", exact=True).click()
@@ -200,6 +203,7 @@ with sync_playwright() as pw:
     )
     page.evaluate("scrollTo(0,0)")
     page.wait_for_timeout(200)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "histogram.png"), full_page=True)
     page.get_by_role("button", name="Ширина інтервалу", exact=True).click()
     page.get_by_label("Ширина інтервалу (> 0)", exact=True).fill("500000")
@@ -235,6 +239,7 @@ with sync_playwright() as pw:
     ok("scatter r from statistics", "Pearson r = 0.50" in page.locator(".chart-facts").inner_text())
     ok(f"scatter built in {elapsed:.1f}s (< 15s)", elapsed < 15)
     page.evaluate("scrollTo(0,0)")
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "scatter.png"), full_page=True)
     page.goto(B + f"/?project={project}&dataset={dataset}&view=eda&tool=missing")
     page.get_by_role("button", name="Побудувати", exact=True).click()
@@ -252,6 +257,7 @@ with sync_playwright() as pw:
     page.wait_for_function("document.querySelectorAll('.math-formula mjx-container').length === 1")
     ok("missing formula rendered", page.locator(".math-formula[data-rendered=ok]").count() == 1)
     page.evaluate("scrollTo(0,0)")
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "missing.png"), full_page=True)
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_timeout(500)
@@ -263,6 +269,7 @@ with sync_playwright() as pw:
         "mobile chart scrolls internally",
         page.locator(".heatmap-scroll").evaluate("el=>el.scrollWidth>el.clientWidth"),
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "mobile.png"), full_page=True)
     ok("no external requests", not external)
     ok("no browser errors", not errors)

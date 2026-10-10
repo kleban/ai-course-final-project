@@ -324,6 +324,7 @@ with sync_playwright() as pw:
         pg.locator(".datasets .tag").get_by_text("копія").count() == 1
         and pg.get_by_text("Додано копію наявного набору").count() >= 1,
     )
+    pg.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     pg.screenshot(path=str(SHOTS / "melbourne-dataset.png"), full_page=True)
     pg.goto(B + "/settings")
     pg.wait_for_timeout(1200)
@@ -384,6 +385,7 @@ with sync_playwright() as pw:
     pg.get_by_role("button", name="Скасувати", exact=True).click()
     ok("format undo", markdown(pg).strip() == draft)
     editor.hover()
+    pg.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     pg.screenshot(path=str(SHOTS / "markdown-editor.png"), full_page=True)
     editor.fill("")
     pg.get_by_text("Зберегти інструкцію", exact=True).click()
@@ -399,6 +401,7 @@ with sync_playwright() as pw:
     pg.set_viewport_size({"width": 390, "height": 800})
     pg.reload()
     editor.wait_for()
+    pg.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     pg.screenshot(path=str(SHOTS / "markdown-mobile.png"), full_page=True)
     ok("mobile editor fits", pg.evaluate("document.documentElement.scrollWidth <= innerWidth"))
     pg.set_viewport_size({"width": 1400, "height": 900})

@@ -71,6 +71,7 @@ with sync_playwright() as pw:
         "save appears after preview",
         page.get_by_role("button", name="Підтвердити й зберегти план").count() == 1,
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "drop-preview.png"), full_page=True)
     page.get_by_role("button", name="Прибрати", exact=True).click()
     page.wait_for_timeout(300)
@@ -111,6 +112,7 @@ with sync_playwright() as pw:
         "restoring requires fresh preview",
         page.get_by_role("button", name="Підтвердити й зберегти план").count() == 0,
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "saved-plan.png"), full_page=True)
     with httpx.Client(base_url=BASE) as api:
         plans = api.get(f"/api/projects/{project}/preparation/plans").json()["data"]
@@ -132,6 +134,7 @@ with sync_playwright() as pw:
     page.goto(url)
     page.get_by_role("button", name="Додати операцію", exact=True).wait_for()
     ok("mobile renders", True)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "mobile.png"), full_page=True)
     browser.close()
 ok("no external requests", not external)

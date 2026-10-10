@@ -40,4 +40,4 @@
 
 `preparation*.py`, `prepared_datasets.py` — плани й незалежні набори; `training_data.py`/`training_store.py`/`training_screen.py` — вибірки; `model.py` — навчання й показники; `model_store.py` — збереження/журнал; `model_screen.py` — екран; `assistant_tools.py` — операції для AI; `service.py` — спільний API/UI.
 
-Runtime і tmp поза Git, всередині репозиторію. Наступний номер історії — **070**. Правило D-71: короткі питання й відповіді (`AGENTS.md`). Гілка `main`, origin `https://github.com/kleban/ai-course-final-project.git`; коміти 063–069 локальні, не відправлені.
+Runtime і tmp поза Git, всередині репозиторію. Наступний номер історії — **071**. D-78: логотип зменшено, меню завжди зверху. Правило D-71: короткі питання й відповіді (`AGENTS.md`). Гілка `main`, origin `https://github.com/kleban/ai-course-final-project.git`; коміти 063–069 локальні, не відправлені.

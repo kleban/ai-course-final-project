@@ -69,6 +69,7 @@ with sync_playwright() as pw:
     ok("equation rendered", page.locator(".model-equation svg").count() == 1)
     ok("equation text shown", page.get_by_text("ŷ(price) =", exact=False).count() >= 1)
     ok("line equation shown", page.get_by_text("Лінія на графіку", exact=False).count() == 1)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "regression.png"), full_page=True)
 
     page.get_by_label("Ознака для графіка регресії").click()
@@ -87,6 +88,7 @@ with sync_playwright() as pw:
         "feature selector hidden for errors",
         not page.get_by_label("Ознака для графіка регресії").is_visible(),
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "residuals.png"), full_page=True)
 
     page.get_by_role("button", name="Прогноз проти факту", exact=True).click()
@@ -114,6 +116,7 @@ with sync_playwright() as pw:
         "mobile page contained",
         page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "mobile.png"), full_page=True)
     browser.close()
 ok("no external requests", not external)

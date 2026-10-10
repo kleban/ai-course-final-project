@@ -133,6 +133,7 @@ with sync_playwright() as pw:
     )  # fmt: skip
     page.wait_for_selector("[data-formula][data-rendered='ok']", timeout=15000)
     ok("formulas rendered locally", page.locator("[data-rendered='ok']").count() >= 4)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "model-result.png"), full_page=True)
 
     with httpx.Client(base_url=BASE) as api:
@@ -169,6 +170,7 @@ with sync_playwright() as pw:
         by_name = {c["name"]: c for c in noisy_doc["coefficients"]}
         ok("signal significant", by_name["signal"]["p_value"] < 0.001)
         ok("noise not significant", by_name["noise"]["p_value"] > 0.05)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "model-p-values.png"), full_page=True)
 
     page.goto(f"{BASE}/?project={project}&view=model&run={tiny}")
@@ -213,6 +215,7 @@ with sync_playwright() as pw:
         "mobile page contained",
         page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "model-mobile.png"), full_page=True)
     browser.close()
 ok("no external requests", not external)

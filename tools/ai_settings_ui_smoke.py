@@ -67,6 +67,7 @@ with sync_playwright() as pw:
         saved = api.get("/api/configuration/ai").json()["data"]
         ok("choice persisted", saved["configuration"]["models"]["model_advice"] == "gpt-6-luna")
         ok("api has no key value", FAKE not in str(saved))
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "ai-settings.png"), full_page=True)
     page.get_by_role("button", name="Повернути типові").click()
     page.get_by_text("Повернуто типові", exact=False).wait_for()
@@ -86,6 +87,7 @@ with sync_playwright() as pw:
         "mobile contained",
         page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "mobile.png"), full_page=True)
     browser.close()
 ok("typed key never sent to server", not any(FAKE in f for f in frames))

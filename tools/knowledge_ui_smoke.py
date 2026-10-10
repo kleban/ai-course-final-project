@@ -48,6 +48,7 @@ with sync_playwright() as pw:
     first = page.locator(".knowledge-hit").first.inner_text()
     ok("best hit is significance rule", "p-value і зірочки значущості" in first)
     ok("hit shows source", "Джерело:" in first)
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "search.png"), full_page=True)
     page.get_by_label("Запитання").fill("рецепт борщу")
     page.get_by_role("button", name="Знайти").click()
@@ -67,6 +68,7 @@ with sync_playwright() as pw:
         "mobile contained",
         page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "mobile.png"), full_page=True)
     browser.close()
 ok("no external requests", not external)

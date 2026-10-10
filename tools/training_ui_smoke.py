@@ -70,6 +70,7 @@ with sync_playwright() as pw:
             api.get(f"/api/datasets/{output['id']}/metadata").json()["data"]["confirmed_at"]
             is None,
         )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "prepared-dataset.png"), full_page=True)
     page.goto(f"{BASE}/?project={project}&dataset={dataset}&view=training")
     page.get_by_role("button", name="Підготувати й зберегти вибірки", exact=True).wait_for()
@@ -118,6 +119,7 @@ with sync_playwright() as pw:
         "train imputation value shown",
         page.get_by_text("x · Значення заповнення з навчальної частини:", exact=False).count() >= 1,
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "training-result.png"), full_page=True)
     with httpx.Client(base_url=BASE) as api:
         runs = api.get(f"/api/projects/{project}/training").json()["data"]
@@ -150,6 +152,7 @@ with sync_playwright() as pw:
         "mobile button visible",
         page.get_by_role("button", name="Підготувати й зберегти вибірки", exact=True).count() == 1,
     )
+    page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "training-mobile.png"), full_page=True)
     browser.close()
 ok("no external requests", not external)
