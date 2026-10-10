@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from .ai_settings import MODELS, STAGES, TASKS, AiConfiguration, AiSettingsStore
 from .chart_configuration import ChartConfiguration, ChartConfigurationStore
 from .charts import (
     MISSING_PAGE,
@@ -174,6 +175,7 @@ class ProjectService:
         self.training_store = TrainingStore(self.datasets)
         self.model_store = ModelStore(self.training_store)
         self.knowledge = KnowledgeStore(store.database)
+        self.ai_settings = AiSettingsStore(store.database)
 
     def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action() -> dict:
@@ -260,6 +262,29 @@ class ProjectService:
             return view
 
         return execute(action)
+
+    def ai_configuration(self) -> Success[dict] | Failure:
+        """Task → OpenAI model table, limits, catalogue and the masked key state from .env."""
+
+        def action() -> dict:
+            return {
+                "configuration": self.ai_settings.get().model_dump(),
+                "key": self.ai_settings.key(),
+                "stages": STAGES,
+                "tasks": [vars(task) for task in TASKS.values()],
+                "models": [vars(model) for model in MODELS.values()],
+            }
+
+        return execute(action)
+
+    def save_ai_configuration(self, raw: object) -> Success[dict] | Failure:
+        def action() -> dict:
+            return self.ai_settings.save(validate_input(AiConfiguration, raw)).model_dump()
+
+        return execute(action)
+
+    def reset_ai_configuration(self) -> Success[dict] | Failure:
+        return execute(lambda: self.ai_settings.reset().model_dump())
 
     def knowledge_documents(self) -> Success[list[dict]] | Failure:
         return execute(self.knowledge.documents)

@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from nicegui import app, ui
 
+from .ai_settings import AiConfiguration
 from .chart_configuration import ChartConfiguration
 from .chart_screen import chart_settings_screen
 from .config import Settings
@@ -106,6 +107,18 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/projects/{project_id}/models/{model_id}", response_model=Success[dict] | Failure)
     def model_run(project_id: str, model_id: str):
         return response(service.model_run(project_id, model_id))
+
+    @api.get("/configuration/ai", response_model=Success[dict] | Failure)
+    def ai_configuration():
+        return response(service.ai_configuration())
+
+    @api.put("/configuration/ai", response_model=Success[dict] | Failure)
+    def save_ai_configuration(request: AiConfiguration):
+        return response(service.save_ai_configuration(request.model_dump()))
+
+    @api.post("/configuration/ai/reset", response_model=Success[dict] | Failure)
+    def reset_ai_configuration():
+        return response(service.reset_ai_configuration())
 
     @api.get("/knowledge/documents", response_model=Success[list[dict]] | Failure)
     def knowledge_documents():
@@ -336,6 +349,12 @@ def configure(settings: Settings) -> None:
     @ui.page("/settings/charts")
     def chart_settings_page():
         chart_settings_screen(service)
+
+    @ui.page("/settings/ai")
+    def ai_settings_page():
+        from .ai_screen import ai_settings_screen
+
+        ai_settings_screen(service)
 
     @ui.page("/settings/knowledge")
     def knowledge_page():

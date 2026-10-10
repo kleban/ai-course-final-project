@@ -440,3 +440,9 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 /* Knowledge base (07): search hits with source. */
 .knowledge-hit { border-left:3px solid var(--primary); padding:4px 10px; margin:8px 0; }
 .knowledge-section { font-weight:600; }
+/* AI models page (08): stage panels with one model per task; inert key field. */
+.ai-task { padding:6px 0 10px; border-bottom:1px solid var(--grid); }
+.ai-task:last-child { border-bottom:none; }
+.fake-key { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:6px; }
+.fake-key input { flex:1 1 200px; min-width:0; border:1px solid var(--axis); padding:6px 8px; font:inherit; }
+.fake-key .model-note { flex-basis:100%; }
