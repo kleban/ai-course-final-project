@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from data_story.icons import REGRESSION_PROPOSALS  # noqa: E402
 
-OUT = ROOT / "design" / "reviews" / "031-regression-icons"
+OUT = ROOT / "design" / "reviews" / "032-regression-icon"
 OUT.mkdir(parents=True, exist_ok=True)
 LABELS = ["Пряма й точки", "Хмара точок", "Крива регресії", "Пряма й похибки"]
 parts = []
