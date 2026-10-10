@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from .contracts import ErrorInfo, Failure, ModelTrainQuery, Success
+from .contracts import ErrorInfo, Failure, ModelCheckQuery, ModelTrainQuery, Success
 from .model import explain
 from .service import ProjectService
 
@@ -107,6 +107,13 @@ def _explain(service: ProjectService, project_id: str, args: dict) -> Success | 
     )
 
 
+def _check(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
+    result = service.model_check(project_id, args)
+    if isinstance(result, Success):
+        result.data.pop("svg", None)  # the assistant gets numbers and text, the UI draws
+    return result
+
+
 TOOLS: dict[str, AssistantTool] = {
     tool.name: tool
     for tool in (
@@ -135,6 +142,17 @@ TOOLS: dict[str, AssistantTool] = {
             ModelResultQuery,
             False,
             _explain,
+        ),
+        AssistantTool(
+            "build_model_chart",
+            "execute",
+            "Побудувати або замінити графік перевірки моделі на тестовій частині: "
+            "regression (ціль від обраної числової ознаки з лінією моделі), residuals "
+            "(похибки проти прогнозу) або actual (прогноз проти факту); параметри стилю "
+            "необов'язкові. Дані не змінює.",
+            ModelCheckQuery,
+            False,
+            _check,
         ),
     )
 }

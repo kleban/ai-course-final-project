@@ -62,6 +62,7 @@ EVENT_TITLES = {
     "preparation.applied": ("Створено підготовлений набір", "methods"),
     "training.prepared": ("Підготовлено вибірки для регресії", "methods"),
     "model.trained": ("Навчено лінійну регресію", "regression"),
+    "model.checked": ("Побудовано графік перевірки моделі", "check"),
 }
 FORMAT_TITLES = {"csv": "CSV"}
 
@@ -141,7 +142,7 @@ class Shell:
         for sheet in ("icons.css", "style.css", "charts.css"):
             version = asset_version(sheet)
             ui.add_head_html(f'<link rel="stylesheet" href="/assets/{sheet}?v={version}">')
-        if current in ("eda", "chart_settings", "model"):
+        if current in ("eda", "chart_settings", "model", "validation"):
             ui.add_head_html("""<script>window.MathJax={tex:{packages:['base','ams']},
               options:{enableMenu:false,enableAssistiveMml:false},
               startup:{typeset:false},svg:{fontCache:'local'}};</script>
@@ -422,11 +423,13 @@ def projects_screen(
         trail.append(("Підготовка даних", None))
     if active and view == "model":
         trail.append(("Модель", None))
+    if active and view == "validation":
+        trail.append(("Перевірка моделі", None))
     current = (
         "preparation"
         if view == "training"
         else view
-        if view in ("eda", "preparation", "model")
+        if view in ("eda", "preparation", "model", "validation")
         else "data"
         if active
         else "projects"
@@ -437,6 +440,10 @@ def projects_screen(
             error_line(active_result)
         if active and view == "eda":
             eda_screen(service, active, dataset_id, chart)
+        elif active and view == "validation":
+            from .validation_screen import validation_screen
+
+            validation_screen(service, active, run_id)
         elif active and view == "model":
             from .model_screen import model_screen
 
@@ -637,6 +644,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "preparation.applied",
                 "training.prepared",
                 "model.trained",
+                "model.checked",
             ):
                 view_title = (
                     EVENT_TITLES[event.operation][0]
@@ -658,6 +666,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "preparation.applied",
                 "training.prepared",
                 "model.trained",
+                "model.checked",
             ):
                 with ui.element("details").classes("howto stat-audit"):
                     with ui.element("summary"):
@@ -677,6 +686,8 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                         ("rmse", "RMSE (тест)"),
                         ("training_run_id", "Вибірки"),
                         ("model_id", "Модель"),
+                        ("chart", "Графік"),
+                        ("feature", "Ознака"),
                         ("actions", "Операції"),
                         ("plan_id", "План підготовки"),
                         ("fields", "Поля"),

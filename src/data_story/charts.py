@@ -549,3 +549,104 @@ def missing_svg(
         )
     parts.append("</svg>")
     return "".join(parts)
+
+
+# ---------------------------------------------------------------- model check (stage 06, 066)
+# Same scatter grammar as stage 04 (points in the accent colour, light grid); the model line is
+# the single highlight in the contrasting colour, reference lines are thin dashed text colour.
+
+
+def diagnostic_svg(view: dict[str, Any], options: ChartOptions, title: str = "") -> str:
+    """Points plus model/reference lines for the model check block; computed on the server."""
+    width, height = 820, 520
+    left, right, top, bottom = 100, 30, 70, 90
+    plot_w, plot_h = width - left - right, height - top - bottom
+    points = view["points"]
+    xs = [p[0] for p in points] + [q[0] for line in view["lines"] for q in line["points"]]
+    ys = [p[1] for p in points] + [q[1] for line in view["lines"] for q in line["points"]]
+    x_low, x_high = padded_range(xs)
+    y_low, y_high = padded_range(ys)
+    x_pad, y_pad = (x_high - x_low) * 0.04, (y_high - y_low) * 0.04  # keep points off the axes
+    x_low, x_high, y_low, y_high = x_low - x_pad, x_high + x_pad, y_low - y_pad, y_high + y_pad
+    heading = title or view["title"]
+    description = (
+        f"{view['title']}: X — {view['x_label']}, Y — {view['y_label']}; точок n={len(points)}."
+    )
+
+    def sx(value: float) -> float:
+        return left + (value - x_low) / (x_high - x_low) * plot_w
+
+    def sy(value: float) -> float:
+        return top + plot_h - (value - y_low) / (y_high - y_low) * plot_h
+
+    tick_size = max(11, options.label_size - 2)
+    grid = "#E3E5E8"
+    parts = [
+        f'<svg class="diagnostic" xmlns="http://www.w3.org/2000/svg" width="100%" '
+        f'viewBox="0 0 {width} {height}" role="img" '
+        f'aria-label="{escape(description, quote=True)}" style="max-width:{width}px;'
+        f'height:auto;font-family:{options.font};background:{options.background}">',
+        f"<desc>{escape(description)}</desc>",
+        f'<text x="20" y="35" font-size="{options.title_size}" fill="{options.text}">'
+        f"{escape(heading)}</text>",
+    ]
+
+    def text(x: float, y: float, value: str, anchor: str = "middle", size: int = 0) -> str:
+        return (
+            f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="{anchor}" '
+            f'font-size="{size or tick_size}" fill="{options.text}">{escape(value)}</text>'
+        )
+
+    for tick in nice_ticks(x_low, x_high, 6):
+        if options.grid_x:
+            parts.append(
+                f'<line x1="{sx(tick):.1f}" x2="{sx(tick):.1f}" y1="{top}" '
+                f'y2="{top + plot_h}" stroke="{grid}" />'
+            )
+        parts.append(text(sx(tick), top + plot_h + 22, number_text(tick, options.decimals)))
+    for tick in nice_ticks(y_low, y_high, 5):
+        if options.grid_y:
+            parts.append(
+                f'<line x1="{left}" x2="{left + plot_w}" y1="{sy(tick):.1f}" '
+                f'y2="{sy(tick):.1f}" stroke="{grid}" />'
+            )
+        parts.append(text(left - 10, sy(tick) + 4, number_text(tick, options.decimals), "end"))
+    stroke = f' stroke="{options.text}" stroke-width="0.5"' if options.scatter_outline else ""
+    parts.append(
+        f'<g class="diagnostic-points" fill="{options.accent}" '
+        f'fill-opacity="{options.scatter_opacity:g}"{stroke}>'
+    )
+    radius = options.scatter_size
+    parts.extend(f'<circle cx="{sx(x):.1f}" cy="{sy(y):.1f}" r="{radius}"/>' for x, y in points)
+    parts.append("</g>")
+    for line in view["lines"]:
+        (x1, y1), (x2, y2) = line["points"]
+        style = (
+            f'stroke="{options.negative}" stroke-width="2.5"'
+            if line["kind"] == "model"
+            else f'stroke="{options.text}" stroke-width="1" stroke-dasharray="5 4" opacity="0.7"'
+        )
+        parts.append(
+            f'<line class="diagnostic-{line["kind"]}" x1="{sx(x1):.1f}" y1="{sy(y1):.1f}" '
+            f'x2="{sx(x2):.1f}" y2="{sy(y2):.1f}" {style} />'
+        )
+    parts.append(
+        f'<line x1="{left}" x2="{left + plot_w}" y1="{top + plot_h}" y2="{top + plot_h}" '
+        f'stroke="{options.text}" /><line x1="{left}" x2="{left}" y1="{top}" '
+        f'y2="{top + plot_h}" stroke="{options.text}" />'
+    )
+    if options.frame:
+        parts.append(
+            f'<rect x="{left}" y="{top}" width="{plot_w}" height="{plot_h}" fill="none" '
+            f'stroke="{options.text}" />'
+        )
+    if options.axis_labels:
+        parts.append(text(left + plot_w / 2, height - 30, view["x_label"], size=options.label_size))
+        parts.append(
+            f'<text x="22" y="{top + plot_h / 2:.1f}" text-anchor="middle" '
+            f'font-size="{options.label_size}" fill="{options.text}" '
+            f'transform="rotate(-90 22 {top + plot_h / 2:.1f})">{escape(view["y_label"])}</text>'
+        )
+    parts.append(text(left + plot_w, 35, f"n = {len(points)}", "end"))
+    parts.append("</svg>")
+    return "".join(parts)

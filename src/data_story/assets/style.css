@@ -431,3 +431,9 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
   .coefs .se, .coefs .tval { display:none; }
   .model-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+/* Model check block (066): one chart with its equation, reading notes beside it. */
+.diagnostic-wrap { width:100%; }
+.diagnostic-wrap svg { width:100%; height:auto; display:block; }
+.model-equation { overflow-x:auto; max-width:100%; }
+.equation-title { margin-top:12px; }
+.q-toggle .q-btn { border-radius:0; }

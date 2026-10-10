@@ -13,6 +13,7 @@ from .charts import (
     SMALL_SAMPLE,
     BinningError,
     contrast_warnings,
+    diagnostic_svg,
     heatmap_svg,
     histogram_bins,
     histogram_svg,
@@ -44,6 +45,7 @@ from .contracts import (
     MissingQuery,
     MissingRow,
     MissingView,
+    ModelCheckQuery,
     ModelTrainQuery,
     PreparationQuery,
     PreparationSave,
@@ -220,6 +222,32 @@ class ProjectService:
             validated = str(validate_input(ProjectId, {"id": project_id}).id)
             request = validate_input(ModelTrainQuery, raw)
             return self.model_store.train(validated, str(request.training_run_id))
+
+        return execute(action)
+
+    def model_check(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        """One model check chart (regression line, errors or prediction vs actual) on test rows."""
+
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(ModelCheckQuery, raw)
+            configuration = self.chart_config.get()
+            options = query.options or configuration.effective()
+            view = self.model_store.check(
+                validated,
+                str(query.model_id),
+                query.chart,
+                query.feature,
+                {"theme": configuration.theme, "temporary_options": query.options is not None},
+            )
+            document = view.pop("document")
+            view["svg"] = diagnostic_svg(view, options, query.title)
+            view["warnings"] = contrast_warnings(options)
+            view["coefficients"] = document["coefficients"]
+            view["intercept"] = document["intercept"]
+            view["theme"] = configuration.theme
+            view.pop("points")
+            return view
 
         return execute(action)
 

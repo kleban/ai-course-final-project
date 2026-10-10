@@ -8,6 +8,7 @@ from uuid import uuid4
 import sklearn
 
 from .model import ModelError, ModelNotFound, check_matrices, train_linear_regression
+from .model_check import diagnostics
 from .preparation import PreparationError
 from .projects import ProjectStore
 from .storage import connect
@@ -115,6 +116,47 @@ class ModelStore:
             with connect(self.database) as connection:
                 ProjectStore._event(connection, project_id, "model.trained", audit)
             raise ModelError(message) from error
+
+    def check(
+        self, project_id: str, model_id: str, chart: str, feature: str | None, audit_extra: dict
+    ) -> dict:
+        """Build one model check view from saved matrices; one audited event per request."""
+        model = self.get(project_id, model_id)
+        document = model["document"]
+        started = perf_counter()
+        audit: dict = {
+            "model_id": model_id,
+            "training_run_id": model["training_run_id"],
+            "dataset_name": document["dataset_name"],
+            "target": document["choices"]["target"],
+            "chart": chart,
+            "feature": feature,
+            **audit_extra,
+        }
+        try:
+            arrays = self.training.matrices(project_id, model["training_run_id"])
+            view = diagnostics(document, arrays, chart, feature)
+        except (ModelError, PreparationError, KeyError, TypeError) as error:
+            message = (
+                str(error)
+                if isinstance(error, (ModelError, PreparationError))
+                else "Збережена модель має неочікувану структуру. Навчіть модель заново."
+            )
+            audit.update(
+                status="error", error=message, duration_ms=(perf_counter() - started) * 1000
+            )
+            with connect(self.database) as connection:
+                ProjectStore._event(connection, project_id, "model.checked", audit)
+            raise ModelError(message) from error
+        audit.update(
+            feature=view["feature"],
+            n=view["n"],
+            status="success",
+            duration_ms=(perf_counter() - started) * 1000,
+        )
+        with connect(self.database) as connection:
+            ProjectStore._event(connection, project_id, "model.checked", audit)
+        return {**view, "model_id": model_id, "document": document}
 
     def list(self, project_id: str) -> list[dict]:
         with connect(self.database) as connection:

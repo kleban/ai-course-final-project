@@ -355,7 +355,12 @@ class ModelStoreTests(unittest.TestCase):
         json.dumps(schemas)
         self.assertEqual(
             [s["name"] for s in schemas],
-            ["list_training_runs", "train_linear_regression", "explain_model_result"],
+            [
+                "list_training_runs",
+                "train_linear_regression",
+                "explain_model_result",
+                "build_model_chart",
+            ],
         )
         self.assertEqual({t.mode for t in TOOLS.values()}, {"advise", "execute", "explain"})
         self.assertIn("training_run_id", schemas[1]["parameters"]["properties"])

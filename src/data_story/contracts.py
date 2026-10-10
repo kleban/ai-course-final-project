@@ -110,6 +110,7 @@ class EventView(StrictModel):
         "preparation.applied",
         "training.prepared",
         "model.trained",
+        "model.checked",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -466,3 +467,11 @@ class TrainingQuery(TrainingChoices):
 
 class ModelTrainQuery(StrictModel):
     training_run_id: UUID
+
+
+class ModelCheckQuery(StrictModel):
+    model_id: UUID
+    chart: Literal["regression", "residuals", "actual"] = "regression"
+    feature: Annotated[str, Field(strict=True, min_length=1, max_length=200)] | None = None
+    options: ChartOptions | None = None
+    title: Annotated[str, Field(strict=True, max_length=120)] = ""

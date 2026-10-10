@@ -76,11 +76,18 @@ def coefficient_row(name: str, value: float, stats: dict) -> None:
         )
 
 
-def model_result(item: dict) -> None:
+def model_result(item: dict, project_id: str | None = None) -> None:
     doc = item["document"]
     test, train = doc["metrics"]["test"], doc["metrics"]["train"]
     target = doc["choices"]["target"]
     tests = doc.get("inference") or {}
+    if project_id:
+        button(
+            "Перевірити модель: графіки",
+            partial(ui.navigate.to, f"/?project={project_id}&view=validation&run={item['id']}"),
+            "check",
+            "small",
+        )
     with ui.element("div").classes("grid grid-4 model-kpis"):
         kpi(
             "regression",
@@ -244,7 +251,7 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
         existing = models_by_run().get(selector.value) if selector.value else None
         if existing:
             with feedback:
-                model_result(existing)
+                model_result(existing, project_id)
 
     selector.on_value_change(selection_changed)
     with left:
@@ -277,7 +284,7 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
                         if response.data["reused"]
                         else "Модель навчено й збережено."
                     ).classes("stat-context")
-                    model_result(response.data)
+                    model_result(response.data, project_id)
             summary.refresh()
             saved.refresh()
         finally:
@@ -315,6 +322,6 @@ def saved_models(service: ProjectService, project_id: str):
                 f"{doc['dataset_name']} · {doc['choices']['target']} · R² {precise(r2)} · "
                 f"{item['created_at'][:16].replace('T', ' ')} UTC"
             ).classes("w-full"):
-                model_result(item)
+                model_result(item, project_id)
 
     return listing

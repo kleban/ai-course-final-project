@@ -22,14 +22,16 @@ class AnalysisBlocksTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            [b.key for b in blocks if b.available], ["data", "eda", "preparation", "model"]
+            [b.key for b in blocks if b.available],
+            ["data", "eda", "preparation", "model", "validation"],
         )
 
     def test_links_and_registry_consistency(self):
         self.assertEqual(block_link(BLOCKS["data"], "p"), "/?project=p")
         self.assertEqual(block_link(BLOCKS["eda"], "p"), "/?project=p&view=eda")
         self.assertEqual(block_link(BLOCKS["model"], "p"), "/?project=p&view=model")
-        self.assertIsNone(block_link(BLOCKS["validation"], "p"))
+        self.assertEqual(block_link(BLOCKS["validation"], "p"), "/?project=p&view=validation")
+        self.assertIsNone(block_link(BLOCKS["conclusions"], "p"))
         self.assertEqual(set(TYPE_BLOCKS), set(PROJECT_TYPES))
         for keys in TYPE_BLOCKS.values():
             self.assertEqual(keys[:2], ["data", "eda"])

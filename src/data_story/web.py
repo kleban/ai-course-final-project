@@ -30,6 +30,7 @@ from .contracts import (
     MetadataView,
     MissingQuery,
     MissingView,
+    ModelCheckQuery,
     ModelTrainQuery,
     PreparationQuery,
     PreparationSave,
@@ -96,6 +97,10 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/projects/{project_id}/models", response_model=Success[list[dict]] | Failure)
     def model_runs(project_id: str):
         return response(service.model_runs(project_id))
+
+    @api.post("/projects/{project_id}/models/check", response_model=Success[dict] | Failure)
+    def model_check(project_id: str, query: ModelCheckQuery):
+        return response(service.model_check(project_id, query.model_dump(mode="json")))
 
     @api.get("/projects/{project_id}/models/{model_id}", response_model=Success[dict] | Failure)
     def model_run(project_id: str, model_id: str):
