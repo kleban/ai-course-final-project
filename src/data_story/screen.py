@@ -61,6 +61,7 @@ EVENT_TITLES = {
     "preparation.saved": ("Збережено план підготовки", "check"),
     "preparation.applied": ("Створено підготовлений набір", "methods"),
     "training.prepared": ("Підготовлено вибірки для регресії", "methods"),
+    "model.trained": ("Навчено лінійну регресію", "regression"),
 }
 FORMAT_TITLES = {"csv": "CSV"}
 
@@ -140,7 +141,7 @@ class Shell:
         for sheet in ("icons.css", "style.css", "charts.css"):
             version = asset_version(sheet)
             ui.add_head_html(f'<link rel="stylesheet" href="/assets/{sheet}?v={version}">')
-        if current in ("eda", "chart_settings"):
+        if current in ("eda", "chart_settings", "model"):
             ui.add_head_html("""<script>window.MathJax={tex:{packages:['base','ams']},
               options:{enableMenu:false,enableAssistiveMml:false},
               startup:{typeset:false},svg:{fontCache:'local'}};</script>
@@ -400,6 +401,7 @@ def projects_screen(
     dataset_id: str | None = None,
     view: str | None = None,
     chart: str | None = None,
+    run_id: str | None = None,
 ) -> None:
     active_result = service.get(selected) if selected else None
     active = active_result.data if isinstance(active_result, Success) else None
@@ -418,11 +420,13 @@ def projects_screen(
         trail.append(("Оглядовий аналіз", None))
     if active and view in ("preparation", "training"):
         trail.append(("Підготовка даних", None))
+    if active and view == "model":
+        trail.append(("Модель", None))
     current = (
         "preparation"
         if view == "training"
         else view
-        if view in ("eda", "preparation")
+        if view in ("eda", "preparation", "model")
         else "data"
         if active
         else "projects"
@@ -433,6 +437,10 @@ def projects_screen(
             error_line(active_result)
         if active and view == "eda":
             eda_screen(service, active, dataset_id, chart)
+        elif active and view == "model":
+            from .model_screen import model_screen
+
+            model_screen(service, active, run_id)
         elif active and view == "training":
             from .training_screen import training_screen
 
@@ -628,10 +636,11 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "preparation.saved",
                 "preparation.applied",
                 "training.prepared",
+                "model.trained",
             ):
                 view_title = (
                     EVENT_TITLES[event.operation][0]
-                    if event.operation.startswith(("preparation.", "training."))
+                    if event.operation.startswith(("preparation.", "training.", "model."))
                     else STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
                 )
                 title = f"{view_title}: {event.payload.get('dataset_name', '')} · " + (
@@ -648,6 +657,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "preparation.saved",
                 "preparation.applied",
                 "training.prepared",
+                "model.trained",
             ):
                 with ui.element("details").classes("howto stat-audit"):
                     with ui.element("summary"):
@@ -661,6 +671,12 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                         ("test_count", "Тестових рядків"),
                         ("feature_count", "Ознак після кодування"),
                         ("seed", "Параметр поділу"),
+                        ("target", "Ціль"),
+                        ("r2", "R² (тест)"),
+                        ("mae", "MAE (тест)"),
+                        ("rmse", "RMSE (тест)"),
+                        ("training_run_id", "Вибірки"),
+                        ("model_id", "Модель"),
                         ("actions", "Операції"),
                         ("plan_id", "План підготовки"),
                         ("fields", "Поля"),

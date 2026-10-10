@@ -109,6 +109,7 @@ class EventView(StrictModel):
         "preparation.saved",
         "preparation.applied",
         "training.prepared",
+        "model.trained",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -461,3 +462,7 @@ class PreparationSave(PreparationQuery):
 
 class TrainingQuery(TrainingChoices):
     dataset_id: UUID = Field(strict=False)
+
+
+class ModelTrainQuery(StrictModel):
+    training_run_id: UUID

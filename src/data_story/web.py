@@ -30,6 +30,7 @@ from .contracts import (
     MetadataView,
     MissingQuery,
     MissingView,
+    ModelTrainQuery,
     PreparationQuery,
     PreparationSave,
     ProjectCreate,
@@ -87,6 +88,18 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/projects/{project_id}/training", response_model=Success[list[dict]] | Failure)
     def training_runs(project_id: str):
         return response(service.training_runs(project_id))
+
+    @api.post("/projects/{project_id}/models", response_model=Success[dict] | Failure)
+    def model_train(project_id: str, query: ModelTrainQuery):
+        return response(service.model_train(project_id, query.model_dump(mode="json")))
+
+    @api.get("/projects/{project_id}/models", response_model=Success[list[dict]] | Failure)
+    def model_runs(project_id: str):
+        return response(service.model_runs(project_id))
+
+    @api.get("/projects/{project_id}/models/{model_id}", response_model=Success[dict] | Failure)
+    def model_run(project_id: str, model_id: str):
+        return response(service.model_run(project_id, model_id))
 
     @api.get("/configuration/charts", response_model=Success[ChartConfiguration] | Failure)
     def chart_configuration():
@@ -299,6 +312,7 @@ def configure(settings: Settings) -> None:
             query.get("dataset"),
             query.get("view"),
             query.get("tool"),
+            query.get("run"),
         )
 
     @ui.page("/settings")

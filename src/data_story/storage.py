@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 _V1 = """
     CREATE TABLE projects (
@@ -136,6 +136,19 @@ _V10 = """
 """
 
 
+# v11: trained linear regression results linked to saved train/test matrices (stage 06).
+_V11 = """
+    CREATE TABLE model_runs (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        training_run_id TEXT NOT NULL UNIQUE REFERENCES training_runs(id),
+        created_at TEXT NOT NULL,
+        document TEXT NOT NULL
+    );
+    CREATE INDEX model_runs_project ON model_runs(project_id, created_at);
+"""
+
+
 @contextmanager
 def connect(database: Path) -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(database, timeout=5)
@@ -154,7 +167,7 @@ def ensure_schema(database: Path) -> Path:
     database.parent.mkdir(parents=True, exist_ok=True)
     with connect(database) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SCHEMA_VERSION):
             raise RuntimeError("Непідтримувана версія бази даних; файл не змінено.")
         if version == 0:
             tables = connection.execute(
@@ -163,16 +176,17 @@ def ensure_schema(database: Path) -> Path:
             if tables:
                 raise RuntimeError("Невідома схема бази даних; файл не змінено.")
         steps = {
-            0: _V1 + _V2 + _V3 + _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10,
-            1: _V2 + _V3 + _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10,
-            2: _V3 + _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10,
-            3: _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10,
-            4: _V5 + _V6 + _V7 + _V8 + _V9 + _V10,
-            5: _V6 + _V7 + _V8 + _V9 + _V10,
-            6: _V7 + _V8 + _V9 + _V10,
-            7: _V8 + _V9 + _V10,
-            8: _V9 + _V10,
-            9: _V10,
+            0: _V1 + _V2 + _V3 + _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11,
+            1: _V2 + _V3 + _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11,
+            2: _V3 + _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11,
+            3: _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11,
+            4: _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11,
+            5: _V6 + _V7 + _V8 + _V9 + _V10 + _V11,
+            6: _V7 + _V8 + _V9 + _V10 + _V11,
+            7: _V8 + _V9 + _V10 + _V11,
+            8: _V9 + _V10 + _V11,
+            9: _V10 + _V11,
+            10: _V11,
         }.get(version)
         if steps:
             connection.executescript(

@@ -43,7 +43,7 @@ BLOCKS: dict[str, Block] = {
             "Модель",
             "regression",
             "Лінійна регресія: коефіцієнти, R², MAE, RMSE.",
-            None,
+            "model",
         ),
         Block(
             "validation",

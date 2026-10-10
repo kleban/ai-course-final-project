@@ -404,3 +404,14 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 /* Controls of the explicit regression preparation workflow. */
 .training-controls > .q-field { flex:1 1 280px; min-width:0; max-width:420px; }
 @media (max-width:700px) { .training-controls > .q-field { flex-basis:100%; max-width:100%; } }
+
+/* Model block (stage 06): result tiles, explanations, coefficients, limitations. */
+.model-select { width:min(720px,100%); }
+.model-kpis { margin-top:12px; }
+.model-explain { max-width:1000px; margin:2px 0; }
+.model-warning { border-left:3px solid var(--secondary); padding:4px 10px; margin:6px 0; max-width:1000px; }
+.model-limits { list-style:disc; max-width:1000px; color:var(--ink2); padding-left:1.4em; margin:4px 0 12px; }
+.model-limits li { margin-bottom:4px; }
+.coefs { max-width:720px; }
+.coefs .trow-head, .coefs .trow { grid-template-columns:minmax(0,1fr) 160px; }
+.coefs .trow .name { font-weight:500; overflow-wrap:anywhere; }

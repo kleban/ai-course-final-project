@@ -103,9 +103,9 @@ with sync_playwright() as pw:
     pg.get_by_text("Для статистики потрібен набір даних.", exact=False).wait_for()
     blocks = pg.locator(".block-link")
     ok(
-        "analysis blocks: seven, four planned, exploratory current",
+        "analysis blocks: seven, three planned, exploratory current",
         blocks.count() == 7
-        and pg.locator(".block-link.planned").count() == 4
+        and pg.locator(".block-link.planned").count() == 3
         and "Оглядовий аналіз" in pg.locator(".block-link.current").inner_text()
         and "eda" in pg.url,
     )

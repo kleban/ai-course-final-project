@@ -3,6 +3,7 @@
 import hashlib
 import json
 import shutil
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
@@ -146,5 +147,24 @@ class TrainingStore:
             raise PreparationError("Файл підготовлених вибірок відсутній.")
         if hashlib.sha256(path.read_bytes()).hexdigest() != document["matrix_sha256"]:
             raise PreparationError("Файл підготовлених вибірок змінився або пошкоджений.")
-        with np.load(path, allow_pickle=False) as archive:
-            return {key: archive[key] for key in ("x_train", "x_test", "y_train", "y_test")}
+        try:
+            with np.load(path, allow_pickle=False) as archive:
+                return {key: archive[key] for key in archive.files}
+        except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
+            raise PreparationError("Файл підготовлених вибірок пошкоджений.") from error
+
+    def get(self, project_id: str, run_id: str) -> dict:
+        with connect(self.datasets.database) as connection:
+            ProjectStore._get(connection, project_id)
+            row = connection.execute(
+                "SELECT * FROM training_runs WHERE project_id = ? AND id = ?",
+                (project_id, run_id),
+            ).fetchone()
+        if row is None:
+            raise PreparationError("Підготовку вибірок не знайдено в цьому проєкті.")
+        return {
+            "id": row["id"],
+            "dataset_id": row["dataset_id"],
+            "created_at": row["created_at"],
+            "document": json.loads(row["document"]),
+        }

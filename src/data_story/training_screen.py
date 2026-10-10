@@ -176,6 +176,7 @@ def training_screen(service: ProjectService, active: ProjectView, dataset_id: st
                 else:
                     ui.label("Вибірки підготовлено й збережено для моделі.").classes("stat-context")
                     report(response.data["document"])
+                    model_link(response.data["id"])
             saved.refresh()
         finally:
             busy = False
@@ -196,6 +197,14 @@ def training_screen(service: ProjectService, active: ProjectView, dataset_id: st
                     f"{name} · Значення заповнення з навчальної частини: {transformation['fill']}"
                 )
         ui.label("Ознаки: " + ", ".join(details["feature_names"]))
+
+    def model_link(run_id: str) -> None:
+        button(
+            "Навчити модель на цих вибірках",
+            partial(ui.navigate.to, f"/?project={project_id}&view=model&run={run_id}"),
+            "regression",
+            "small",
+        )
 
     @ui.refreshable
     def saved() -> None:
@@ -218,5 +227,6 @@ def training_screen(service: ProjectService, active: ProjectView, dataset_id: st
                 )
                 ui.label(f"SHA-256 джерела: {doc['sha256']}")
                 ui.label(f"Ідентифікатор підготовки: {item['id']}")
+                model_link(item["id"])
 
     saved()

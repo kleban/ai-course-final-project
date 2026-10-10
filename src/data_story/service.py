@@ -44,6 +44,7 @@ from .contracts import (
     MissingQuery,
     MissingRow,
     MissingView,
+    ModelTrainQuery,
     PreparationQuery,
     PreparationSave,
     ProjectCreate,
@@ -65,6 +66,8 @@ from .contracts import (
 from .dataset_copy import DatasetCopier
 from .datasets import DatasetError, DatasetNotFound, DatasetStore
 from .metadata import MetadataError, MetadataStore, issues
+from .model import ModelError, ModelNotFound
+from .model_store import ModelStore
 from .preparation import PreparationError
 from .preparation_store import PreparationStore
 from .prepared_datasets import PreparedDatasets
@@ -113,7 +116,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         return Success(data=action())
     except InputValidation as error:
         return validation_failure(error.error.errors(include_input=False))
-    except (DatasetError, MetadataError, StatisticsError, PreparationError) as error:
+    except (DatasetError, MetadataError, StatisticsError, PreparationError, ModelError) as error:
         return Failure(
             error=ErrorInfo(
                 code="invalid_input",
@@ -121,7 +124,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
                 fields=[FieldIssue(field="file", message=str(error))],
             )
         )
-    except (ProjectNotFound, UnknownProjectType, DatasetNotFound) as error:
+    except (ProjectNotFound, UnknownProjectType, DatasetNotFound, ModelNotFound) as error:
         return Failure(error=ErrorInfo(code="not_found", message=str(error)))
     except sqlite3.Error:
         LOG.error("Project operation failed: storage_error")
@@ -158,6 +161,7 @@ class ProjectService:
         self.preparation_store = PreparationStore(self.datasets)
         self.prepared_datasets = PreparedDatasets(self.datasets)
         self.training_store = TrainingStore(self.datasets)
+        self.model_store = ModelStore(self.training_store)
 
     def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action() -> dict:
@@ -208,6 +212,29 @@ class ProjectService:
         return execute(
             lambda: self.training_store.list(str(validate_input(ProjectId, {"id": project_id}).id))
         )
+
+    def model_train(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        """Fit LinearRegression on one explicitly chosen saved split (train part only)."""
+
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(ModelTrainQuery, raw)
+            return self.model_store.train(validated, str(request.training_run_id))
+
+        return execute(action)
+
+    def model_runs(self, project_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.model_store.list(str(validate_input(ProjectId, {"id": project_id}).id))
+        )
+
+    def model_run(self, project_id: str, model_id: str) -> Success[dict] | Failure:
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            model = str(validate_input(ProjectId, {"id": model_id}).id)
+            return self.model_store.get(validated, model)
+
+        return execute(action)
 
     def create(self, raw: object) -> Success[ProjectView] | Failure:
         def action() -> ProjectView:
