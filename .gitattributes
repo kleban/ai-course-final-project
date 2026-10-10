@@ -1,2 +1,5 @@
 # Preserve upstream assets byte-for-byte, including their licenses and checksums.
 src/data_story/assets/vendor/toastui/* -text -whitespace
+
+# Keep the demo dataset byte-for-byte (checksum in samples/melb_data.description.md).
+samples/melb_data.csv -text
