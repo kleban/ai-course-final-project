@@ -12,7 +12,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from .contracts import ErrorInfo, Failure, ModelCheckQuery, ModelTrainQuery, Success
+from .contracts import (
+    ErrorInfo,
+    Failure,
+    KnowledgeQuery,
+    ModelCheckQuery,
+    ModelTrainQuery,
+    Success,
+)
 from .model import explain
 from .service import ProjectService
 
@@ -114,6 +121,10 @@ def _check(service: ProjectService, project_id: str, args: dict) -> Success | Fa
     return result
 
 
+def _knowledge(service: ProjectService, _project_id: str, args: dict) -> Success | Failure:
+    return service.knowledge_search(args)
+
+
 TOOLS: dict[str, AssistantTool] = {
     tool.name: tool
     for tool in (
@@ -142,6 +153,16 @@ TOOLS: dict[str, AssistantTool] = {
             ModelResultQuery,
             False,
             _explain,
+        ),
+        AssistantTool(
+            "search_knowledge",
+            "advise",
+            "Знайти в базі знань правила (візуалізація, підготовка даних, показники й "
+            "коефіцієнти регресії, перевірка моделі) з джерелом і розділом для поради чи "
+            "пояснення. Пошук локальний.",
+            KnowledgeQuery,
+            False,
+            _knowledge,
         ),
         AssistantTool(
             "build_model_chart",

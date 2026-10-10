@@ -37,6 +37,7 @@ from .contracts import (
     HistogramView,
     InstructionUpdate,
     InstructionView,
+    KnowledgeQuery,
     MetadataIssue,
     MetadataSourceView,
     MetadataText,
@@ -67,6 +68,7 @@ from .contracts import (
 )
 from .dataset_copy import DatasetCopier
 from .datasets import DatasetError, DatasetNotFound, DatasetStore
+from .knowledge import KnowledgeError, KnowledgeStore
 from .metadata import MetadataError, MetadataStore, issues
 from .model import ModelError, ModelNotFound
 from .model_store import ModelStore
@@ -118,7 +120,14 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         return Success(data=action())
     except InputValidation as error:
         return validation_failure(error.error.errors(include_input=False))
-    except (DatasetError, MetadataError, StatisticsError, PreparationError, ModelError) as error:
+    except (
+        DatasetError,
+        MetadataError,
+        StatisticsError,
+        PreparationError,
+        ModelError,
+        KnowledgeError,
+    ) as error:
         return Failure(
             error=ErrorInfo(
                 code="invalid_input",
@@ -164,6 +173,7 @@ class ProjectService:
         self.prepared_datasets = PreparedDatasets(self.datasets)
         self.training_store = TrainingStore(self.datasets)
         self.model_store = ModelStore(self.training_store)
+        self.knowledge = KnowledgeStore(store.database)
 
     def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action() -> dict:
@@ -250,6 +260,21 @@ class ProjectService:
             return view
 
         return execute(action)
+
+    def knowledge_documents(self) -> Success[list[dict]] | Failure:
+        return execute(self.knowledge.documents)
+
+    def knowledge_search(self, raw: object) -> Success[dict] | Failure:
+        """Local RAG retrieval: the most similar rule fragments with source and section."""
+
+        def action() -> dict:
+            query = validate_input(KnowledgeQuery, raw)
+            return self.knowledge.search(query.query, query.limit)
+
+        return execute(action)
+
+    def knowledge_events(self) -> Success[list[dict]] | Failure:
+        return execute(self.knowledge.events)
 
     def model_runs(self, project_id: str) -> Success[list[dict]] | Failure:
         return execute(

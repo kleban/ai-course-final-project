@@ -475,3 +475,8 @@ class ModelCheckQuery(StrictModel):
     feature: Annotated[str, Field(strict=True, min_length=1, max_length=200)] | None = None
     options: ChartOptions | None = None
     title: Annotated[str, Field(strict=True, max_length=120)] = ""
+
+
+class KnowledgeQuery(StrictModel):
+    query: Annotated[str, Field(strict=True, min_length=1, max_length=500)]
+    limit: Annotated[int, Field(strict=True, ge=1, le=10)] = 3

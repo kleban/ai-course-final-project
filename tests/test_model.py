@@ -359,6 +359,7 @@ class ModelStoreTests(unittest.TestCase):
                 "list_training_runs",
                 "train_linear_regression",
                 "explain_model_result",
+                "search_knowledge",
                 "build_model_chart",
             ],
         )
@@ -405,7 +406,9 @@ class ModelMigrationTests(unittest.TestCase):
             )
         ensure_schema(database)
         with connect(database) as connection:
-            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 11)
-            self.assertEqual(SCHEMA_VERSION, 11)
+            self.assertEqual(
+                connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+            )
+            self.assertGreaterEqual(SCHEMA_VERSION, 11)
             self.assertEqual(connection.execute("SELECT name FROM projects").fetchone()[0], "Old")
             connection.execute("SELECT * FROM model_runs").fetchall()

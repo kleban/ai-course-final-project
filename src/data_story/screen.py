@@ -42,6 +42,7 @@ NAV = [
         [
             ("settings", "/settings", "Типи проєктів", "settings"),
             ("chart_settings", "/settings/charts", "Графіки", "formula"),
+            ("knowledge", "/settings/knowledge", "База знань", "doc"),
             ("icons", "/icons", "Іконки", "gallery"),
         ],
     ),

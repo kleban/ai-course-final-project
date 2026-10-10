@@ -24,6 +24,7 @@ from .contracts import (
     HistogramView,
     InstructionUpdate,
     InstructionView,
+    KnowledgeQuery,
     MetadataSourceView,
     MetadataText,
     MetadataUpdate,
@@ -105,6 +106,14 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/projects/{project_id}/models/{model_id}", response_model=Success[dict] | Failure)
     def model_run(project_id: str, model_id: str):
         return response(service.model_run(project_id, model_id))
+
+    @api.get("/knowledge/documents", response_model=Success[list[dict]] | Failure)
+    def knowledge_documents():
+        return response(service.knowledge_documents())
+
+    @api.post("/knowledge/search", response_model=Success[dict] | Failure)
+    def knowledge_search(query: KnowledgeQuery):
+        return response(service.knowledge_search(query.model_dump()))
 
     @api.get("/configuration/charts", response_model=Success[ChartConfiguration] | Failure)
     def chart_configuration():
@@ -327,6 +336,12 @@ def configure(settings: Settings) -> None:
     @ui.page("/settings/charts")
     def chart_settings_page():
         chart_settings_screen(service)
+
+    @ui.page("/settings/knowledge")
+    def knowledge_page():
+        from .knowledge_screen import knowledge_screen
+
+        knowledge_screen(service)
 
     @ui.page("/icons")
     def icons_page():

@@ -437,3 +437,6 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .model-equation { overflow-x:auto; max-width:100%; }
 .equation-title { margin-top:12px; }
 .q-toggle .q-btn { border-radius:0; }
+/* Knowledge base (07): search hits with source. */
+.knowledge-hit { border-left:3px solid var(--primary); padding:4px 10px; margin:8px 0; }
+.knowledge-section { font-weight:600; }
