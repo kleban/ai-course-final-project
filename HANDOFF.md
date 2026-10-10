@@ -1,6 +1,6 @@
 # Data Story — почати тут (передача роботи)
 
-Оновлено: 2026-10-10 (Europe/Kiev), після історії 039. Коротка точка входу для нового агента чи діалогу. Актуальний стан і перевірки — [`planning/status.md`](planning/status.md), хронологія — [`PROJECT_HISTORY.md`](PROJECT_HISTORY.md), рішення — [`planning/decisions.md`](planning/decisions.md). Правила роботи — [`AGENTS.md`](AGENTS.md): прочитати й дотримуватися.
+Оновлено: 2026-10-10 (Europe/Kiev), після історії 040. Коротка точка входу для нового агента чи діалогу. Актуальний стан і перевірки — [`planning/status.md`](planning/status.md), хронологія — [`PROJECT_HISTORY.md`](PROJECT_HISTORY.md), рішення — [`planning/decisions.md`](planning/decisions.md). Правила роботи — [`AGENTS.md`](AGENTS.md): прочитати й дотримуватися.
 
 ## Що це
 
@@ -12,6 +12,7 @@ Data Story — локальний аналітичний MVP для фіналь
 | --- | --- |
 | 01 Проєкти | Прийнято автором |
 | 02 Дані, 02b Метадані | Прийнято автором (D-42) |
+| 02c Копія наявного набору | Реалізовано й перевірено автоматично (D-51) |
 | Редактор інструкцій (TOAST UI Editor 3.2.2) | Прийнято: автор перевірив вручну (D-35–D-38, D-42) |
 | Дизайн | Відгук автора позитивний, змін поки не потрібно (D-42) |
 | 03–11 | Не почато; 03 «Статистика» — лише після окремої згоди автора |
@@ -21,16 +22,16 @@ Data Story — локальний аналітичний MVP для фіналь
 ## Як запустити й перевірити (Windows, подвійний клік)
 
 1. `Setup.cmd` — один раз і після змін `requirements.lock` (потрібен інтернет).
-2. `Check.cmd` — pip check, ruff, формат, mypy, 62 автотести.
+2. `Check.cmd` — pip check, ruff, формат, mypy, 69 автотестів.
 3. `Start.cmd` → http://127.0.0.1:8765; `Stop.cmd` — зупинка.
 4. Демонстраційний набір: `samples/melb_data.csv` — Melbourne Housing Snapshot, 13 580 рядків, CC BY-NC-SA 4.0 (D-43); опис і джерело — `samples/melb_data.description.md`. Синтетичні `samples/demo_apartments.*` — для автотестів.
-5. Для розробника — UI-смоук через Playwright (45 сценаріїв; Playwright не входить у `requirements.lock`):
+5. Для розробника — UI-смоук через Playwright (49 сценаріїв; Playwright не входить у `requirements.lock`):
    `python tools/start.py --no-browser --port 8899 --database tmp/smoke/data.sqlite3`, потім `python tools/ui_smoke.py http://127.0.0.1:8899`.
 
 ## Карта коду
 
-- `src/data_story/` — `storage.py` (SQLite, міграції, схема v4), `projects.py`, `project_types.py` + `instructions/*.md`, `configuration.py`, `datasets.py`, `metadata.py`, `contracts.py`, `service.py` (спільний для UI та API), `web.py`, `screen.py` (усі екрани), `markdown_editor.py` + `assets/markdown_editor.js` (редактор), `data_grid.py` (таблиця даних: AG Grid Community з NiceGUI, компактна, сторінки з сервера через `POST /api/datasets/{id}/rows`, D-47/D-48), `icons.py` → `assets/icons.css` (іконки додавати лише тут), `assets/` (стиль, шрифти, логотип, `vendor/toastui/`).
-- `tests/` — 62 тести; `tools/` — запуск, перевірки, демо-дані, `make_demo_project.py` (демо-проєкт Melbourne у порожній базі), UI-смоук, генератор аркуша іконок.
+- `src/data_story/` — `storage.py` (SQLite, міграції, схема v5), `projects.py`, `project_types.py` + `instructions/*.md`, `configuration.py`, `datasets.py`, `metadata.py`, `dataset_copy.py` (02c: копія набору з іншого проєкту), `contracts.py`, `service.py` (спільний для UI та API), `web.py`, `screen.py` (усі екрани), `markdown_editor.py` + `assets/markdown_editor.js` (редактор), `data_grid.py` (таблиця даних: AG Grid Community з NiceGUI, компактна, сторінки з сервера через `POST /api/datasets/{id}/rows`, D-47/D-48), `icons.py` → `assets/icons.css` (іконки додавати лише тут), `assets/` (стиль, шрифти, логотип, `vendor/toastui/`).
+- `tests/` — 69 тестів; `tools/` — запуск, перевірки, демо-дані, `make_demo_project.py` (демо-проєкт Melbourne у порожній базі), UI-смоук, генератор аркуша іконок.
 - `planning/` — план, статус, рішення, специфікації, архітектура.
 - `design/logo/final/` — фінальний логотип (інші чернетки логотипа застарілі); `design/reviews/` — знімки ітерацій.
 - `runtime/` (не в Git) — робоча БД, файли наборів, стан інтерфейсу.
@@ -38,7 +39,7 @@ Data Story — локальний аналітичний MVP для фіналь
 ## Що робити далі
 
 1. Бекап і демо-проєкт виконано (039): стара база — `runtime/backup-2026-10-10/`, нова містить лише «Ціни на житло в Мельбурні». Автор має перезапустити сервіс і оглянути. Ознака, що сервіс працює: `runtime/start-8765.lock` заблокований (читання з VM дає I/O error); `Settings.instance` — хеш шляху бази, тож заміна файла бази не ламає `Stop.cmd`.
-2. Отримати рішення автора щодо функції «додати наявний набір у проєкт» (пропозиція 035). Сторінка моніторингу сервісів (D-49) записана в план як 08b — не починати без погодження складу.
+2. Сторінка моніторингу сервісів (D-49) записана в план як 08b — не починати без погодження складу.
 3. Лише після окремої згоди — етап 03 «Статистика»: специфікація → описові показники, пропуски, кореляційна матриця, контрольні розрахунки без AI з урахуванням метаданих 02b і розпізнаних дат. Далі за [`planning/plan.md`](planning/plan.md).
 
 ## Відкриті рішення автора
@@ -50,7 +51,7 @@ Data Story — локальний аналітичний MVP для фіналь
 ## Як працювати й фіксувати
 
 - Один компонент → перевірка → фіксація → наступний (D-15). Усе в цьому репозиторії, без CDN (D-36).
-- Після ітерації: новий запис у `PROJECT_HISTORY.md` (наступний номер — **040**), оновити `planning/status.md`, `planning/plan.md`, `planning/decisions.md`, README за потреби, цей файл; коміт. Пуш — лише за дозволом автора.
+- Після ітерації: новий запис у `PROJECT_HISTORY.md` (наступний номер — **041**), оновити `planning/status.md`, `planning/plan.md`, `planning/decisions.md`, README за потреби, цей файл; коміт. Пуш — лише за дозволом автора.
 - Поточні файли передачі описують стан, а не хронологію: замінювати застарілі абзаци, а не дописувати нові в кінець.
 - Автор часто працює з телефона: тоді без керування комп’ютером і браузером. Автотести, mypy і UI-смоук можна запускати в хмарному середовищі: скопіювати чисті Python-пакети з `.venv` автора разом із їхніми `*.dist-info` (pydantic, pandas, ruff, mypy там уже є), для aiohttp/multidict/yarl/frozenlist/propcache задати `*_NO_EXTENSIONS=1`; `tools/start.py` запускати через обгортку, що замінює Windows-блокування `launch_lock` на no-op (заглушка `msvcrt` ламає `subprocess`). PyPI і GitHub з хмари та VM недоступні — пуш робить автор або агент лише з дозволу й доступної мережі.
 - Git: гілка `main`, remote `origin` — `https://github.com/kleban/ai-course-final-project.git`. Стан перевіряти через `git status -sb`.
