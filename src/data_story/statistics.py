@@ -11,6 +11,7 @@ from pandas.api import types as ptypes
 
 from .datasets import DatasetError, DatasetStore, _date_text, read_table
 from .metadata import Metadata, MetadataStore, issues
+from .missing_values import missing_masks
 from .projects import ProjectStore
 from .storage import connect
 
@@ -73,25 +74,9 @@ def calculate(
         series = frame[name]
         actual = described.get(name, {})
         is_number = ptypes.is_numeric_dtype(series) and not ptypes.is_bool_dtype(series)
-        base = series.isna()
-        extra = pd.Series(False, index=frame.index)
-        error = None
-        if is_number:
-            try:
-                codes = [float(code.strip()) for code in column.missing_codes]
-                if not all(math.isfinite(code) for code in codes):
-                    raise ValueError
-                extra = series.isin(codes) & ~base
-            except ValueError:
-                error = "Код пропуску має бути скінченним числом."
-                union_valid = False
-        else:
-            extra = (
-                series.astype("string")
-                .str.strip()
-                .isin([code.strip() for code in column.missing_codes])
-                & ~base
-            )
+        base, extra, error = missing_masks(series, column.missing_codes)
+        if error:
+            union_valid = False
         missing = base | extra
         union |= missing
         invalid = series.isin([math.inf, -math.inf]) & ~missing if is_number else extra & False
