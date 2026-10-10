@@ -152,6 +152,32 @@ class ContractAndApiTests(unittest.TestCase):
         events = self.client.get(f"/api/projects/{project.id}/events").json()["data"]
         self.assertEqual(events[-1]["operation"], "dataset.uploaded")
 
+    def test_dataset_copy_over_http(self):
+        source = self.store.create("Джерело")
+        target = self.store.create("Ціль")
+        content = "x;y\n1;2\n".encode()
+        uploaded = self.client.post(
+            f"/api/projects/{source.id}/datasets", files={"file": ("a.csv", content)}
+        ).json()["data"]
+        found = self.client.get(f"/api/projects/{target.id}/dataset-candidates").json()["data"]
+        self.assertEqual([c["dataset"]["id"] for c in found], [uploaded["id"]])
+        self.assertEqual((found[0]["project_name"], found[0]["metadata"]), ("Джерело", "none"))
+        copied = self.client.post(
+            f"/api/projects/{target.id}/datasets/copy", json={"dataset_id": uploaded["id"]}
+        )
+        self.assertEqual(copied.status_code, 200, copied.text)
+        self.assertEqual(copied.json()["data"]["copied_from"], uploaded["id"])
+        same = self.client.post(
+            f"/api/projects/{source.id}/datasets/copy", json={"dataset_id": uploaded["id"]}
+        )
+        self.assertEqual(same.status_code, 422)
+        missing = self.client.post(
+            f"/api/projects/{target.id}/datasets/copy", json={"dataset_id": str(uuid4())}
+        )
+        self.assertEqual(missing.status_code, 404)
+        events = self.client.get(f"/api/projects/{target.id}/events").json()["data"]
+        self.assertEqual(events[-1]["operation"], "dataset.copied")
+
     def test_bad_dataset_upload_is_invalid_input_and_unknown_ids_are_not_found(self):
         project = self.store.create("Дані")
         refused = self.client.post(

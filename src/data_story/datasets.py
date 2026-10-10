@@ -73,6 +73,7 @@ class Dataset:
     column_count: int
     profile: dict
     created_at: str
+    copied_from: str | None = None
 
 
 @dataclass(frozen=True)
@@ -323,7 +324,7 @@ class DatasetStore:
             with connect(self.database) as connection:
                 ProjectStore._get(connection, project_id)
                 connection.execute(
-                    "INSERT INTO datasets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO datasets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         dataset.id,
                         dataset.project_id,
@@ -336,6 +337,7 @@ class DatasetStore:
                         dataset.column_count,
                         json.dumps(dataset.profile, ensure_ascii=False),
                         dataset.created_at,
+                        None,
                     ),
                 )
                 ProjectStore._event(
@@ -359,6 +361,14 @@ class DatasetStore:
         data = dict(row)
         data["profile"] = json.loads(data["profile"])
         return Dataset(**data)
+
+    def list_all(self) -> list[Dataset]:
+        """Datasets of every project, newest first (choice of a dataset to copy)."""
+        with connect(self.database) as connection:
+            rows = connection.execute(
+                "SELECT * FROM datasets ORDER BY created_at DESC, id"
+            ).fetchall()
+        return [self._row(row) for row in rows]
 
     def list_datasets(self, project_id: str) -> list[Dataset]:
         with connect(self.database) as connection:

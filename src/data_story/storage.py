@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _V1 = """
     CREATE TABLE projects (
@@ -81,6 +81,12 @@ _V4 = """
     CREATE INDEX metadata_sources_dataset ON metadata_sources(dataset_id, created_at);
 """
 
+# v5: a dataset can be an independent copy of a dataset from another project (stage 02c);
+# the column keeps the source id for provenance only (no foreign key: the copy stands alone).
+_V5 = """
+    ALTER TABLE datasets ADD COLUMN copied_from TEXT;
+"""
+
 
 @contextmanager
 def connect(database: Path) -> Iterator[sqlite3.Connection]:
@@ -100,7 +106,7 @@ def ensure_schema(database: Path) -> Path:
     database.parent.mkdir(parents=True, exist_ok=True)
     with connect(database) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, SCHEMA_VERSION):
             raise RuntimeError("Непідтримувана версія бази даних; файл не змінено.")
         if version == 0:
             tables = connection.execute(
@@ -109,10 +115,11 @@ def ensure_schema(database: Path) -> Path:
             if tables:
                 raise RuntimeError("Невідома схема бази даних; файл не змінено.")
         steps = {
-            0: _V1 + _V2 + _V3 + _V4,
-            1: _V2 + _V3 + _V4,
-            2: _V3 + _V4,
-            3: _V4,
+            0: _V1 + _V2 + _V3 + _V4 + _V5,
+            1: _V2 + _V3 + _V4 + _V5,
+            2: _V3 + _V4 + _V5,
+            3: _V4 + _V5,
+            4: _V5,
         }.get(version)
         if steps:
             connection.executescript(

@@ -149,6 +149,43 @@ with sync_playwright() as pw:
     )
     grid.scroll_into_view_if_needed()
     pg.screenshot(path=str(SHOTS / "melbourne-grid.png"))
+    # stage 02c: a second project takes an independent copy of the Melbourne dataset
+    pg.goto(B)
+    pg.wait_for_timeout(1200)
+    pg.get_by_text("Створити проєкт").first.click()
+    pg.wait_for_timeout(700)
+    pg.get_by_label("Назва проєкту").fill("Друга аналітика")
+    pg.get_by_text("Зберегти проєкт").click()
+    pg.wait_for_timeout(1500)
+    ok("menu count follows projects", pg.locator(".nav-count").first.inner_text().strip() == "2")
+    pg.get_by_text("Додати наявний набір").click()
+    pg.wait_for_timeout(1000)
+    dialog = pg.locator(".copy-dialog")
+    ok(
+        "copy dialog lists datasets of other projects",
+        dialog.locator(".trow").count() == 2
+        and dialog.get_by_text("проєкт «Ціни на квартири»").count() == 2
+        and dialog.get_by_text("метадані підтверджено").count() == 1,
+    )
+    pg.screenshot(path=str(SHOTS / "copy-dialog.png"))
+    dialog.locator(".trow").filter(has=pg.get_by_text("melb_data.csv", exact=True)).get_by_text(
+        "Додати", exact=True
+    ).click()
+    pg.wait_for_timeout(3000)
+    rows_text = pg.locator(".kpi-value").first.inner_text()
+    ok(
+        "copied dataset opens with provenance",
+        "dataset=" in pg.url
+        and "".join(c for c in rows_text if c.isdigit()) == "13580"
+        and pg.get_by_text("копія з проєкту «Ціни на квартири»").count() == 1,
+    )
+    pg.goto(pg.url.split("&dataset=")[0])
+    pg.wait_for_timeout(1500)
+    ok(
+        "copy marked in project datasets and journal",
+        pg.locator(".datasets .tag").get_by_text("копія").count() == 1
+        and pg.get_by_text("Додано копію наявного набору").count() >= 1,
+    )
     pg.screenshot(path=str(SHOTS / "melbourne-dataset.png"), full_page=True)
     pg.goto(B + "/settings")
     pg.wait_for_timeout(1200)

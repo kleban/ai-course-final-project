@@ -10,6 +10,8 @@ from nicegui import app, ui
 from .config import Settings
 from .contracts import (
     HTTP_STATUS,
+    DatasetCandidate,
+    DatasetCopyRequest,
     DatasetPreview,
     DatasetView,
     EventView,
@@ -81,6 +83,21 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/datasets/{dataset_id}", response_model=Success[DatasetView] | Failure)
     def get_dataset(dataset_id: str):
         return response(service.dataset(dataset_id))
+
+    @api.get(
+        "/projects/{project_id}/dataset-candidates",
+        response_model=Success[list[DatasetCandidate]] | Failure,
+    )
+    def dataset_candidates(project_id: str):
+        return response(service.dataset_candidates(project_id))
+
+    @api.post(
+        "/projects/{project_id}/datasets/copy",
+        response_model=Success[DatasetView] | Failure,
+        responses={422: {"model": Failure}},
+    )
+    def copy_dataset(project_id: str, request: DatasetCopyRequest):
+        return response(service.copy_dataset(project_id, request))
 
     @api.get("/datasets/{dataset_id}/preview", response_model=Success[DatasetPreview] | Failure)
     def preview_dataset(dataset_id: str):

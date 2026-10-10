@@ -61,6 +61,7 @@ EVENT_TITLES = {
     "project.created": ("Проєкт створено", "check"),
     "project.opened": ("Проєкт відкрито", "when"),
     "dataset.uploaded": ("Завантажено набір даних", "data"),
+    "dataset.copied": ("Додано копію наявного набору", "copy"),
     "metadata.saved": ("Збережено метадані", "doc"),
     "metadata.confirmed": ("Підтверджено метадані", "check"),
     "metadata.source_added": ("Додано опис даних", "doc"),
@@ -550,11 +551,14 @@ def file_size(size: int) -> str:
 
 def datasets_section(service: ProjectService, active: ProjectView, listing) -> None:
     project_id = str(active.id)
+    copy_dialog = copy_dataset_dialog(service, project_id)
     with ui.element("div").classes("section-bar"):
         ui.label("Дані").classes("section-title")
+        button("Додати наявний набір", copy_dialog, "copy")
     ui.label(
         "Завантажте таблицю CSV (UTF-8 або Windows-1251, роздільник визначається автоматично) "
-        f"до {MAX_BYTES // (1024 * 1024)} МБ. Оригінал зберігається без змін."
+        f"до {MAX_BYTES // (1024 * 1024)} МБ. Оригінал зберігається без змін. Набір з іншого "
+        "проєкту можна додати як незалежну копію разом з описом і метаданими."
     ).classes("section-lead")
     message = ui.label("").classes("error-message")
 
@@ -600,8 +604,12 @@ def datasets_section(service: ProjectService, active: ProjectView, listing) -> N
         for item in reversed(datasets):
             with ui.element("div").classes("trow"):
                 with ui.element("div").classes("name"):
-                    icon("data")
+                    icon("copy" if item.copied_from else "data")
                     ui.label(item.name)
+                    if item.copied_from:
+                        ui.label("копія").classes("tag").props(
+                            'title="Незалежна копія набору з іншого проєкту"'
+                        )
                 ui.label(FORMAT_TITLES[item.file_format]).classes("date")
                 ui.label(f"{number(item.row_count)} × {number(item.column_count)}").classes("date")
                 ui.label(file_size(item.size_bytes)).classes("date")
@@ -612,6 +620,68 @@ def datasets_section(service: ProjectService, active: ProjectView, listing) -> N
                     "next",
                     "small",
                 )
+
+
+METADATA_STATES = {
+    "confirmed": "метадані підтверджено",
+    "draft": "метадані — чернетка",
+    "none": "метаданих ще немає",
+}
+
+
+def copy_dataset_dialog(service: ProjectService, project_id: str) -> Callable[[], None]:
+    """Stage 02c: choose a dataset of another project and add an independent copy here."""
+    with ui.dialog() as dialog, ui.card().classes("create-dialog copy-dialog"):
+        with ui.element("div").classes("dialog-title"):
+            icon("copy")
+            ui.label("Додати наявний набір")
+        ui.label(
+            "Набір з іншого проєкту буде скопійовано разом із сирими описами й метаданими. "
+            "Копія незалежна: зміни в одному проєкті не впливають на інший."
+        ).classes("type-desc")
+        problem = ui.label("").classes("error-message")
+        listing = ui.element("div").classes("trows candidates w-full")
+        with ui.element("div").classes("dialog-actions"):
+            button("Скасувати", dialog.close, kind="ghost")
+
+    def add(dataset_id: str) -> None:
+        result = service.copy_dataset(project_id, {"dataset_id": dataset_id})
+        if isinstance(result, Failure):
+            problem.set_text(error_text(result))
+            return
+        dialog.close()
+        ui.notify(f"Набір «{result.data.name}» додано як копію", type="positive")
+        ui.navigate.to(f"/?project={project_id}&dataset={result.data.id}")
+
+    def open_dialog() -> None:
+        problem.set_text("")
+        listing.clear()
+        found = service.dataset_candidates(project_id)
+        with listing:
+            if isinstance(found, Failure):
+                error_line(found)
+            elif not found.data:
+                with ui.element("div").classes("empty"):
+                    ui.label("В інших проєктах ще немає наборів даних").classes("t")
+                    ui.label("Завантажте CSV у цей проєкт або спершу в інший.")
+            for item in found.data if isinstance(found, Success) else []:
+                data = item.dataset
+                with ui.element("div").classes("trow"):
+                    with ui.element("div").classes("colname"):
+                        ui.label(data.name).classes("name")
+                        facts = [
+                            f"проєкт «{item.project_name}»",
+                            f"{number(data.row_count)} × {number(data.column_count)}",
+                            file_size(data.size_bytes),
+                            METADATA_STATES[item.metadata],
+                        ]
+                        if item.already_here:
+                            facts.append("такий самий файл уже є в цьому проєкті")
+                        ui.label(" · ".join(facts)).classes("hint")
+                    button("Додати", partial(add, str(data.id)), "plus", "small")
+        dialog.open()
+
+    return open_dialog
 
 
 def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) -> None:
@@ -634,6 +704,16 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
         f"кодування {source.get('encoding', '?')}",
         f"роздільник: {delimiter.get(source.get('delimiter', ''), source.get('delimiter', '?'))}",
     ]
+    if data.copied_from:
+        origin = service.dataset(str(data.copied_from))
+        if isinstance(origin, Success):
+            source_project = service.get(str(origin.data.project_id))
+            where = (
+                f"«{source_project.data.name}»" if isinstance(source_project, Success) else "іншого"
+            )
+            details.append(f"копія з проєкту {where}")
+        else:
+            details.append("копія набору з іншого проєкту")
     page_header("Набір даних · " + active.name, "data", data.name, " · ".join(details))
 
     cells = data.row_count * data.column_count

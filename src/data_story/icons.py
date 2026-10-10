@@ -80,6 +80,8 @@ ICONS = {
     # Data Story additions in the same style
     "folder": '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/>',
     "plus": '<path d="M12 5v14M5 12h14"/>',
+    "copy": '<rect x="8" y="8" width="12" height="12" rx="1"/>'
+    + '<path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
     "journal": '<path d="M8 6h12M8 12h12M8 18h12"/>'
     + _C.format(4, 6, 0.6)
     + _C.format(4, 12, 0.6)
@@ -149,7 +151,7 @@ GROUPS = {
         "chevron",
     ],
     "Аналіз і AI": ["compare", "trend", "formula", "methods", "lab", "spark", "chat", "idea"],
-    "Дії": ["plus", "upload", "edit", "reset", "check"],
+    "Дії": ["plus", "upload", "copy", "edit", "reset", "check"],
     "Стани й підказки": ["info", "warning", "shield", "lock", "when"],
 }
 

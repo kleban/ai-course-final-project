@@ -9,6 +9,8 @@ from pydantic import BaseModel, ValidationError
 
 from .configuration import InstructionStore
 from .contracts import (
+    DatasetCandidate,
+    DatasetCopyRequest,
     DatasetPreview,
     DatasetView,
     ErrorInfo,
@@ -30,6 +32,7 @@ from .contracts import (
     RowsQuery,
     Success,
 )
+from .dataset_copy import DatasetCopier
 from .datasets import DatasetError, DatasetNotFound, DatasetStore
 from .metadata import MetadataError, MetadataStore, issues
 from .project_types import PROJECT_TYPES
@@ -113,6 +116,7 @@ class ProjectService:
         self.instructions = instructions or InstructionStore(store.database)
         self.datasets = datasets or DatasetStore(store.database)
         self.metadata_store = MetadataStore(store.database, self.datasets)
+        self.copier = DatasetCopier(self.datasets)
 
     def create(self, raw: object) -> Success[ProjectView] | Failure:
         def action() -> ProjectView:
@@ -181,6 +185,21 @@ class ProjectService:
         def action() -> list[DatasetView]:
             validated = str(validate_input(ProjectId, {"id": project_id}).id)
             return [DatasetView.from_dataset(d) for d in self.datasets.list_datasets(validated)]
+
+        return execute(action)
+
+    def dataset_candidates(self, project_id: str) -> Success[list[DatasetCandidate]] | Failure:
+        def action() -> list[DatasetCandidate]:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            return [DatasetCandidate.from_candidate(c) for c in self.copier.candidates(validated)]
+
+        return execute(action)
+
+    def copy_dataset(self, project_id: str, raw: object) -> Success[DatasetView] | Failure:
+        def action() -> DatasetView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(DatasetCopyRequest, raw)
+            return DatasetView.from_dataset(self.copier.copy(str(request.dataset_id), validated))
 
         return execute(action)
 

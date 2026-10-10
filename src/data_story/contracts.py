@@ -81,6 +81,7 @@ class EventView(StrictModel):
         "project.created",
         "project.opened",
         "dataset.uploaded",
+        "dataset.copied",
         "metadata.saved",
         "metadata.confirmed",
         "metadata.source_added",
@@ -114,6 +115,7 @@ class DatasetView(StrictModel):
     columns: list[ColumnProfile]
     source: dict[str, str]
     created_at: AwareDatetime
+    copied_from: UUID | None = None
 
     @classmethod
     def from_dataset(cls, dataset) -> "DatasetView":
@@ -130,7 +132,30 @@ class DatasetView(StrictModel):
             columns=[ColumnProfile.model_validate(c) for c in columns],
             source={k: str(v) for k, v in details.items()},
             created_at=dataset.created_at,
+            copied_from=dataset.copied_from,
         )
+
+
+class DatasetCandidate(StrictModel):
+    """A dataset of another project that can be copied into the current one (stage 02c)."""
+
+    dataset: DatasetView
+    project_name: str
+    metadata: Literal["confirmed", "draft", "none"]
+    already_here: bool
+
+    @classmethod
+    def from_candidate(cls, candidate) -> "DatasetCandidate":
+        return cls(
+            dataset=DatasetView.from_dataset(candidate.dataset),
+            project_name=candidate.project_name,
+            metadata=candidate.metadata,
+            already_here=candidate.already_here,
+        )
+
+
+class DatasetCopyRequest(StrictModel):
+    dataset_id: UUID
 
 
 class DatasetPreview(StrictModel):

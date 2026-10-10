@@ -360,3 +360,9 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .markdown-editor .ProseMirror .toastui-editor-md-list-item-style,
 .markdown-editor .ProseMirror .toastui-editor-md-code.toastui-editor-md-marked-text { color:var(--primary); }
 .markdown-editor .ProseMirror .toastui-editor-md-code { background:var(--shade); border-radius:0; }
+
+/* Етап 02c: копія наявного набору (історія 040). */
+.tag { margin-left:8px; padding:0 6px; border:1px solid var(--grid); color:var(--ink2); font-size:.78em; font-weight:400; }
+.copy-dialog { width:min(720px, 94vw); max-width:94vw; }
+.candidates .trow { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; }
+.candidates .trow .colname { min-width:0; }
