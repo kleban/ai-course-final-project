@@ -384,6 +384,7 @@ class ModelStoreTests(unittest.TestCase):
             [
                 "propose_project_description",
                 "propose_metadata",
+                "propose_eda_chart",
                 "list_training_runs",
                 "train_linear_regression",
                 "explain_model_result",

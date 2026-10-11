@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from nicegui import app, ui
 
 from .ai_settings import AiConfiguration
@@ -43,6 +43,9 @@ from .contracts import (
     ProjectDescription,
     ProjectTypeView,
     ProjectView,
+    ReportCreate,
+    ReportRevision,
+    ReportSave,
     RowsPage,
     RowsQuery,
     ScatterQuery,
@@ -65,6 +68,55 @@ def router(service: ProjectService) -> APIRouter:
     def response(result):
         status = HTTP_STATUS[result.error.code] if isinstance(result, Failure) else 200
         return JSONResponse(result.model_dump(mode="json"), status_code=status)
+
+    @api.get("/projects/{project_id}/reports", response_model=Success[list[dict]] | Failure)
+    def report_list(project_id: str):
+        return response(service.report_list(project_id))
+
+    @api.post("/projects/{project_id}/reports", response_model=Success[dict] | Failure)
+    def report_create(project_id: str, query: ReportCreate):
+        return response(service.report_create(project_id, query.model_dump(mode="json")))
+
+    @api.get("/projects/{project_id}/reports/{report_id}", response_model=Success[dict] | Failure)
+    def report_get(project_id: str, report_id: str):
+        return response(service.report_get(project_id, report_id))
+
+    @api.put("/projects/{project_id}/reports/{report_id}", response_model=Success[dict] | Failure)
+    def report_save(project_id: str, report_id: str, query: ReportSave):
+        return response(service.report_save(project_id, report_id, query.model_dump(mode="json")))
+
+    @api.post(
+        "/projects/{project_id}/reports/{report_id}/ai", response_model=Success[dict] | Failure
+    )
+    def report_ai(project_id: str, report_id: str, query: ReportRevision):
+        return response(
+            service.report_generate(project_id, report_id, query.model_dump(mode="json"), ai=True)
+        )
+
+    @api.post(
+        "/projects/{project_id}/reports/{report_id}/render", response_model=Success[dict] | Failure
+    )
+    def report_render(project_id: str, report_id: str, query: ReportRevision):
+        return response(
+            service.report_generate(project_id, report_id, query.model_dump(mode="json"))
+        )
+
+    @api.get("/projects/{project_id}/reports/{report_id}/figures/{name}")
+    def report_figure(project_id: str, report_id: str, name: str):
+        result = service.report_figure(project_id, report_id, name)
+        if isinstance(result, Failure):
+            return response(result)
+        return FileResponse(result.data, media_type="image/svg+xml")
+
+    @api.get("/projects/{project_id}/reports/{report_id}/files/{artifact_id}/{kind}")
+    def report_download(project_id: str, report_id: str, artifact_id: str, kind: str):
+        result = service.report_download(project_id, report_id, artifact_id, kind)
+        if isinstance(result, Failure):
+            return response(result)
+        if kind == "view":
+            # Inline preview of the self-contained HTML (opened in the app and in a new tab).
+            return FileResponse(result.data, media_type="text/html; charset=utf-8")
+        return FileResponse(result.data, filename=result.data.name)
 
     @api.post("/projects/{project_id}/preparation/preview", response_model=Success[dict] | Failure)
     def preparation_preview(project_id: str, query: PreparationQuery):
@@ -412,6 +464,12 @@ def configure(settings: Settings) -> None:
         from .knowledge_screen import knowledge_screen
 
         knowledge_screen(service)
+
+    @ui.page("/instructions")
+    def instructions_page():
+        from .instructions_screen import instructions_screen
+
+        instructions_screen(service)
 
     @ui.page("/icons")
     def icons_page():

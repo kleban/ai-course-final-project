@@ -36,7 +36,13 @@ from .service import ProjectService
 ASSETS = Path(__file__).parent / "assets"
 
 NAV = [
-    ("Робота", [("projects", "/", "Проєкти", "overview")]),
+    (
+        "Робота",
+        [
+            ("projects", "/", "Проєкти", "overview"),
+            ("guides", "/instructions", "Інструкції", "doc"),
+        ],
+    ),
     (
         "Налаштування",
         [
@@ -50,6 +56,10 @@ NAV = [
     ),
 ]
 EVENT_TITLES = {
+    "report.created": ("Створено чернетку звіту", "doc"),
+    "report.saved": ("Збережено звіт", "doc"),
+    "report.ai": ("Підготовлено пояснення AI", "spark"),
+    "report.rendered": ("Сформовано звіт", "doc"),
     "project.created": ("Проєкт створено", "check"),
     "project.opened": ("Проєкт відкрито", "when"),
     "project.description_saved": ("Збережено опис проєкту", "doc"),
@@ -146,7 +156,7 @@ class Shell:
         for sheet in ("icons.css", "style.css", "charts.css"):
             version = asset_version(sheet)
             ui.add_head_html(f'<link rel="stylesheet" href="/assets/{sheet}?v={version}">')
-        if current in ("eda", "chart_settings", "model", "validation"):
+        if current in ("eda", "chart_settings", "model", "validation", "guides"):
             ui.add_head_html("""<script>window.MathJax={tex:{packages:['base','ams']},
               options:{enableMenu:false,enableAssistiveMml:false},
               startup:{typeset:false},svg:{fontCache:'local'}};</script>
@@ -433,7 +443,7 @@ def projects_screen(
         "preparation"
         if view == "training"
         else view
-        if view in ("eda", "preparation", "model", "validation")
+        if view in ("eda", "preparation", "model", "validation", "report")
         else "data"
         if active
         else "projects"
@@ -453,6 +463,10 @@ def projects_screen(
             error_line(active_result)
         if active and view == "eda":
             eda_screen(service, active, dataset_id, chart)
+        elif active and view == "report":
+            from .report_screen import report_screen
+
+            report_screen(service, active, run_id)
         elif active and view == "validation":
             from .validation_screen import validation_screen
 
@@ -1058,19 +1072,37 @@ def eda_screen(
     from .assistant_panel import ai_shortcut
 
     ai_shortcut("Що видно в даних?", "explain", "Що важливого видно в цьому наборі даних?")
-    ui.toggle(
-        EDA_TOOLS,
-        value=tool,
-        on_change=lambda e: ui.navigate.to(eda_link(project_id, e.value, dataset_id)),
-    ).props('no-caps unelevated aria-label="Інструмент оглядового аналізу"').classes(
-        "chart-type eda-tools"
+    ai_shortcut(
+        "Графік за командою", "execute", "Допоможи підібрати або змінити графік для цього набору."
     )
-    if tool == "statistics":
-        statistics_screen(service, active, dataset_id)
-    else:
-        from .chart_screen import charts_screen
+    selection = {"tool": tool, "dataset_id": dataset_id}
 
-        charts_screen(service, active, dataset_id, tool)
+    @ui.refreshable
+    def workspace():
+        ui.context.client.assistant_chart_context = None
+        ui.toggle(
+            EDA_TOOLS,
+            value=selection["tool"],
+            on_change=lambda e: ui.navigate.to(
+                eda_link(project_id, e.value, selection["dataset_id"])
+            ),
+        ).props('no-caps unelevated aria-label="Інструмент оглядового аналізу"').classes(
+            "chart-type eda-tools"
+        )
+        if selection["tool"] == "statistics":
+            statistics_screen(service, active, selection["dataset_id"])
+        else:
+            from .chart_screen import charts_screen
+
+            charts_screen(service, active, selection["dataset_id"], selection["tool"])
+
+    def applied_chart(result):
+        ui.context.client.assistant_chart_seed = result
+        selection.update(tool=result["chart"], dataset_id=result["query"]["dataset_id"])
+        workspace.refresh()
+
+    ui.context.client.assistant_chart_apply = applied_chart
+    workspace()
 
 
 def statistics_screen(service: ProjectService, active: ProjectView, dataset_id: str | None) -> None:

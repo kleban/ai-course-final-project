@@ -13,6 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from .contracts import (
+    ChartDraftQuery,
     ErrorInfo,
     Failure,
     KnowledgeQuery,
@@ -153,6 +154,18 @@ def _metadata_draft(service: ProjectService, project_id: str, args: dict) -> Suc
     )
 
 
+def _chart_draft(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
+    from .assistant_drafts import propose_chart
+
+    return execute(
+        lambda: {
+            "proposal": propose_chart(
+                service, project_id, validate_input(ChartDraftQuery, args).model_dump(mode="json")
+            )
+        }
+    )
+
+
 TOOLS: dict[str, AssistantTool] = {
     tool.name: tool
     for tool in (
@@ -174,6 +187,18 @@ TOOLS: dict[str, AssistantTool] = {
             MetadataDraftQuery,
             False,
             _metadata_draft,
+        ),
+        AssistantTool(
+            "propose_eda_chart",
+            "execute",
+            "Запропонувати параметри графіка обраного набору для перегляду і кнопки Застосувати. "
+            "Типи: histogram (одне числове field, bins або bin_width), scatter (числові x,y), "
+            "heatmap (2–12 числових fields), missing (start сторінки). "
+            "Для зміни оформлення збережи всі поточні options і зміни лише замовлені. "
+            "explanation — коротко поясни вибір за правилами. Не будує графік до застосування.",
+            ChartDraftQuery,
+            False,
+            _chart_draft,
         ),
         AssistantTool(
             "list_training_runs",

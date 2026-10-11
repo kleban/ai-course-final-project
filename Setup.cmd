@@ -20,6 +20,8 @@ if not exist ".venv\Scripts\python.exe" py -3.13 -m venv .venv
 if errorlevel 1 goto failed
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check --index-url https://pypi.org/simple -r requirements.lock
 if errorlevel 1 goto failed
+".venv\Scripts\python.exe" -B tools/setup_quarto.py
+if errorlevel 1 goto failed
 echo Setup complete. Open Start.cmd to launch Data Story.
 pause
 exit /b 0

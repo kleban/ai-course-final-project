@@ -3,7 +3,7 @@
 from typing import Any
 
 from nicegui import ui
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from .analysis_blocks import eda_link
 from .chart_configuration import FONTS, THEMES, ChartConfiguration, ChartOptions, preset
@@ -18,7 +18,15 @@ from .charts import (
     number_text,
     scatter_svg,
 )
-from .contracts import Failure, ProjectView, Success
+from .contracts import (
+    Failure,
+    HeatmapView,
+    HistogramView,
+    MissingView,
+    ProjectView,
+    ScatterView,
+    Success,
+)
 from .service import ProjectService
 
 GROUPS = {
@@ -270,6 +278,11 @@ def charts_screen(
             label="Набір даних",
             on_change=lambda e: go(e.value, kind),
         ).props("outlined square")
+    seed = getattr(ui.context.client, "assistant_chart_seed", None)
+    if seed and seed["query"]["dataset_id"] == selected:
+        configuration.data = ChartConfiguration(
+            theme="custom", custom=ChartOptions.model_validate(seed["query"]["options"])
+        )
     meta = service.metadata(selected)
     if isinstance(meta, Failure):
         error_line(meta)
@@ -287,6 +300,50 @@ def charts_screen(
         histogram_body(service, project_id, selected, eligible, configuration.data)
     else:
         heatmap_body(service, project_id, selected, eligible, configuration.data)
+
+
+def connect_assistant_chart(kind, selected, state, title, read_options, controls):
+    """Hydrate an explicitly applied result and expose live controls for text commands."""
+    seed = getattr(ui.context.client, "assistant_chart_seed", None)
+    if seed and seed["chart"] == kind and seed["query"]["dataset_id"] == selected:
+        query = seed["query"]
+        title.set_value(query.get("title", ""))
+        for key, control in controls.items():
+            if key in query and query[key] is not None:
+                control.set_value(query[key])
+        if "mode" in controls:
+            controls["mode"].set_value("width" if query.get("bin_width") else "count")
+        views: dict[str, type[BaseModel]] = {
+            "heatmap": HeatmapView,
+            "histogram": HistogramView,
+            "scatter": ScatterView,
+            "missing": MissingView,
+        }
+        state["result"] = views[kind].model_validate(seed["result"])
+        ui.context.client.assistant_chart_seed = None
+
+    def context():
+        query = {
+            "dataset_id": selected,
+            "title": title.value or "",
+            "options": read_options().model_dump(),
+        }
+        if kind == "histogram":
+            if controls["mode"].value == "width":
+                query["bin_width"] = controls["bin_width"].value
+            else:
+                value = controls["bins"].value
+                query["bins"] = (
+                    int(value) if value is not None and float(value).is_integer() else value
+                )
+            query["field"] = controls["field"].value
+        else:
+            query.update({key: control.value for key, control in controls.items()})
+        if kind == "missing":
+            query["start"] = state["result"].start if state["result"] else 0
+        return {"chart": kind, "query": query}
+
+    ui.context.client.assistant_chart_context = context
 
 
 def theme_line(configuration: ChartConfiguration) -> None:
@@ -389,6 +446,7 @@ def heatmap_body(
         render.refresh()
 
     button("Побудувати", build, "formula", "primary")
+    connect_assistant_chart("heatmap", selected, state, title, read_options, {"fields": fields})
     render()
 
 
@@ -519,6 +577,14 @@ def histogram_body(
         render.refresh()
 
     button("Побудувати", build, "formula", "primary")
+    connect_assistant_chart(
+        "histogram",
+        selected,
+        state,
+        title,
+        read_options,
+        {"field": field, "bins": bins, "bin_width": width, "mode": mode},
+    )
     render()
 
 
@@ -596,6 +662,7 @@ def missing_body(
         render.refresh()
 
     button("Побудувати", lambda: build(0), "formula", "primary")
+    connect_assistant_chart("missing", selected, state, title, read_options, {})
     render()
 
 
@@ -679,6 +746,7 @@ def scatter_body(
         render.refresh()
 
     button("Побудувати", build, "formula", "primary")
+    connect_assistant_chart("scatter", selected, state, title, read_options, {"x": x, "y": y})
     render()
 
 

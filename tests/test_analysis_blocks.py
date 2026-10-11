@@ -23,7 +23,7 @@ class AnalysisBlocksTests(unittest.TestCase):
         )
         self.assertEqual(
             [b.key for b in blocks if b.available],
-            ["data", "eda", "preparation", "model", "validation"],
+            ["data", "eda", "preparation", "model", "validation", "report"],
         )
 
     def test_links_and_registry_consistency(self):

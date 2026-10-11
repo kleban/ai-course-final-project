@@ -42,7 +42,7 @@ def assistant_panel(
 ) -> None:
     page = _clean_page(page or {})
     hints = dict(HINTS)
-    if block == "data":
+    if block in ("data", "eda"):
         hints["execute"] = "Створить чернетку для перегляду. Запис — лише після «Застосувати»."
     history: list[dict] = []
     ref: dict[str, Any] = {}
@@ -108,6 +108,22 @@ def assistant_panel(
                 with status:
                     ui.label("Напишіть завдання або оберіть підказку.").classes("error-message")
                 return
+            request_page = dict(page)
+            reader = getattr(ui.context.client, "assistant_chart_context", None)
+            if reader:
+                from pydantic import ValidationError
+
+                try:
+                    current = reader()
+                except ValidationError:
+                    with status:
+                        ui.label("Перевірте поточні параметри оформлення графіка.").classes(
+                            "error-message"
+                        )
+                    return
+                request_page.update(
+                    chart=current, tool=current["chart"], dataset_id=current["query"]["dataset_id"]
+                )
             ref["busy"] = True
             ref["send"].props("disabled")
             bubble("user", question)
@@ -123,7 +139,7 @@ def assistant_panel(
                         "block": block,
                         "mode": mode.value,
                         "question": question,
-                        "page": page,
+                        "page": request_page,
                         "history": history[-MAX_HISTORY:],
                     },
                 )
@@ -227,15 +243,47 @@ def draft_preview(service: ProjectService, project_id: str, proposal: dict) -> N
     """Show editable project text or every proposed metadata change before explicit apply."""
     with ui.column().classes("w-full assistant-draft").style("gap: 4px"):
         is_project = proposal["kind"] == "project_description"
-        ui.label("Чернетка опису проєкту" if is_project else "Чернетка метаданих").classes(
-            "section-title"
-        )
+        is_chart = proposal["kind"] == "chart"
+        ui.label(
+            "Пропозиція графіка"
+            if is_chart
+            else "Чернетка опису проєкту"
+            if is_project
+            else "Чернетка метаданих"
+        ).classes("section-title")
         if is_project:
             editor = (
                 ui.textarea(value=proposal["text"])
                 .props("outlined square autogrow maxlength=20000")
                 .classes("w-full")
             )
+        elif is_chart:
+            from .analysis_blocks import EDA_TOOLS
+            from .chart_screen import FIELDS, GROUPS
+
+            chart = proposal["chart"]
+            ui.label(EDA_TOOLS[chart["chart"]]).classes("font-bold")
+            ui.label(chart["explanation"]).classes("model-note")
+            names = {
+                "field": "Поле",
+                "fields": "Поля",
+                "x": "Вісь X",
+                "y": "Вісь Y",
+                "bins": "Інтервалів",
+                "bin_width": "Ширина інтервалу",
+                "start": "Початкове поле",
+                "title": "Заголовок",
+            }
+            for key, label in names.items():
+                value = chart["query"].get(key)
+                if value is not None:
+                    ui.label(f"{label}: {value}").classes("model-note")
+            with ui.expansion("Оформлення"):
+                options = chart["query"]["options"]
+                for group in ("common", chart["chart"]):
+                    ui.label(GROUPS[group]).classes("font-bold")
+                    for key, _, label, _ in FIELDS[group]:
+                        ui.label(f"{label}: {options[key]}").classes("model-note")
         else:
             metadata = proposal["metadata"]
             if metadata.get("description") is not None:
@@ -270,7 +318,15 @@ def draft_preview(service: ProjectService, project_id: str, proposal: dict) -> N
                     result_line.set_text(result.error.message)
                     apply_button.props(remove="disabled")
                     return
-                result_line.set_text("Застосовано. Оновіть сторінку, щоб побачити збережені зміни.")
+                if is_chart:
+                    callback = getattr(ui.context.client, "assistant_chart_apply", None)
+                    if callback:
+                        callback(result.data)
+                    result_line.set_text("Графік перебудовано в робочій області.")
+                else:
+                    result_line.set_text(
+                        "Застосовано. Оновіть сторінку, щоб побачити збережені зміни."
+                    )
                 ui.notify("Чернетку застосовано", type="positive")
             except Exception:
                 apply_button.props(remove="disabled")

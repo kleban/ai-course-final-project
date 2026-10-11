@@ -59,6 +59,9 @@ from .contracts import (
     ProjectId,
     ProjectTypeView,
     ProjectView,
+    ReportCreate,
+    ReportRevision,
+    ReportSave,
     RowsPage,
     RowsQuery,
     ScatterQuery,
@@ -82,6 +85,7 @@ from .preparation_store import PreparationStore
 from .prepared_datasets import PreparedDatasets
 from .project_types import PROJECT_TYPES
 from .projects import ProjectNotFound, ProjectStore
+from .reports import ReportError, ReportStore
 from .statistics import StatisticsError, StatisticsStore
 from .training_data import TrainingChoices
 from .training_store import TrainingStore
@@ -133,6 +137,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         ModelError,
         KnowledgeError,
         AiError,
+        ReportError,
     ) as error:
         return Failure(
             error=ErrorInfo(
@@ -182,6 +187,73 @@ class ProjectService:
         self.knowledge = KnowledgeStore(store.database)
         self.ai_settings = AiSettingsStore(store.database)
         self.openai = OpenAIClient(store.database, self.ai_settings)
+        self.reports = ReportStore(self)
+
+    def report_create(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        def action():
+            project = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(ReportCreate, raw)
+            return self.reports.create(project, str(query.model_id), query.title)
+
+        return execute(action)
+
+    def report_list(self, project_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.reports.list(str(validate_input(ProjectId, {"id": project_id}).id))
+        )
+
+    def report_get(self, project_id: str, report_id: str) -> Success[dict] | Failure:
+        return execute(
+            lambda: self.reports.get(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": report_id}).id),
+            )
+        )
+
+    def report_save(self, project_id: str, report_id: str, raw: object) -> Success[dict] | Failure:
+        def action():
+            query = validate_input(ReportSave, raw)
+            return self.reports.update(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": report_id}).id),
+                query.revision,
+                query.markdown,
+            )
+
+        return execute(action)
+
+    def report_generate(
+        self, project_id: str, report_id: str, raw: object, *, ai: bool = False
+    ) -> Success[dict] | Failure:
+        def action():
+            query = validate_input(ReportRevision, raw)
+            method = self.reports.ai_draft if ai else self.reports.render
+            return method(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": report_id}).id),
+                query.revision,
+            )
+
+        return execute(action)
+
+    def report_figure(self, project_id: str, report_id: str, name: str):
+        return execute(
+            lambda: self.reports.figure(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": report_id}).id),
+                name,
+            )
+        )
+
+    def report_download(self, project_id: str, report_id: str, artifact_id: str, kind: str):
+        return execute(
+            lambda: self.reports.download(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": report_id}).id),
+                str(validate_input(ProjectId, {"id": artifact_id}).id),
+                kind,
+            )
+        )
 
     def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action() -> dict:

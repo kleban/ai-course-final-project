@@ -112,6 +112,10 @@ class EventView(StrictModel):
         "model.trained",
         "model.checked",
         "assistant.asked",
+        "report.created",
+        "report.saved",
+        "report.ai",
+        "report.rendered",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -487,6 +491,7 @@ class AssistantPage(StrictModel):
     """Where the user is: selected dataset, chart tool, saved split or model."""
 
     dataset_id: UUID | None = None
+    chart: dict[str, Any] | None = None
     tool: Annotated[str, Field(strict=True, max_length=40)] | None = None
     run_id: UUID | None = None
 
@@ -523,15 +528,47 @@ class MetadataDraftQuery(StrictModel):
     columns: list[MetadataColumnDraft] = Field(min_length=1, max_length=200)
 
 
+class ChartDraftQuery(StrictModel):
+    chart: Literal["histogram", "scatter", "heatmap", "missing"]
+    query: HistogramQuery | ScatterQuery | HeatmapQuery | MissingQuery
+    explanation: Annotated[str, Field(strict=True, min_length=1, max_length=1000)]
+
+    @model_validator(mode="after")
+    def correct_query(self) -> "ChartDraftQuery":
+        expected = {
+            "histogram": HistogramQuery,
+            "scatter": ScatterQuery,
+            "heatmap": HeatmapQuery,
+            "missing": MissingQuery,
+        }[self.chart]
+        if not isinstance(self.query, expected):
+            raise ValueError("Параметри не відповідають типу графіка.")
+        return self
+
+
 class DraftApply(StrictModel):
-    kind: Literal["project_description", "metadata"]
+    kind: Literal["project_description", "metadata", "chart"]
     project_id: UUID
     base_token: str = Field(pattern=r"^[a-f0-9]{64}$")
     text: Annotated[str, Field(strict=True, min_length=1, max_length=DESCRIPTION_LIMIT)] | None = (
         None
     )
     metadata: MetadataDraftQuery | None = None
+    chart: ChartDraftQuery | None = None
 
 
 class KnowledgeDocument(StrictModel):
     text: Annotated[str, Field(strict=True, min_length=1, max_length=20000)]
+
+
+class ReportCreate(StrictModel):
+    model_id: UUID
+    title: Annotated[str, Field(strict=True, min_length=1, max_length=180)] = "Аналітичний звіт"
+
+
+class ReportRevision(StrictModel):
+    revision: Annotated[int, Field(strict=True, ge=1)]
+
+
+class ReportSave(ReportRevision):
+    markdown: Annotated[str, Field(strict=True, min_length=1, max_length=100000)]

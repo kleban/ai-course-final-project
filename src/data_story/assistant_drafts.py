@@ -4,7 +4,7 @@ import hashlib
 import json
 from uuid import UUID
 
-from .contracts import DraftApply, MetadataDraftQuery, ProjectDraftQuery
+from .contracts import ChartDraftQuery, DraftApply, Failure, MetadataDraftQuery, ProjectDraftQuery
 from .openai_client import AiError
 
 
@@ -83,9 +83,60 @@ def propose_metadata(service, project_id: str, raw: dict) -> dict:
     ).model_dump(mode="json")
 
 
+def propose_chart(service, project_id: str, raw: dict) -> dict:
+    query = ChartDraftQuery.model_validate(raw)
+    dataset_id = str(query.query.dataset_id)
+    metadata, token, _ = _metadata_state(service, project_id, dataset_id)
+    eligible = {
+        c.name
+        for c in metadata.document.columns
+        if c.kind == "number" and c.role not in ("id", "ignore")
+    }
+    values = query.query.model_dump(mode="json")
+    fields = values.get(
+        "fields",
+        [values["field"]]
+        if "field" in values
+        else [values["x"], values["y"]]
+        if "x" in values
+        else [],
+    )
+    if len(fields) != len(set(fields)) or any(f not in eligible for f in fields):
+        raise DraftError("Оберіть відомі придатні числові поля без повторів.")
+    # Freeze the current local theme; proposals cannot change global settings.
+    if query.query.options is None:
+        query.query.options = service.chart_config.get().effective()
+    return DraftApply(
+        kind="chart", project_id=UUID(project_id), base_token=token, chart=query
+    ).model_dump(mode="json")
+
+
 def apply(service, project_id: str, proposal: DraftApply) -> dict:
     if str(proposal.project_id) != project_id:
         raise DraftError("Чернетка належить іншому проєкту.")
+    if proposal.kind == "chart":
+        if proposal.chart is None or proposal.metadata is not None or proposal.text is not None:
+            raise DraftError("Пропозиція графіка містить зайві або відсутні параметри.")
+        chart = proposal.chart
+        dataset_id = str(chart.query.dataset_id)
+        _, token, _ = _metadata_state(service, project_id, dataset_id)
+        if token != proposal.base_token:
+            raise DraftError("Дані або метадані змінилися. Створіть нову пропозицію графіка.")
+        propose_chart(service, project_id, chart.model_dump(mode="json"))
+        method = (
+            service.missing_chart if chart.chart == "missing" else getattr(service, chart.chart)
+        )
+        result = method(project_id, chart.query.model_dump(mode="json"))
+        if isinstance(result, Failure):
+            raise DraftError(result.error.message)
+        return {
+            "kind": "chart",
+            "chart": chart.chart,
+            "query": chart.query.model_dump(mode="json"),
+            "result": result.data.model_dump(mode="json"),
+        }
+    if proposal.chart is not None:
+        raise DraftError("Чернетка містить зайві параметри графіка.")
     if proposal.kind == "project_description":
         if not proposal.text or not proposal.text.strip() or proposal.metadata is not None:
             raise DraftError("Чернетка опису має містити лише текст.")

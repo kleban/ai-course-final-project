@@ -219,7 +219,17 @@ class Monitor:
         return _row("storage", "Сховище даних", OK, detail)
 
     def planned(self) -> list[dict]:
-        return [_row("reports", "Генерація звітів (Quarto)", NOT_IMPLEMENTED, "Етап 10.")]
+        from .quarto_runtime import version
+
+        installed = version()
+        return [
+            _row(
+                "reports",
+                "Генерація звітів (Quarto)",
+                OK if installed else NOT_CONFIGURED,
+                "Локальний Quarto " + installed if installed else "Запустіть Setup.cmd.",
+            )
+        ]
 
     def run(self) -> dict:
         started = perf_counter()

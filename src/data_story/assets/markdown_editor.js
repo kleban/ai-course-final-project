@@ -32,12 +32,12 @@ export default {
         </dl>
       </details>
       <div ref="host" class="markdown-host"></div>
-      <div class="markdown-status" :class="{'error-message': length > 20000}" aria-live="polite">
-        {{ length.toLocaleString('uk-UA') }} / 20 000 символів
-        <span v-if="length > 20000"> — скоротіть текст перед збереженням</span>
+      <div class="markdown-status" :class="{'error-message': length > maxLength}" aria-live="polite">
+        {{ length.toLocaleString('uk-UA') }} / {{ maxLength.toLocaleString('uk-UA') }} символів
+        <span v-if="length > maxLength"> — скоротіть текст перед збереженням</span>
       </div>
     </section>`,
-  props: { value: String },
+  props: { value: String, maxLength: {type: Number, default: 20000} },
   data() {
     return {
       preview: false,
