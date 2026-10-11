@@ -305,6 +305,12 @@ class ProjectService:
 
         return execute(action)
 
+    def monitoring(self) -> Success[dict] | Failure:
+        """Local health of every part of the service (08b); no OpenAI call."""
+        from .monitoring import Monitor
+
+        return execute(lambda: Monitor(self).run())
+
     def ai_check_access(self) -> Success[list[dict]] | Failure:
         """Free check: are the configured OpenAI models reachable with the key from .env."""
         return execute(self.openai.check_models)

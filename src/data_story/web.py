@@ -125,6 +125,10 @@ def router(service: ProjectService) -> APIRouter:
     def assistant_ask(project_id: str, query: AssistantQuery):
         return response(service.assistant_ask(project_id, query.model_dump(mode="json")))
 
+    @api.get("/monitoring", response_model=Success[dict] | Failure)
+    def monitoring():
+        return response(service.monitoring())
+
     @api.post("/configuration/ai/check", response_model=Success[list[dict]] | Failure)
     def ai_check_access():
         return response(service.ai_check_access())
@@ -372,6 +376,12 @@ def configure(settings: Settings) -> None:
         from .ai_screen import ai_settings_screen
 
         ai_settings_screen(service)
+
+    @ui.page("/settings/monitoring")
+    def monitoring_page():
+        from .monitoring_screen import monitoring_screen
+
+        monitoring_screen(service)
 
     @ui.page("/settings/knowledge")
     def knowledge_page():

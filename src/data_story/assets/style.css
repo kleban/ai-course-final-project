@@ -480,3 +480,11 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .assistant-head { background:var(--band); padding:10px 12px; box-sizing:border-box; }
 .assistant-drawer > * { max-width:100%; box-sizing:border-box; }
 .assistant-msg { overflow-wrap:anywhere; box-sizing:border-box; }
+/* Monitoring (08b): one panel per part, state colour on the top line. */
+.monitor-state { display:flex; align-items:center; gap:6px; font-weight:600; margin:2px 0 4px; }
+.monitor-ok { border-top-color:var(--ok); } .monitor-ok .monitor-state { color:var(--ok); }
+.monitor-warning { border-top-color:var(--secondary); } .monitor-warning .monitor-state { color:var(--secondary); }
+.monitor-error { border-top-color:var(--accent); } .monitor-error .monitor-state { color:var(--accent); }
+.monitor-not_configured, .monitor-not_implemented { border-top-color:var(--axis); }
+.monitor-not_configured .monitor-state, .monitor-not_implemented .monitor-state { color:var(--ink2); }
+.monitor-grid { grid-auto-rows:auto; }
