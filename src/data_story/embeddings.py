@@ -9,6 +9,7 @@ knowledge base falls back to TF-IDF) when the model or the packages are missing.
 
 import hashlib
 import json
+import logging
 import threading
 import time
 import urllib.request
@@ -24,6 +25,7 @@ INSTALL = (ROOT / CONFIG["installation"]).resolve()
 if not INSTALL.is_relative_to(ROOT):
     raise RuntimeError("Модель embeddings має бути всередині проєкту.")
 BATCH = 16
+LOG = logging.getLogger(__name__)
 
 
 def _path(name: str) -> Path:
@@ -100,6 +102,14 @@ class Embedder:
         return np.vstack(parts).astype(np.float32)
 
 
+def failure_reason(error: Exception) -> str:
+    """The type and the first line of ONNX Runtime's own message, so the cause is visible."""
+    detail = " ".join(str(error).split())[:300]
+    return f"Модель embeddings не запустилась: {type(error).__name__}" + (
+        f" — {detail}" if detail else "."
+    )
+
+
 _lock = threading.Lock()
 _state: dict = {}
 
@@ -114,8 +124,9 @@ def embedder() -> Embedder | None:
         if reason is None:
             try:
                 instance = Embedder()
-            except Exception as error:  # a damaged model file or an incompatible runtime
-                reason = f"Модель embeddings не запустилась: {type(error).__name__}."
+            except Exception as error:  # a damaged model file, an incompatible runtime, no memory
+                reason = failure_reason(error)
+                LOG.exception("Embeddings model %s failed to load", MODEL)
         _state.update(embedder=instance, reason=reason)
         return instance
 
