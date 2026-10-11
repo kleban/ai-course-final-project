@@ -470,3 +470,13 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .assistant-msg.assistant { border-left:3px solid var(--primary); }
 .assistant-chip.answer { border-color:var(--primary); background:#fff; color:var(--primary); }
 .assistant-where { font-style:italic; }
+.ai-shortcut { color:var(--primary); border-color:transparent; margin:2px 0 6px; }
+.ai-shortcut:hover { border-color:var(--primary); }
+.ai-shortcut .ico { color:var(--primary); }
+/* D-83: the open assistant must read as a separate tool, not part of the page — the only
+   deliberate exception to the no-shadow dashboard style (D-19). */
+.q-drawer--right:has(.assistant-drawer) { box-shadow:-28px 0 64px rgba(23,70,144,.22), -2px 0 0 var(--primary) !important; }
+.assistant-drawer { border-top:4px solid var(--primary); }
+.assistant-head { background:var(--band); padding:10px 12px; box-sizing:border-box; }
+.assistant-drawer > * { max-width:100%; box-sizing:border-box; }
+.assistant-msg { overflow-wrap:anywhere; box-sizing:border-box; }

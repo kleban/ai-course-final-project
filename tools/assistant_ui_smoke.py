@@ -68,6 +68,8 @@ with sync_playwright() as pw:
     page.get_by_role("button", name="Нова розмова").click()
     page.wait_for_timeout(300)
     ok("new conversation clears thread", page.locator(".assistant-msg").count() == 0)
+    shadow = page.evaluate("getComputedStyle(document.querySelector('.q-drawer--right')).boxShadow")
+    ok("open panel stands out with a shadow", shadow not in ("", "none"))
     page.screenshot(path=str(SHOTS / "open.png"))
     page.keyboard.press("Escape")
     page.wait_for_timeout(500)
@@ -75,6 +77,16 @@ with sync_playwright() as pw:
     with httpx.Client(base_url=BASE) as api:
         events = api.get(f"/api/projects/{project}/events").json()["data"]
         ok("request logged", any(e["operation"] == "assistant.asked" for e in events))
+    page.goto(f"{BASE}/?project={project}")
+    page.get_by_role("button", name="З чого почати аналіз?").click()
+    page.locator(".assistant-drawer").get_by_text(
+        "Ключ OpenAI не знайдено у файлі .env", exact=False
+    ).wait_for(timeout=20000)
+    ok(
+        "page shortcut opens panel and sends prepared request",
+        page.locator(".assistant-msg.user").inner_text() == "З чого почати аналіз цього проєкту?",
+    )
+    page.screenshot(path=str(SHOTS / "shortcut.png"))
     page.goto(f"{BASE}/settings/ai")
     page.wait_for_timeout(800)
     ok(

@@ -4,6 +4,7 @@ from functools import partial
 
 from nicegui import run, ui
 
+from .assistant_panel import ai_shortcut
 from .contracts import Failure, ProjectView
 from .model import explain
 from .screen import button, error_line, kpi, number, page_header
@@ -88,6 +89,13 @@ def model_result(item: dict, project_id: str | None = None) -> None:
             "check",
             "small",
         )
+        with ui.row().classes("gap-1"):
+            ai_shortcut(
+                "Поясни результат",
+                "explain",
+                "Поясни результат цієї моделі: показники, значущі коефіцієнти й обмеження.",
+            )
+            ai_shortcut("Що робити далі?", "advise", "Що зробити далі з цією моделлю?")
     with ui.element("div").classes("grid grid-4 model-kpis"):
         kpi(
             "regression",

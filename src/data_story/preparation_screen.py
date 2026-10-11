@@ -4,6 +4,7 @@ from functools import partial
 
 from nicegui import ui
 
+from .assistant_panel import ai_shortcut
 from .contracts import Failure, ProjectView, Success
 from .preparation import MissingRule
 from .screen import button, error_line, page_header
@@ -21,6 +22,9 @@ def preparation_screen(
         "methods",
         "Пропуски",
         "Оберіть операції, перегляньте результат і підтвердьте збереження плану.",
+    )
+    ai_shortcut(
+        "Порадь, як обробити пропуски", "advise", "Як краще обробити пропуски в цьому наборі?"
     )
     ui.label(
         "Оригінальні дані не змінюються. Зберігаємо план операцій, а не новий набір даних."

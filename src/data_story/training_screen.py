@@ -5,6 +5,7 @@ from functools import partial
 
 from nicegui import run, ui
 
+from .assistant_panel import ai_shortcut
 from .contracts import Failure, ProjectView
 from .screen import button, error_line, page_header
 from .service import ProjectService
@@ -17,6 +18,11 @@ def training_screen(service: ProjectService, active: ProjectView, dataset_id: st
         "methods",
         "Вибірки для регресії",
         "Оберіть ціль, ознаки й перетворення. Підготовка запускається лише за кнопкою.",
+    )
+    ai_shortcut(
+        "Порадь ціль і ознаки",
+        "advise",
+        "Які ціль і ознаки обрати для регресії в цьому наборі й чому?",
     )
     listing = service.list_datasets(project_id)
     if isinstance(listing, Failure):

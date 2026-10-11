@@ -592,6 +592,9 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
         active.name,
         active.purpose or "Мету дослідження ще не зазначено.",
     )
+    from .assistant_panel import ai_shortcut
+
+    ai_shortcut("З чого почати аналіз?", "advise", "З чого почати аналіз цього проєкту?")
     events_result = service.events(str(active.id))
     events: list[EventView] = events_result.data if isinstance(events_result, Success) else []
     opened = sum(1 for e in events if e.operation == "project.opened")
@@ -1042,6 +1045,9 @@ def eda_screen(
         "Один набір, один інструмент: статистика, пропуски, розподіли й зв’язки. "
         "Розрахунки локальні, без AI.",
     )
+    from .assistant_panel import ai_shortcut
+
+    ai_shortcut("Що видно в даних?", "explain", "Що важливого видно в цьому наборі даних?")
     ui.toggle(
         EDA_TOOLS,
         value=tool,

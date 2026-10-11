@@ -4,6 +4,7 @@ from functools import partial
 
 from nicegui import run, ui
 
+from .assistant_panel import ai_shortcut
 from .contracts import Failure, ProjectView
 from .model_check import CHARTS
 from .model_screen import panel, precise
@@ -105,6 +106,12 @@ def validation_screen(service: ProjectService, active: ProjectView, model_id: st
                     ).classes("model-note mono-wrap")
             with ui.element("section").classes("model-panel"):
                 ui.label("Як читати").classes("panel-title")
+                ai_shortcut(
+                    "Поясни цей графік",
+                    "explain",
+                    f"Поясни графік «{view['title']}» цієї моделі: що на ньому видно "
+                    "й чи є ознаки проблем?",
+                )
                 ui.label(view["hint"]).classes("model-explain")
                 for note in view["notes"] + view["warnings"]:
                     with ui.element("div").classes("model-warning"):

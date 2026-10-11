@@ -174,6 +174,14 @@ def assistant_panel(
         async def send_typed() -> None:
             await send()
 
+        async def open_with(mode_value: str, text: str) -> None:
+            """Open the panel from a shortcut in the page and run the prepared request."""
+            drawer.show()
+            mode.set_value(mode_value)
+            await send(text)
+
+        ui.context.client.assistant_open = open_with
+
         with ui.row().classes("gap-2"):
             ref["send"] = button("Надіслати", send_typed, "spark", "primary")
             button("Нова розмова", restart, "undo")
@@ -192,3 +200,18 @@ def assistant_panel(
         on_key=lambda e: drawer.hide() if e.key == "Escape" and e.action.keydown else None,
         ignore=[],
     )
+
+
+def ai_shortcut(label: str, mode: str, question: str) -> None:
+    """A small «AI» link next to a result; does nothing visible without the panel."""
+    opener = getattr(ui.context.client, "assistant_open", None)
+    if opener is None:
+        return
+    with (
+        ui.element("button")
+        .classes("btn ghost small ai-shortcut")
+        .props(f'type="button" title="AI-помічник: {question}"')
+        .on("click", lambda: opener(mode, question))
+    ):
+        icon("spark")
+        ui.label(label)
