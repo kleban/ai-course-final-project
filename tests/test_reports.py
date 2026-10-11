@@ -235,10 +235,12 @@ class ReportTests(unittest.TestCase):
 
         with TemporaryDirectory() as folder:
             path = Path(folder) / "r.html"
-            path.write_text('<link rel="stylesheet" href="https://cdn.example/x.css">')
+            path.write_text(
+                '<link rel="stylesheet" href="https://cdn.example/x.css">', encoding="utf-8"
+            )
             with self.assertRaises(ReportError):
                 offline_html(path)
-            path.write_text('<a href="https://example.com">посилання</a>')
+            path.write_text('<a href="https://example.com">посилання</a>', encoding="utf-8")
             offline_html(path)
 
     def test_numbers_p_values_and_notes_are_readable(self):

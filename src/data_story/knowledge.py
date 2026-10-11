@@ -3,8 +3,9 @@
 Documents live in SQLite, seeded once from the repository defaults in ``knowledge/``; a future
 editor changes the rows, never the defaults. Each ``##`` section is one fragment with its
 document, section, source and priority. Search is fully local: TF-IDF over character n-grams
-(scikit-learn), which tolerates Ukrainian word endings without model weights or network.
-The retriever sits behind ``search`` so embeddings can replace it later.
+(scikit-learn), which tolerates Ukrainian word endings, combined with local neural embeddings
+(``embeddings.py``) that match meaning rather than letters. Without the model the search falls
+back to TF-IDF alone and says so in ``method``.
 """
 
 import hashlib
@@ -19,11 +20,21 @@ from uuid import uuid4
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+from . import embeddings
 from .storage import connect, ensure_schema
 
 DEFAULTS = Path(__file__).parent / "knowledge"
 METHOD = "tfidf-char_wb-3-5"
+HYBRID = "hybrid-bge-m3+tfidf"
 MIN_SCORE = 0.08
+# Hybrid score = bge-m3 cosine stretched above SEMANTIC_FLOOR plus a small TF-IDF share. A
+# fragment is returned when its meaning is close enough (SEMANTIC_MIN; unrelated questions
+# peaked at 0.39) or its words match strongly (LEXICAL_MIN). Calibrated in history 091 on 15
+# control, 15 paraphrased and 8 unrelated questions (tools/knowledge_eval.py).
+SEMANTIC_FLOOR = 0.3
+SEMANTIC_MIN = 0.42
+LEXICAL_MIN = 0.2
+LEXICAL_WEIGHT = 0.25
 MAX_QUERY = 500
 MAX_DOCUMENT = 20000
 MAX_DOCUMENTS = 50
@@ -82,11 +93,21 @@ def parse(document_id: str, text: str) -> tuple[dict, list[Fragment]]:
     return meta, fragments
 
 
+# Fragment vectors shared by all stores in this process (key: model revision + fragment texts),
+# so a new store or a test database does not re-embed the same rules.
+_VECTORS: dict[str, np.ndarray] = {}
+
+
+def passage(fragment: Fragment) -> str:
+    return f"{fragment.title}. {fragment.section}. {fragment.text}"
+
+
 class KnowledgeStore:
     def __init__(self, database: Path, defaults: Path = DEFAULTS):
         self.database = ensure_schema(database)
         self.defaults = defaults
         self._index: tuple[str, TfidfVectorizer, np.ndarray, list[Fragment]] | None = None
+        self._vectors: tuple[str, np.ndarray] | None = None
 
     def _defaults(self) -> dict[str, str]:
         return {p.stem: p.read_text(encoding="utf-8") for p in sorted(self.defaults.glob("*.md"))}
@@ -243,6 +264,33 @@ class KnowledgeStore:
             self._index = (fingerprint, vectorizer, matrix, fragments)
         return self._index
 
+    def _semantic(self, fingerprint: str, fragments: list[Fragment]):
+        """Fragment vectors (cached in memory and next to the database) or None without a model."""
+        model = embeddings.embedder()
+        if model is None:
+            return None, None
+        key = f"{model.version}-{fingerprint[:16]}"
+        if self._vectors is None or self._vectors[0] != key:
+            cache = self.database.parent / "knowledge-index" / f"{key}.npy"
+            vectors = _VECTORS.get(key)
+            if vectors is None and cache.is_file():
+                try:
+                    vectors = np.load(cache)
+                    if vectors.shape[0] != len(fragments):
+                        vectors = None
+                except (OSError, ValueError):
+                    vectors = None
+            if vectors is None:
+                vectors = model.encode([passage(f) for f in fragments], "passage")
+                try:
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    np.save(cache, vectors)
+                except OSError:
+                    pass  # the cache is an optimisation only
+            _VECTORS[key] = vectors
+            self._vectors = (key, vectors)
+        return model, self._vectors[1]
+
     def search(self, query: str, limit: int = 3) -> dict:
         query = " ".join(str(query).split())
         if not query:
@@ -251,7 +299,18 @@ class KnowledgeStore:
             raise KnowledgeError(f"Запитання задовге: до {MAX_QUERY} символів.")
         started = perf_counter()
         fingerprint, vectorizer, matrix, fragments = self._ensure_index()
-        scores = (matrix @ vectorizer.transform([query.lower()]).T).toarray().ravel()
+        lexical = (matrix @ vectorizer.transform([query.lower()]).T).toarray().ravel()
+        model, vectors = self._semantic(fingerprint, fragments)
+        if model is None or vectors is None:
+            method, semantic = METHOD, None
+            scores = lexical
+            accepted = lexical >= MIN_SCORE
+        else:
+            method = HYBRID
+            semantic = vectors @ model.encode([query], "query")[0]
+            stretched = np.clip((semantic - SEMANTIC_FLOOR) / (1 - SEMANTIC_FLOOR), 0, None)
+            scores = stretched + LEXICAL_WEIGHT * lexical
+            accepted = (semantic >= SEMANTIC_MIN) | (lexical >= LEXICAL_MIN)
         order = sorted(range(len(fragments)), key=lambda i: (-scores[i], fragments[i].priority, i))
         hits = [
             {
@@ -263,13 +322,15 @@ class KnowledgeStore:
                 "priority": fragments[i].priority,
                 "text": fragments[i].text,
                 "score": round(float(scores[i]), 4),
+                "lexical": round(float(lexical[i]), 4),
+                "semantic": None if semantic is None else round(float(semantic[i]), 4),
             }
-            for i in order[:limit]
-            if scores[i] >= MIN_SCORE
+            for i in [i for i in order if accepted[i]][:limit]
         ]
         result = {
             "query": query,
-            "method": METHOD,
+            "method": method,
+            "semantic_reason": embeddings.status() if semantic is None else None,
             "index": fingerprint[:12],
             "fragment_count": len(fragments),
             "hits": hits,
@@ -287,7 +348,7 @@ class KnowledgeStore:
                         {
                             "query": query,
                             "limit": limit,
-                            "method": METHOD,
+                            "method": method,
                             "index": fingerprint[:12],
                             "hits": [{"id": h["id"], "score": h["score"]} for h in hits],
                             "duration_ms": (perf_counter() - started) * 1000,

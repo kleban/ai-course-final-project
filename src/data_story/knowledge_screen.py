@@ -15,9 +15,10 @@ def hit_card(hit: dict) -> None:
     with ui.element("div").classes("knowledge-hit"):
         ui.label(f"{hit['title']} · {hit['section']}").classes("knowledge-section")
         ui.label(hit["text"]).classes("model-explain")
-        ui.label(f"Джерело: {hit['source']} · схожість {hit['score']:.2f}").classes(
-            "model-note mono-wrap"
-        )
+        detail = f"Джерело: {hit['source']} · оцінка {hit['score']:.2f}"
+        if hit.get("semantic") is not None:
+            detail += f" (зміст {hit['semantic']:.2f}, слова {hit['lexical']:.2f})"
+        ui.label(detail).classes("model-note mono-wrap")
 
 
 def knowledge_screen(service: ProjectService) -> None:
@@ -28,8 +29,8 @@ def knowledge_screen(service: ProjectService) -> None:
             "Налаштування",
             "doc",
             "База знань",
-            "Базові правила, на які спиратиметься AI-помічник. Пошук працює локально, "
-            "без інтернету; редагування правил з'явиться окремим інструментом.",
+            "Правила, на які спирається AI-помічник. Пошук локальний, без інтернету: "
+            "за змістом (нейронні embeddings) і за словами (TF-IDF).",
         )
         documents = service.knowledge_documents()
         if isinstance(documents, Failure):
@@ -69,6 +70,8 @@ def knowledge_screen(service: ProjectService) -> None:
                     ui.label(
                         f"Метод: {data['method']} · фрагментів: {data['fragment_count']}"
                     ).classes("model-note")
+                    if data.get("semantic_reason"):
+                        ui.label(data["semantic_reason"]).classes("model-warning")
 
             query.on("keydown.enter", search)
             button("Знайти", search, "search", "primary")

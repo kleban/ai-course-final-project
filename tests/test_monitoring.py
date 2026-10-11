@@ -9,6 +9,7 @@ import test_preparation_store as fixtures
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from data_story import embeddings
 from data_story.contracts import Success
 from data_story.monitoring import Monitor, lock_versions
 from data_story.storage import SCHEMA_VERSION, connect
@@ -33,7 +34,7 @@ class MonitoringTests(unittest.TestCase):
         self.assertEqual(rows["database"]["state"], "ok")
         self.assertIn(f"Схема v{SCHEMA_VERSION}", rows["database"]["detail"])
         self.assertEqual(rows["assets"]["state"], "ok")
-        self.assertEqual(rows["knowledge"]["state"], "ok")
+        self.assertEqual(rows["knowledge"]["state"], "warning" if embeddings.status() else "ok")
         self.assertEqual(rows["openai_access"]["state"], "not_configured")
         self.assertIn(rows["duckdb"]["state"], ("not_implemented", "warning"))
         self.assertIn("МБ", rows["storage"]["detail"])

@@ -27,3 +27,8 @@ follow_imports = "skip"
 module = ["sklearn.*", "scipy.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = ["onnxruntime.*", "tokenizers.*", "duckdb.*"]
+ignore_missing_imports = true
+follow_imports = "skip"

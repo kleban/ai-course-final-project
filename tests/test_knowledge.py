@@ -4,14 +4,17 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import numpy as np
 import test_preparation_store as fixtures
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from data_story import embeddings
 from data_story.assistant_tools import run_tool
 from data_story.contracts import Failure, Success
-from data_story.knowledge import KnowledgeError, KnowledgeStore, parse
+from data_story.knowledge import HYBRID, METHOD, KnowledgeError, KnowledgeStore, parse
 from data_story.storage import connect
 from data_story.web import install_error_handlers, router
 
@@ -45,6 +48,45 @@ class KnowledgeTests(unittest.TestCase):
             if section not in [h["section"] for h in hits]:
                 misses.append((question, [h["section"] for h in hits]))
         self.assertEqual(misses, [])
+
+    def test_without_model_search_falls_back_to_tfidf_and_says_why(self):
+        with (
+            patch.object(embeddings, "embedder", return_value=None),
+            patch.object(embeddings, "status", return_value="Модель не встановлена."),
+        ):
+            result = self.service.knowledge.search("що таке вільний член")
+        self.assertEqual(result["method"], METHOD)
+        self.assertEqual(result["semantic_reason"], "Модель не встановлена.")
+        self.assertIsNone(result["hits"][0]["semantic"])
+
+    def test_hybrid_ranks_by_meaning_and_caches_fragment_vectors(self):
+        fragments = self.service.knowledge.fragments()
+        target = next(i for i, f in enumerate(fragments) if f.section.startswith("Екстраполяція"))
+
+        class Fake:
+            version = "fake"
+            calls = 0
+
+            def encode(self, texts, kind):
+                Fake.calls += kind == "passage"
+                if kind == "query":
+                    vector = np.zeros(len(fragments), dtype=np.float32)
+                    vector[target] = 1
+                    return vector[None, :]
+                return np.eye(len(texts), dtype=np.float32) * 0.2 + 0.79
+
+        fake = Fake()
+        with patch.object(embeddings, "embedder", return_value=fake):
+            # No shared words with the rule: only the "meaning" can find it.
+            result = self.service.knowledge.search("цифри далеко за межами відомого")
+            again = self.service.knowledge.search("ще раз те саме питання")
+        self.assertEqual(result["method"], HYBRID)
+        self.assertTrue(result["hits"][0]["section"].startswith("Екстраполяція"))
+        self.assertGreater(result["hits"][0]["semantic"], result["hits"][0]["lexical"])
+        self.assertEqual(Fake.calls, 1)
+        self.assertEqual(again["method"], HYBRID)
+        cache = list((self.service.store.database.parent / "knowledge-index").glob("fake-*.npy"))
+        self.assertEqual(len(cache), 1)
 
     def test_unrelated_question_returns_nothing(self):
         result = self.service.knowledge.search("рецепт борщу")

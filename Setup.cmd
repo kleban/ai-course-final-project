@@ -22,6 +22,8 @@ if errorlevel 1 goto failed
 if errorlevel 1 goto failed
 ".venv\Scripts\python.exe" -B tools/setup_quarto.py
 if errorlevel 1 goto failed
+".venv\Scripts\python.exe" -B tools/setup_embeddings.py
+if errorlevel 1 goto failed
 echo Setup complete. Open Start.cmd to launch Data Story.
 pause
 exit /b 0

@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import zipfile
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -66,7 +67,7 @@ def p_value(value) -> str:
     return (f"{value:.2e}" if value < 0.001 else f"{value:.3g}").replace(".", ",")
 
 
-CHOICE_LABELS = {
+CHOICE_LABELS: dict[str, tuple[str, Callable[[object], str]]] = {
     "test_percent": ("Тестова частка", lambda v: f"{v}%"),
     "seed": ("Seed випадкового поділу", str),
     "encoding": (
