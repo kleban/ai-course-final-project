@@ -67,6 +67,12 @@ def knowledge_screen(service: ProjectService) -> None:
                         ui.label(data["reason"]).classes("section-lead")
                     for hit in data["hits"]:
                         hit_card(hit)
+                    if data.get("book_hits"):
+                        ui.label("З книжок (переказ — у відповіді AI)").classes("knowledge-section")
+                        for hit in data["book_hits"]:
+                            hit_card(hit)
+                    elif data.get("books_reason"):
+                        ui.label(data["books_reason"]).classes("model-note")
                     ui.label(
                         f"Метод: {data['method']} · фрагментів: {data['fragment_count']}"
                     ).classes("model-note")
@@ -78,6 +84,20 @@ def knowledge_screen(service: ProjectService) -> None:
             results = ui.column().classes("w-full")
         with docs_box:
             documents_list(service)
+        library = service.knowledge.library.status()
+        with panel("Книжки"):
+            if library["reason"]:
+                ui.label(library["reason"]).classes("model-note")
+            ui.label(
+                f"Обрані розділи: {len(library['books'])} книжок, {library['fragments']} фрагментів. "
+                "Тексти лежать лише локально (runtime), не в Git."
+            ).classes("model-note")
+            for book in library["books"]:
+                with ui.element("div").classes("knowledge-hit"):
+                    ui.label(f"{book['title']} · {book['authors']}, {book['year']}").classes(
+                        "knowledge-section"
+                    )
+                    ui.label(f"{book['why']} Фрагментів: {book['chunks']}.").classes("model-note")
 
 
 TEMPLATE = """# Назва документа

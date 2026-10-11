@@ -7,3 +7,4 @@ runtime/
 .env
 *.log
 Claude outputs/
+sources/

@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
@@ -115,6 +117,49 @@ def raw_scores(store: KnowledgeStore) -> list[dict]:
     return result
 
 
+BOOK_QUESTIONS = [
+    "як інтерпретувати коефіцієнт множинної регресії",
+    "що робити, якщо залишки мають форму лійки",
+    "як писати висновки аналітичного звіту",
+    "чому кореляція не означає причинність",
+    "навіщо крос-валідація",
+    "як масштабувати ознаки перед моделлю",
+    "що таке стандартне відхилення",
+    "як подати результати керівництву",
+]
+
+
+def book_scores(store: KnowledgeStore) -> list[dict]:
+    """Top book fragments for typical questions and unrelated ones (library of the author)."""
+    from data_story.knowledge_sources import SourceLibrary
+
+    store.library = SourceLibrary(ROOT / "runtime" / "knowledge-sources")
+    rows = []
+    for group, items in (("book", BOOK_QUESTIONS), ("unrelated", UNRELATED)):
+        for question in items:
+            vector = embeddings.embedder().encode([question], "query")[0]
+            chunks, books, vectors = store.library.load()
+            if vectors is None:
+                return [{"error": store.library.status()["reason"]}]
+            scores = vectors @ vector
+            top = np.argsort(-scores)[:3]
+            rows.append(
+                {
+                    "group": group,
+                    "question": question,
+                    "top": [
+                        (round(float(scores[i]), 4), chunks[i]["book"], chunks[i]["section"],
+                         chunks[i]["pages"])
+                        for i in top
+                    ],
+                }
+            )  # fmt: skip
+    for row in rows:
+        best = row["top"][0]
+        print("book", row["group"], best[0], row["question"], "|", best[1], best[2], best[3])
+    return rows
+
+
 def main() -> int:
     folder = ROOT / "tmp"
     folder.mkdir(exist_ok=True)
@@ -127,6 +172,7 @@ def main() -> int:
             report["hybrid"] = run(store, True)
             report["hybrid_seconds"] = round(time.perf_counter() - started, 1)
             report["raw"] = raw_scores(store)
+            report["books"] = book_scores(store)
         for name in ("tfidf", "hybrid"):
             if name not in report:
                 continue

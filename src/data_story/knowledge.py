@@ -21,6 +21,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from . import embeddings
+from .knowledge_sources import BOOK_MIN, BOOK_STRICT, SourceLibrary
 from .storage import connect, ensure_schema
 
 DEFAULTS = Path(__file__).parent / "knowledge"
@@ -108,6 +109,8 @@ class KnowledgeStore:
         self.defaults = defaults
         self._index: tuple[str, TfidfVectorizer, np.ndarray, list[Fragment]] | None = None
         self._vectors: tuple[str, np.ndarray] | None = None
+        # Selected book chapters next to the database (runtime/knowledge-sources, outside Git).
+        self.library = SourceLibrary(self.database.parent / "knowledge-sources")
 
     def _defaults(self) -> dict[str, str]:
         return {p.stem: p.read_text(encoding="utf-8") for p in sorted(self.defaults.glob("*.md"))}
@@ -291,7 +294,7 @@ class KnowledgeStore:
             self._vectors = (key, vectors)
         return model, self._vectors[1]
 
-    def search(self, query: str, limit: int = 3) -> dict:
+    def search(self, query: str, limit: int = 3, books: int = 2) -> dict:
         query = " ".join(str(query).split())
         if not query:
             raise KnowledgeError("Введіть запитання для пошуку в базі знань.")
@@ -301,13 +304,15 @@ class KnowledgeStore:
         fingerprint, vectorizer, matrix, fragments = self._ensure_index()
         lexical = (matrix @ vectorizer.transform([query.lower()]).T).toarray().ravel()
         model, vectors = self._semantic(fingerprint, fragments)
+        query_vector = None
         if model is None or vectors is None:
             method, semantic = METHOD, None
             scores = lexical
             accepted = lexical >= MIN_SCORE
         else:
             method = HYBRID
-            semantic = vectors @ model.encode([query], "query")[0]
+            query_vector = model.encode([query], "query")[0]
+            semantic = vectors @ query_vector
             stretched = np.clip((semantic - SEMANTIC_FLOOR) / (1 - SEMANTIC_FLOOR), 0, None)
             scores = stretched + LEXICAL_WEIGHT * lexical
             accepted = (semantic >= SEMANTIC_MIN) | (lexical >= LEXICAL_MIN)
@@ -336,6 +341,13 @@ class KnowledgeStore:
             "hits": hits,
             "reason": None if hits else "У базі знань не знайдено достатньо схожих правил.",
         }
+        book_hits, books_reason = (
+            self.library.search(query_vector, books, BOOK_MIN if hits else BOOK_STRICT)
+            if books > 0
+            else ([], None)
+        )
+        result["book_hits"] = book_hits
+        result["books_reason"] = books_reason
         with connect(self.database) as connection:
             connection.execute(
                 "INSERT INTO config_events VALUES (?, ?, ?, ?, ?)",
@@ -351,6 +363,7 @@ class KnowledgeStore:
                             "method": method,
                             "index": fingerprint[:12],
                             "hits": [{"id": h["id"], "score": h["score"]} for h in hits],
+                            "book_hits": [{"id": h["id"], "score": h["score"]} for h in book_hits],
                             "duration_ms": (perf_counter() - started) * 1000,
                         },
                         ensure_ascii=False,

@@ -387,11 +387,22 @@ class Assistant:
             guide = self.service.knowledge.search("Вибір графіка " + question[:400], 10)["hits"]
             sources = list({h["id"]: h for h in sources + guide}.values())
         rules = "\n".join(f"- [{h['section']}] {h['text']}" for h in sources) or "немає"
+        books = found.get("book_hits", [])
+        book_text = (
+            "\n".join(
+                f"- [{h['title']} — {h['section']}; {h['source']}] {h['text'][:1200]}"
+                for h in books
+            )
+            or "немає"
+        )
+        sources = sources + books
         instruction = self.service.instructions.get(self.service.store.get(project_id).project_type)
         instructions = (
             f"{RULES}\n\nДія: {MODES[mode]}. Блок: {BLOCKS[block]}.\n\n"
             f"Інструкція типу проєкту:\n{instruction.text[:3000]}\n\n"
             f"Правила бази знань:\n{rules}\n\n"
+            f"Фрагменти книжок (англійською; переказуй своїми словами українською й називай "
+            f"книгу та сторінки, не цитуй довгими уривками):\n{book_text}\n\n"
             f"Контекст проєкту (JSON):\n{_context_json(self.context(project_id, block, page))}"
         )
         client = self.service.openai

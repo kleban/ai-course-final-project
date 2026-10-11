@@ -136,13 +136,21 @@ class Monitor:
         from . import embeddings
 
         reason = embeddings.status()
+        library = self.service.knowledge.library.status()
+        books = (
+            f" Книжки: {len(library['books'])}, фрагментів {library['fragments']}"
+            + ("" if library["indexed"] else " (не проіндексовано)")
+            + "."
+            if library["fragments"]
+            else ""
+        )
         if reason:
             return _row("knowledge", "База знань (RAG)", WARNING,
                         f"Документів {len(documents)}, фрагментів {fragments}; лише TF-IDF. "
-                        + reason)  # fmt: skip
+                        + reason + books)  # fmt: skip
         return _row("knowledge", "База знань (RAG)", OK,
                     f"Документів {len(documents)}, фрагментів {fragments}; гібридний пошук: "
-                    f"embeddings {embeddings.MODEL} + TF-IDF, локально.")  # fmt: skip
+                    f"embeddings {embeddings.MODEL} + TF-IDF, локально." + books)  # fmt: skip
 
     def openai_key(self) -> dict:
         status = key_status(self.service.ai_settings.env_file)
