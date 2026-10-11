@@ -116,13 +116,13 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .log .trow .ico.ico-when { color:var(--primary); }
 
 /* кнопки */
-.btn { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; font:inherit; font-size:.9em; border:1px solid var(--grid);
+.btn { display:inline-flex; align-items:center; gap:6px; padding:4px 14px; font:inherit; font-size:.9em; border:1px solid var(--grid);
   background:#fff; color:var(--ink); cursor:pointer; white-space:nowrap; }
 .btn:hover { border-color:var(--primary); color:var(--primary); }
 .btn.primary { background:var(--primary); border-color:var(--primary); color:#fff; }
 .btn.primary:hover { background:#123a78; color:#fff; }
 .btn.ghost { border-color:transparent; color:var(--ink2); }
-.btn.small { font-size:.82em; padding:3px 10px; justify-self:end; }
+.btn.small { font-size:.82em; padding:2px 12px; justify-self:end; }
 .q-btn { text-transform:none; font-weight:600; }
 
 /* «Як працювати» — як howto у дашборді: тонкі лінії згори й знизу */
