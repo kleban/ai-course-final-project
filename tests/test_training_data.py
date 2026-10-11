@@ -60,8 +60,8 @@ class TrainingCoreTests(unittest.TestCase):
         self.assertNotEqual(expected, float(frame["x"].mean()))
         self.assertIn(expected, result.x_test[:, 0])
 
-    def test_category_vocabulary_train_only_and_unknown_test_warning(self):
-        frame = pd.DataFrame({"x": range(10), "cat": ["A"] * 10, "y": range(10)})
+    def test_category_vocabulary_train_only_baseline_and_unknown_test_warning(self):
+        frame = pd.DataFrame({"x": range(10), "cat": ["A", "B"] * 5, "y": range(10)})
         metadata = snapshot(frame)
         metadata.document.columns[1].kind = "category"
         split = prepare_training(frame, metadata, TrainingChoices(target="y", features=["x"]))
@@ -69,10 +69,23 @@ class TrainingCoreTests(unittest.TestCase):
         result = prepare_training(
             frame, metadata, TrainingChoices(target="y", features=["cat"], encoding="onehot")
         )
-        self.assertEqual(result.report["transforms"]["cat"]["categories"], ["A"])
-        self.assertEqual(result.report["transforms"]["cat"]["unknown_test_rows"], 1)
-        self.assertEqual(result.x_test[0, 0], 0)
-        self.assertTrue(any("категорії" in warning for warning in result.report["warnings"]))
+        transform = result.report["transforms"]["cat"]
+        self.assertEqual(transform["categories"], ["A", "B"])
+        self.assertEqual(transform["baseline"], "A")
+        self.assertEqual(transform["unknown_test_rows"], 1)
+        self.assertEqual(result.report["feature_names"], ["cat = B"])  # baseline column dropped
+        self.assertEqual(result.x_test.shape[1], 1)
+        self.assertEqual(result.x_test[0, 0], 0)  # unknown → like the baseline
+        self.assertTrue(any("базової категорії" in w for w in result.report["warnings"]))
+
+    def test_single_category_feature_refused(self):
+        frame = pd.DataFrame({"x": range(10), "cat": ["A"] * 10, "y": range(10)})
+        metadata = snapshot(frame)
+        metadata.document.columns[1].kind = "category"
+        with self.assertRaises(PreparationError):
+            prepare_training(
+                frame, metadata, TrainingChoices(target="y", features=["cat"], encoding="onehot")
+            )
 
     def test_missing_codes_median_and_categorical_mode(self):
         frame = pd.DataFrame(

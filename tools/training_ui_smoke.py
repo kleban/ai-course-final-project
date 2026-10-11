@@ -111,7 +111,7 @@ with sync_playwright() as pw:
     ok(
         "train test encoded dimension shown",
         page.get_by_text(
-            "Навчальних рядків: 7 · Тестових: 3 · Ознак після кодування: 3", exact=True
+            "Навчальних рядків: 7 · Тестових: 3 · Ознак після кодування: 2", exact=True
         ).count()
         >= 1,
     )

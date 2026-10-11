@@ -272,6 +272,32 @@ class ModelStoreTests(unittest.TestCase):
             reopened.model_run(self.project.id, result.data["id"]).data["document"], doc
         )
 
+    def test_category_gets_its_own_p_value_against_baseline(self):
+        lines = ["x,cat,y"] + [
+            f"{i},{'B' if i % 3 == 0 else 'A'},{3 + 2 * i + (4 if i % 3 == 0 else 0) + (i % 5) * 0.3}"
+            for i in range(40)
+        ]
+        dataset = self.service.datasets.add(self.project.id, "cat.csv", "\n".join(lines).encode())
+        run = self.service.training_prepare(
+            self.project.id,
+            {
+                "dataset_id": dataset.id,
+                "target": "y",
+                "features": ["x", "cat"],
+                "encoding": "onehot",
+            },
+        ).data["id"]
+        doc = self.service.model_train(self.project.id, {"training_run_id": run}).data["document"]
+        names = [c["name"] for c in doc["coefficients"]]
+        self.assertEqual(names, ["x", "cat = B"])
+        self.assertEqual(doc["transforms"]["cat"]["baseline"], "A")
+        self.assertEqual(doc["rank"], 3)
+        self.assertFalse(any("лінійно залежні" in w for w in doc["warnings"]))
+        shift = doc["coefficients"][1]
+        self.assertAlmostEqual(shift["value"], 4, delta=0.5)
+        self.assertEqual(shift["stars"], "***")
+        self.assertIsNotNone(doc["intercept_inference"]["p_value"])
+
     def test_repeat_returns_saved_result_without_new_event(self):
         run_id = self._run()
         first = self.service.model_train(self.project.id, {"training_run_id": run_id}).data

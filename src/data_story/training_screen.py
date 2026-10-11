@@ -203,6 +203,12 @@ def training_screen(service: ProjectService, active: ProjectView, dataset_id: st
                     f"{name} · Значення заповнення з навчальної частини: {transformation['fill']}"
                 )
         ui.label("Ознаки: " + ", ".join(details["feature_names"]))
+        for name, transformation in details["transforms"].items():
+            if transformation.get("baseline") is not None:
+                ui.label(
+                    f"{name} · базова категорія: {transformation['baseline']} "
+                    "(окремого стовпця немає, інші — відносно неї)"
+                )
 
     def model_link(run_id: str) -> None:
         button(

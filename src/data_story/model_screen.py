@@ -136,9 +136,17 @@ def model_result(item: dict, project_id: str | None = None) -> None:
                     ui.label(tests["reason"]).classes("model-note")
                 elif any(c.get("reason") for c in doc["coefficients"]):
                     ui.label(
-                        "«—»: коефіцієнт окремо не визначений через лінійну залежність "
-                        "(наприклад, усі категорії one-hot разом із вільним членом); "
-                        "змістовна лише різниця між категоріями."
+                        "«—»: коефіцієнт окремо не визначений через лінійну залежність ознак."
+                    ).classes("model-note")
+                baselines = [
+                    f"{name} = {t['baseline']}"
+                    for name, t in doc.get("transforms", {}).items()
+                    if t.get("baseline") is not None
+                ]
+                if baselines:
+                    ui.label(
+                        "Базові категорії (коефіцієнти інших — зсув відносно них): "
+                        + ", ".join(baselines)
                     ).classes("model-note")
                 ui.label(
                     f"Залишкових ступенів свободи: {tests['df_residual']} · "

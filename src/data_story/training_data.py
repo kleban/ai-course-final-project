@@ -1,5 +1,6 @@
 """Explicit train/test preparation. Fit imputers and encoders on training rows only."""
 
+import warnings as py_warnings
 from dataclasses import dataclass
 from typing import Literal
 
@@ -132,6 +133,11 @@ def prepare_training(
             if choices.encoding != "onehot":
                 raise PreparationError("Для категорій явно оберіть кодування One-hot.")
             category_count = len(pd.unique(left.ravel()))
+            if category_count < 2:
+                raise PreparationError(
+                    f"Ознака «{name}» у навчальній частині має лише одну категорію: "
+                    "вона не несе інформації для моделі."
+                )
             if (
                 width + category_count > MAX_FEATURES
                 or len(frame) * (width + category_count) > MAX_CELLS
@@ -139,17 +145,26 @@ def prepare_training(
                 raise PreparationError(
                     "Забагато категорій для MVP. Оберіть менше ознак або об'єднайте категорії."
                 )
-            encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-            encoder.fit(left)
-            categories = encoder.categories_[0].tolist()
-            unknown = int(sum(value not in categories for value in right.ravel()))
+            # Treatment coding like R: the first category (alphabetical) is the baseline, so the
+            # columns are not collinear with the intercept and each category gets its own
+            # p-value as a shift relative to the baseline (D-85).
+            encoder = OneHotEncoder(handle_unknown="ignore", drop="first", sparse_output=False)
+            with py_warnings.catch_warnings():
+                py_warnings.simplefilter("ignore")  # unknown test categories are reported below
+                encoder.fit(left)
+                categories = encoder.categories_[0].tolist()
+                unknown = int(sum(value not in categories for value in right.ravel()))
+                left, right = encoder.transform(left), encoder.transform(right)
+            baseline = categories[0]
             if unknown:
                 warnings.append(
-                    f"{name}: {unknown} тестових рядків мають категорії, яких немає в навчальній частині; кодуємо нулями."
+                    f"{name}: {unknown} тестових рядків мають категорії, яких немає в навчальній "
+                    f"частині; для них прогноз рахується як для базової категорії «{baseline}»."
                 )
-            transforms.setdefault(name, {}).update(categories=categories, unknown_test_rows=unknown)
-            left, right = encoder.transform(left), encoder.transform(right)
-            labels.extend([f"{name} = {value}" for value in categories])
+            transforms.setdefault(name, {}).update(
+                categories=categories, baseline=str(baseline), unknown_test_rows=unknown
+            )
+            labels.extend([f"{name} = {value}" for value in categories[1:]])
         else:
             labels.append(name)
         width += left.shape[1]
@@ -180,6 +195,7 @@ def prepare_training(
             "feature_names": labels,
             "transforms": transforms,
             "warnings": warnings,
-            "method": "train_test_split; fit on train only; onehot handle_unknown=ignore",
+            "method": "train_test_split; fit on train only; onehot drop=first "
+            "(baseline category), handle_unknown=ignore",
         },
     )

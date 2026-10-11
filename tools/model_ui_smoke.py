@@ -99,7 +99,7 @@ with sync_playwright() as pw:
 
     page.get_by_label("Збережені вибірки", exact=True).click()
     page.get_by_role("option", name="model.csv · ціль y", exact=False).click()
-    page.get_by_text("Навчальних рядків: 21 · Тестових: 9 · Ознак після кодування: 4").wait_for()
+    page.get_by_text("Навчальних рядків: 21 · Тестових: 9 · Ознак після кодування: 3").wait_for()
     ok("split summary shown before training", True)
     page.get_by_role("button", name="Навчити лінійну регресію", exact=True).click()
     page.get_by_text("Модель навчено й збережено.", exact=True).wait_for(timeout=30000)
@@ -112,8 +112,9 @@ with sync_playwright() as pw:
         page.get_by_text("MAE ≈ 0: у середньому", exact=False).count() >= 1,
     )
     ok(
-        "collinearity warning shown",
-        page.get_by_text("Ознаки лінійно залежні", exact=False).count() >= 1,
+        "baseline category instead of collinearity",
+        page.get_by_text("Ознаки лінійно залежні", exact=False).count() == 0
+        and page.get_by_text("Базові категорії", exact=False).count() >= 1,
     )
     ok(
         "limitations shown",
@@ -143,7 +144,10 @@ with sync_playwright() as pw:
         values = {c["name"]: c["value"] for c in doc["coefficients"]}
         ok("x1 coefficient 2", abs(values["x1"] - 2) < 1e-8)
         ok("x2 coefficient -1.5", abs(values["x2"] + 1.5) < 1e-8)
-        ok("category gap 4", abs(values["cat = B"] - values["cat = A"] - 4) < 1e-8)
+        ok(
+            "category shift vs baseline 4",
+            abs(values["cat = B"] - 4) < 1e-8 and "cat = A" not in values,
+        )
         ok("linked to chosen split", doc["training_run_id"] == good)
         ok("fit on train only recorded", doc["train_count"] == 21 and doc["test_count"] == 9)
 
