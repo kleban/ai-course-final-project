@@ -48,7 +48,7 @@ NAV = [
         [
             ("settings", "/settings", "Типи проєктів", "settings"),
             ("ai_settings", "/settings/ai", "Моделі AI", "spark"),
-            ("chart_settings", "/settings/charts", "Графіки", "formula"),
+            ("chart_settings", "/settings/charts", "Теми", "palette"),
             ("knowledge", "/settings/knowledge", "База знань", "doc"),
             ("monitoring", "/settings/monitoring", "Моніторинг", "shield"),
             ("icons", "/icons", "Іконки", "gallery"),

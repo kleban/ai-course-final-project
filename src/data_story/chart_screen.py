@@ -373,7 +373,7 @@ def heatmap_body(
         .classes("w-full")
     )
     theme_line(configuration)
-    button("Налаштування графіків", lambda: ui.navigate.to("/settings/charts"), "settings")
+    button("Теми графіків", lambda: ui.navigate.to("/settings/charts"), "palette")
     title = (
         ui.input("Заголовок (необов’язково)")
         .props("outlined square maxlength=180")
@@ -753,13 +753,13 @@ def scatter_body(
 def chart_settings_screen(service: ProjectService) -> None:
     from .screen import Shell, button, error_line, error_text, page_header
 
-    ui.page_title("Налаштування графіків · Data Story")
-    Shell(service, "chart_settings", trail=[("Налаштування", None), ("Графіки", None)])
+    ui.page_title("Теми графіків · Data Story")
+    Shell(service, "chart_settings", trail=[("Налаштування", None), ("Теми", None)])
     with ui.column().classes("page"):
         page_header(
             "Налаштування",
-            "settings",
-            "Графіки й теми",
+            "palette",
+            "Теми графіків",
             "Спільні для сервісу. Попередній перегляд не змінює збережені налаштування. "
             "Доступні параметри всіх графіків оглядового аналізу; "
             "інші додамо разом із графіками.",
@@ -860,7 +860,7 @@ def chart_settings_screen(service: ProjectService) -> None:
             if isinstance(result, Failure):
                 message.set_text(error_text(result))
                 return
-            ui.notify("Налаштування графіків збережено", type="positive")
+            ui.notify("Тему графіків збережено", type="positive")
             ui.navigate.to("/settings/charts")
 
         def reset() -> None:

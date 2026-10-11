@@ -101,6 +101,13 @@ ICONS = {
     "redo": '<path d="M16 4l5 5-5 5M21 9H11a7 7 0 0 0 0 14"/>',
     "preview": '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/>'
     + _C.format(12, 12, 3),
+    # chart themes menu item (history 096): an artist's palette with three paint wells
+    "palette": '<path d="M12 3a9 9 0 0 0 0 18c1.3 0 2-.8 2-1.8 0-1.4-1.2-1.6-1.2-2.8 '
+    '0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4c0-4.3-4-7.8-9-7.8z"/>'
+    + "".join(
+        f'<circle cx="{x}" cy="{y}" r="1.1"{_F}/>'
+        for x, y in ((7.5, 11.5), (9.5, 7.5), (14.5, 7.5))
+    ),
 }
 
 
@@ -150,7 +157,17 @@ GROUPS = {
         "next",
         "chevron",
     ],
-    "Аналіз і AI": ["compare", "trend", "formula", "methods", "lab", "spark", "chat", "idea"],
+    "Аналіз і AI": [
+        "compare",
+        "trend",
+        "formula",
+        "palette",
+        "methods",
+        "lab",
+        "spark",
+        "chat",
+        "idea",
+    ],
     "Дії": ["plus", "upload", "copy", "edit", "reset", "check"],
     "Стани й підказки": ["info", "warning", "shield", "lock", "when"],
 }

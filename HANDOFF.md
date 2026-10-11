@@ -1,6 +1,6 @@
 # Data Story — почати тут
 
-Оновлено: 2026-10-11 (Europe/Kiev), історія 094. Правила — `AGENTS.md`, стан — `planning/status.md`, рішення — `planning/decisions.md`, хронологія — `PROJECT_HISTORY.md`. Наступний номер історії — **096**.
+Оновлено: 2026-10-11 (Europe/Kiev), історія 094. Правила — `AGENTS.md`, стан — `planning/status.md`, рішення — `planning/decisions.md`, хронологія — `PROJECT_HISTORY.md`. Наступний номер історії — **097**.
 
 ## Що є зараз
 
