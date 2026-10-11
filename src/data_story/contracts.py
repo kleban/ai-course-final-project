@@ -117,6 +117,11 @@ class EventView(StrictModel):
         "report.saved",
         "report.ai",
         "report.rendered",
+        "summary.previewed",
+        "summary.created",
+        "conclusions.prepared",
+        "conclusions.saved",
+        "conclusions.approved",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -573,6 +578,16 @@ class ReportRevision(StrictModel):
 
 class ReportSave(ReportRevision):
     markdown: Annotated[str, Field(strict=True, min_length=1, max_length=100000)]
+
+
+class ConclusionCreate(StrictModel):
+    model_id: UUID
+    summary_ids: Annotated[list[UUID], Field(max_length=3)] = []
+
+
+class ConclusionSave(ReportRevision):
+    # Approve without a text keeps the saved wording; saving a draft always sends the text.
+    markdown: Annotated[str | None, Field(strict=True, min_length=1, max_length=8000)] = None
 
 
 class SummarySave(StrictModel):

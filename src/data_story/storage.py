@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 _V1 = """
     CREATE TABLE projects (
@@ -202,6 +202,23 @@ _V15 = """
 """
 
 
+# v16: conclusions block — AI draft from facts + cited knowledge fragments, edited and approved
+# by the author before they enter a report.
+_V16 = """
+    CREATE TABLE conclusions (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        model_id TEXT NOT NULL REFERENCES model_runs(id),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('draft', 'approved')),
+        document TEXT NOT NULL
+    );
+    CREATE INDEX conclusions_project ON conclusions(project_id, created_at);
+"""
+
+
 @contextmanager
 def connect(database: Path) -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(database, timeout=5)
@@ -220,7 +237,7 @@ def ensure_schema(database: Path) -> Path:
     database.parent.mkdir(parents=True, exist_ok=True)
     with connect(database) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, SCHEMA_VERSION):
+        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, SCHEMA_VERSION):
             raise RuntimeError("Непідтримувана версія бази даних; файл не змінено.")
         if version == 0:
             tables = connection.execute(
@@ -243,7 +260,8 @@ def ensure_schema(database: Path) -> Path:
             + _V12
             + _V13
             + _V14
-            + _V15,
+            + _V15
+            + _V16,
             1: _V2
             + _V3
             + _V4
@@ -257,20 +275,35 @@ def ensure_schema(database: Path) -> Path:
             + _V12
             + _V13
             + _V14
-            + _V15,
-            2: _V3 + _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            3: _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            4: _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            5: _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            6: _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            7: _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            8: _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            9: _V10 + _V11 + _V12 + _V13 + _V14 + _V15,
-            10: _V11 + _V12 + _V13 + _V14 + _V15,
-            11: _V12 + _V13 + _V14 + _V15,
-            12: _V13 + _V14 + _V15,
-            13: _V14 + _V15,
-            14: _V15,
+            + _V15
+            + _V16,
+            2: _V3
+            + _V4
+            + _V5
+            + _V6
+            + _V7
+            + _V8
+            + _V9
+            + _V10
+            + _V11
+            + _V12
+            + _V13
+            + _V14
+            + _V15
+            + _V16,
+            3: _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            4: _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            5: _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            6: _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            7: _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            8: _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            9: _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            10: _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
+            11: _V12 + _V13 + _V14 + _V15 + _V16,
+            12: _V13 + _V14 + _V15 + _V16,
+            13: _V14 + _V15 + _V16,
+            14: _V15 + _V16,
+            15: _V16,
         }.get(version)
         if steps:
             connection.executescript(

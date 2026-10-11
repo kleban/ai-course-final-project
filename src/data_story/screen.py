@@ -56,6 +56,9 @@ NAV = [
     ),
 ]
 EVENT_TITLES = {
+    "conclusions.prepared": ("Підготовлено висновки AI", "spark"),
+    "conclusions.saved": ("Збережено висновки", "doc"),
+    "conclusions.approved": ("Затверджено висновки", "check"),
     "report.created": ("Створено чернетку звіту", "doc"),
     "report.saved": ("Збережено звіт", "doc"),
     "report.ai": ("Підготовлено пояснення AI", "spark"),
@@ -441,11 +444,13 @@ def projects_screen(
         trail.append(("Модель", None))
     if active and view == "validation":
         trail.append(("Перевірка моделі", None))
+    if active and view == "conclusions":
+        trail.append(("Висновки", None))
     current = (
         "preparation"
         if view in ("training", "combine")
         else view
-        if view in ("eda", "preparation", "model", "validation", "report")
+        if view in ("eda", "preparation", "model", "validation", "conclusions", "report")
         else "data"
         if active
         else "projects"
@@ -465,6 +470,10 @@ def projects_screen(
             error_line(active_result)
         if active and view == "eda":
             eda_screen(service, active, dataset_id, chart)
+        elif active and view == "conclusions":
+            from .conclusions_screen import conclusions_screen
+
+            conclusions_screen(service, active, run_id)
         elif active and view == "report":
             from .report_screen import report_screen
 

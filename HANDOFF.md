@@ -1,10 +1,10 @@
 # Data Story — почати тут
 
-Оновлено: 2026-10-11 (Europe/Kiev), історія 093. Правила — `AGENTS.md`, стан — `planning/status.md`, рішення — `planning/decisions.md`, хронологія — `PROJECT_HISTORY.md`. Наступний номер історії — **094**.
+Оновлено: 2026-10-11 (Europe/Kiev), історія 094. Правила — `AGENTS.md`, стан — `planning/status.md`, рішення — `planning/decisions.md`, хронологія — `PROJECT_HISTORY.md`. Наступний номер історії — **095**.
 
 ## Що є зараз
 
-Локальний MVP: Windows/Python 3.13, NiceGUI + FastAPI, SQLite **v15**, pandas, scikit-learn, DuckDB 1.5.6, Quarto 1.10.18, локальна модель BAAI/bge-m3 (ONNX). Зовнішній лише OpenAI (ключ у `.env`).
+Локальний MVP: Windows/Python 3.13, NiceGUI + FastAPI, SQLite **v16**, pandas, scikit-learn, DuckDB 1.5.6, Quarto 1.10.18, локальна модель BAAI/bge-m3 (ONNX). Зовнішній лише OpenAI (ключ у `.env`).
 
 | Етап | Стан |
 | --- | --- |
@@ -16,35 +16,36 @@
 | 08 OpenAI, 08b Моніторинг | Реалізовано |
 | 09 AI-помічник | Панель, контекст сторінки, уточнення, швидкі дії, чернетки, графіки за командою; бачить правила й фрагменти книжок |
 | 10 Звіти | Quarto → HTML у стилі сервісу, явні пояснення AI, версії (089) |
-| «Висновки» (блок 6) | **Не реалізовано — наступний крок** |
+| «Висновки» (блок 6) | **Реалізовано (094)**: факти моделі + зведення DuckDB → чернетка AI з 3–5 джерелами [n] → редагування й затвердження → розділ 7 звіту. Очікує Windows-перевірки й приймання |
 | 11 Підсумок і демонстрація | Не розпочато |
 
 Не робимо зараз (D-91): PDF/DOCX звітів, класифікацію, кластеризацію. Голос скасовано (D-87).
 
-## Сесія 2026-10-11 (089–093)
+## Сесія 2026-10-11 (089–094)
 
 - 089 звіти завершено: стиль сервісу, офлайн HTML, перегляд у сторінці. Коміт `b7342f3`.
 - 091 bge-m3 обрано автором після порівняння моделей; 255/255 тестів на Windows. Коміт `d494d0d`.
 - 092 DuckDB: з'єднання, умови, групування, показники; SQL складає сервіс; 262/262 на Windows. Коміт `a83ab91`.
 - 093 книжки: добір розділів, 620 фрагментів, індекс на Windows (10,7 хв). 266/266 у хмарі агента; повторну Windows-перевірку після останньої правки mypy ще не запускали.
+- 094 «Висновки» + виправлено журнал після зведень DuckDB; Windows 266/266 після 093; хмара 274/274, браузер 16/16.
 - Пуш не виконувався — лише за дозволом автора.
 
 ## Наступний крок
 
-1. Запустити `tools\windows\Check-Only.cmd` (перевірка після 093; лог у `tmp\check-only.log`).
-2. Блок «Висновки» за погодженим планом: вибір моделі (та зведень DuckDB) → «Підготувати висновки AI» з фактами + 3–5 фрагментами правил/книжок і посиланнями → редагування й затвердження автором → висновки в звіті.
-3. Потім: AI-інструмент пропозиції зведення DuckDB; ручне приймання 04–10 автором.
+1. Автор: `tools\windows\Check-Only.cmd` після 094 (лог — `tmp\claude\check-only.log`).
+2. Автор: ручне приймання «Висновків» з реальним OpenAI на Melbourne (перевірити числа й посилання [n], книжкові джерела).
+3. Потім: AI-інструмент пропозиції зведення DuckDB; ручне приймання 04–10; етап 11.
 
 Правила роботи: короткі питання й відповіді (D-71); цілі блоки без зупинки (D-66/D-67); AI — лише явною дією; пропозиції агента відокремлювати від рішень автора; коміт після значущих кроків, пуш — за дозволом.
 
 ## Як агенту перевіряти на Windows
 
-Хмара агента не має PyPI/Hugging Face і не бачить моделі. Перевірки запускає автор подвійним кліком: `tools\windows\Check-Only.cmd` (pip check, ruff, mypy, тести), `tools\windows\Index-Books.cmd` (індекс книжок + оцінка пошуку + перевірка); кожен показує прогрес і пише лог у `tmp\`. Термінал агенту доступний лише для перегляду. Linux-пакет DuckDB для тестів агента — `tmp/claude/wheels`.
+Хмара агента не має PyPI/Hugging Face і не бачить моделі. Перевірки запускає автор подвійним кліком: `tools\windows\Check-Only.cmd` (pip check, ruff, mypy, тести), `tools\windows\Index-Books.cmd` (індекс книжок + оцінка пошуку + перевірка); кожен показує прогрес і пише лог у `tmp\claude\`. Термінал агенту доступний лише для перегляду. Linux-пакет DuckDB для тестів агента — `tmp/claude/wheels`.
 
 ## Запуск і карта
 
 `Setup.cmd` — встановлення (залежності, Quarto, bge-m3 ~2,3 ГБ); `Start.cmd` → http://127.0.0.1:8765; `Stop.cmd`; `Check.cmd`. Демо-дані — `samples/melb_data.csv`.
 
-Код: `combine.py`/`combine_screen.py` — DuckDB; `embeddings.py`, `knowledge.py`, `knowledge_sources/` — RAG і книжки; `reports.py`, `report_screen.py`, `quarto_runtime.py` — звіти; `assistant*.py` — помічник; `model*.py`, `training_*.py` — модель; `service.py` — спільний API/UI. Інструменти: `tools/build_sources.py`, `index_sources.py`, `knowledge_eval.py`, `setup_embeddings.py`, `setup_quarto.py`.
+Код: `combine.py`/`combine_screen.py` — DuckDB; `embeddings.py`, `knowledge.py`, `knowledge_sources/` — RAG і книжки; `conclusions.py`, `conclusions_screen.py` — висновки; `reports.py`, `report_screen.py`, `quarto_runtime.py` — звіти; `assistant*.py` — помічник; `model*.py`, `training_*.py` — модель; `service.py` — спільний API/UI. Інструменти: `tools/build_sources.py`, `index_sources.py`, `knowledge_eval.py`, `setup_embeddings.py`, `setup_quarto.py`.
 
 Runtime і tmp поза Git, всередині репозиторію. Гілка `main`, origin `https://github.com/kleban/ai-course-final-project.git`.

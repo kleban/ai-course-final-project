@@ -15,6 +15,8 @@ from .config import Settings
 from .contracts import (
     HTTP_STATUS,
     AssistantQuery,
+    ConclusionCreate,
+    ConclusionSave,
     DatasetCandidate,
     DatasetCopyRequest,
     DatasetPreview,
@@ -70,6 +72,41 @@ def router(service: ProjectService) -> APIRouter:
     def response(result):
         status = HTTP_STATUS[result.error.code] if isinstance(result, Failure) else 200
         return JSONResponse(result.model_dump(mode="json"), status_code=status)
+
+    @api.get("/projects/{project_id}/conclusions", response_model=Success[list[dict]] | Failure)
+    def conclusion_list(project_id: str):
+        return response(service.conclusion_list(project_id))
+
+    @api.post("/projects/{project_id}/conclusions", response_model=Success[dict] | Failure)
+    def conclusion_prepare(project_id: str, query: ConclusionCreate):
+        return response(service.conclusion_prepare(project_id, query.model_dump(mode="json")))
+
+    @api.get(
+        "/projects/{project_id}/conclusions/{conclusion_id}",
+        response_model=Success[dict] | Failure,
+    )
+    def conclusion_get(project_id: str, conclusion_id: str):
+        return response(service.conclusion_get(project_id, conclusion_id))
+
+    @api.put(
+        "/projects/{project_id}/conclusions/{conclusion_id}",
+        response_model=Success[dict] | Failure,
+    )
+    def conclusion_save(project_id: str, conclusion_id: str, query: ConclusionSave):
+        return response(
+            service.conclusion_save(project_id, conclusion_id, query.model_dump(mode="json"))
+        )
+
+    @api.post(
+        "/projects/{project_id}/conclusions/{conclusion_id}/approve",
+        response_model=Success[dict] | Failure,
+    )
+    def conclusion_approve(project_id: str, conclusion_id: str, query: ConclusionSave):
+        return response(
+            service.conclusion_save(
+                project_id, conclusion_id, query.model_dump(mode="json"), approve=True
+            )
+        )
 
     @api.get("/projects/{project_id}/reports", response_model=Success[list[dict]] | Failure)
     def report_list(project_id: str):

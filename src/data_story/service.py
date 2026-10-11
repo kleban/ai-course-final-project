@@ -23,9 +23,12 @@ from .charts import (
     scatter_svg,
 )
 from .combine import Recipe, SummaryError, SummaryStore
+from .conclusions import ConclusionError, ConclusionStore
 from .configuration import InstructionStore
 from .contracts import (
     AssistantQuery,
+    ConclusionCreate,
+    ConclusionSave,
     DatasetCandidate,
     DatasetCopyRequest,
     DatasetPreview,
@@ -140,6 +143,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         KnowledgeError,
         AiError,
         ReportError,
+        ConclusionError,
         SummaryError,
     ) as error:
         return Failure(
@@ -192,6 +196,56 @@ class ProjectService:
         self.ai_settings = AiSettingsStore(store.database)
         self.openai = OpenAIClient(store.database, self.ai_settings)
         self.reports = ReportStore(self)
+        self.conclusions = ConclusionStore(self)
+
+    def conclusion_list(self, project_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.conclusions.project_list(
+                str(validate_input(ProjectId, {"id": project_id}).id)
+            )
+        )
+
+    def conclusion_summaries(self, project_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.conclusions.summaries(
+                str(validate_input(ProjectId, {"id": project_id}).id)
+            )
+        )
+
+    def conclusion_get(self, project_id: str, conclusion_id: str) -> Success[dict] | Failure:
+        return execute(
+            lambda: self.conclusions.get(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": conclusion_id}).id),
+            )
+        )
+
+    def conclusion_prepare(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        """Explicit AI action: facts of a saved model + cited knowledge fragments → draft."""
+
+        def action():
+            project = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(ConclusionCreate, raw)
+            return self.conclusions.prepare(
+                project, str(query.model_id), [str(s) for s in query.summary_ids]
+            )
+
+        return execute(action)
+
+    def conclusion_save(
+        self, project_id: str, conclusion_id: str, raw: object, *, approve: bool = False
+    ) -> Success[dict] | Failure:
+        def action():
+            query = validate_input(ConclusionSave, raw)
+            method = self.conclusions.approve if approve else self.conclusions.save
+            return method(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": conclusion_id}).id),
+                query.revision,
+                query.markdown,
+            )
+
+        return execute(action)
 
     def report_create(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action():
