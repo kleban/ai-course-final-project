@@ -8,7 +8,7 @@ from .assistant_panel import ai_shortcut
 from .contracts import Failure, ProjectView
 from .model_check import CHARTS
 from .model_screen import panel, precise
-from .screen import button, error_line, page_header
+from .screen import button, error_line, page_header, progress_line
 from .service import ProjectService
 
 
@@ -77,7 +77,7 @@ def validation_screen(service: ProjectService, active: ProjectView, model_id: st
         feature.set_visibility(chart.value == "regression")
         output.clear()
         with output:
-            ui.label("Будуємо графік…").classes("section-lead")
+            progress_line("Будуємо графік…")
         raw = {"model_id": selector.value, "chart": chart.value}
         if chart.value == "regression" and feature.value:
             raw["feature"] = feature.value

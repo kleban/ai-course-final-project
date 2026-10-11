@@ -8,7 +8,7 @@ from nicegui import run, ui
 from .contracts import Failure
 from .markdown_editor import MarkdownEditor
 from .model_screen import panel
-from .screen import button, error_line, page_header
+from .screen import button, error_line, page_header, progress_line
 
 
 def _when(value: str) -> str:
@@ -187,9 +187,9 @@ def report_screen(service, active, report_id=None):
                 state["report"] = report = saved.data
             if kind != "save":
                 with status:
-                    ui.label(
+                    progress_line(
                         "Готуємо пояснення AI…" if kind == "ai" else "Quarto формує локальний HTML…"
-                    ).classes("model-note")
+                    )
                 result = await run.io_bound(
                     service.report_generate,
                     project_id,

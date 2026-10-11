@@ -520,3 +520,15 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 @media (max-width:700px) { .combine-field, .combine-op { flex-basis:100%; max-width:100%; } }
 .combine-result { width:100%; }
 .combine-table td { text-align:left; }
+
+/* Індикатор довгої дії (історія 096): рухома смужка в кольорі акценту, текст і секунди. */
+.progress-line { width:100%; margin:8px 0; }
+.progress-bar { position:relative; height:3px; background:var(--grid, #ebebeb); overflow:hidden; }
+.progress-bar::after { content:""; position:absolute; top:0; left:-35%; width:35%; height:100%;
+  background:var(--primary); animation:progress-slide 1.2s ease-in-out infinite; }
+@keyframes progress-slide { from { left:-35%; } to { left:100%; } }
+.progress-text { gap:10px; align-items:baseline; margin-top:6px; color:var(--ink); }
+.progress-time { color:var(--ink2); font-variant-numeric:tabular-nums; font-size:.88em; }
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar::after { animation:none; left:0; width:100%; opacity:.5; }
+}

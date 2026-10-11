@@ -7,7 +7,7 @@ from nicegui import run, ui
 from .assistant_panel import ai_shortcut
 from .contracts import Failure, ProjectView
 from .model import explain
-from .screen import button, error_line, kpi, number, page_header
+from .screen import button, error_line, kpi, number, page_header, progress_line
 from .service import ProjectService
 
 FORMULAS = [
@@ -285,7 +285,7 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
         busy = True
         train_button.props("disabled")
         with feedback:
-            ui.label("Навчаємо модель…").classes("section-lead")
+            progress_line("Навчаємо модель…")
         try:
             response = await run.io_bound(
                 service.model_train, project_id, {"training_run_id": selector.value}

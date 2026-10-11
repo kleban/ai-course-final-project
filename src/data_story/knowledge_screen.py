@@ -7,7 +7,7 @@ from nicegui import run, ui
 from .contracts import Failure
 from .markdown_editor import MarkdownEditor
 from .model_screen import panel
-from .screen import Shell, button, error_line, error_text, page_header
+from .screen import Shell, button, error_line, error_text, page_header, progress_line
 from .service import ProjectService
 
 
@@ -48,15 +48,31 @@ def knowledge_screen(service: ProjectService) -> None:
                 .classes("model-select")
             )
 
+            searching = {"on": False}
+
             async def search() -> None:
+                if searching["on"]:
+                    return  # one search at a time: repeated clicks do not queue more
                 results.clear()
                 if not (query.value or "").strip():
                     with results:
                         ui.label("Введіть запитання.").classes("error-message")
                     return
-                response = await run.io_bound(
-                    service.knowledge_search, {"query": query.value, "limit": 3}
-                )
+                searching["on"] = True
+                find.props("disabled")
+                with results:
+                    progress_line(
+                        "Шукаємо в правилах і книжках…",
+                        "Перший пошук після запуску сервісу завантажує модель bge-m3 "
+                        "(до ~30 с); далі пошук займає кілька секунд.",
+                    )
+                try:
+                    response = await run.io_bound(
+                        service.knowledge_search, {"query": query.value, "limit": 3}
+                    )
+                finally:
+                    searching["on"] = False
+                    find.props(remove="disabled")
                 results.clear()
                 with results:
                     if isinstance(response, Failure):
@@ -80,7 +96,7 @@ def knowledge_screen(service: ProjectService) -> None:
                         ui.label(data["semantic_reason"]).classes("model-warning")
 
             query.on("keydown.enter", search)
-            button("Знайти", search, "search", "primary")
+            find = button("Знайти", search, "search", "primary")
             results = ui.column().classes("w-full")
         with docs_box:
             documents_list(service)

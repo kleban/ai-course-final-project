@@ -4,7 +4,7 @@ from nicegui import run, ui
 
 from .contracts import Failure
 from .model_screen import panel
-from .screen import Shell, button, error_line, error_text, page_header
+from .screen import Shell, button, error_line, error_text, page_header, progress_line
 from .service import ProjectService
 
 # The key field is deliberately inert: the value stays in the browser, is never sent to the
@@ -93,7 +93,7 @@ def ai_settings_screen(service: ProjectService) -> None:
                 async def check() -> None:
                     check_out.clear()
                     with check_out:
-                        ui.label("Перевіряємо…").classes("model-note")
+                        progress_line("Перевіряємо доступ до OpenAI…")
                     result = await run.io_bound(service.ai_check_access)
                     check_out.clear()
                     with check_out:
@@ -109,7 +109,7 @@ def ai_settings_screen(service: ProjectService) -> None:
                 async def test() -> None:
                     check_out.clear()
                     with check_out:
-                        ui.label("Надсилаємо пробний запит…").classes("model-note")
+                        progress_line("Надсилаємо пробний запит…")
                     result = await run.io_bound(service.ai_test_request)
                     check_out.clear()
                     with check_out:

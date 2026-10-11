@@ -7,7 +7,7 @@ from nicegui import run, ui
 
 from .assistant_panel import ai_shortcut
 from .contracts import Failure, ProjectView
-from .screen import button, error_line, page_header
+from .screen import button, error_line, page_header, progress_line
 from .service import ProjectService
 
 
@@ -159,7 +159,7 @@ def training_screen(service: ProjectService, active: ProjectView, dataset_id: st
         busy = True
         prepare_button.props("disabled")
         with feedback:
-            ui.label("Готуємо вибірки…").classes("section-lead")
+            progress_line("Готуємо вибірки…")
         try:
             response = await run.io_bound(
                 service.training_prepare,

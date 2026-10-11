@@ -9,7 +9,7 @@ from .contracts import Failure
 from .markdown_editor import MarkdownEditor
 from .model_screen import panel
 from .reports import number
-from .screen import button, error_line, page_header
+from .screen import button, error_line, page_header, progress_line
 
 
 def _when(value: str) -> str:
@@ -136,7 +136,10 @@ def conclusions_screen(service, active, conclusion_id=None):
         busy(True)
         status.clear()
         with status:
-            ui.label("Шукаємо джерела й готуємо висновки AI…").classes("model-note")
+            progress_line(
+                "Шукаємо джерела й готуємо висновки AI…",
+                "Зазвичай до хвилини: пошук у базі знань і один запит до OpenAI.",
+            )
         try:
             result = await run.io_bound(
                 service.conclusion_prepare,

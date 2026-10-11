@@ -118,6 +118,29 @@ def error_text(result: Failure) -> str:
     return detail or result.error.message
 
 
+def progress_line(text: str, hint: str | None = None) -> ui.element:
+    """Animated "work in progress" line: moving bar, what is happening and elapsed seconds.
+
+    Shown while a slow action runs (search, AI, training); it disappears with its container.
+    """
+    started = datetime.now()
+    with (
+        ui.element("div").classes("progress-line").props('role="status" aria-live="polite"') as box
+    ):
+        ui.element("div").classes("progress-bar")
+        with ui.row().classes("progress-text"):
+            ui.label(text)
+            elapsed = ui.label("0 с").classes("progress-time")
+        if hint:
+            ui.label(hint).classes("model-note")
+
+    def tick() -> None:
+        elapsed.set_text(f"{int((datetime.now() - started).total_seconds())} с")
+
+    ui.timer(1.0, tick)
+    return box
+
+
 def error_line(result: Failure) -> None:
     with ui.element("div").classes("error-message"):
         icon("warning")
