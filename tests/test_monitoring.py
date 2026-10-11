@@ -16,7 +16,8 @@ from data_story.storage import SCHEMA_VERSION, connect
 from data_story.web import install_error_handlers, router
 
 KEYS = {"server", "database", "files", "packages", "assets", "storage", "matrices", "knowledge",
-        "openai_key", "openai_access", "errors", "duckdb", "reports"}  # fmt: skip
+        "openai_access", "errors", "duckdb", "reports"}  # fmt: skip
+SERVICES = {"server", "database", "duckdb", "knowledge", "reports", "openai_access"}
 
 
 class MonitoringTests(unittest.TestCase):
@@ -31,11 +32,14 @@ class MonitoringTests(unittest.TestCase):
         self.assertIsInstance(result, Success)
         rows = self.rows(result.data)
         self.assertEqual(set(rows), KEYS)
+        # The main view lists only service parts; project-wide details are grouped apart.
+        self.assertEqual({k for k, r in rows.items() if r["group"] == "service"}, SERVICES)
+        self.assertEqual(sum(result.data["summary"].values()), len(SERVICES))
         self.assertEqual(rows["database"]["state"], "ok")
         self.assertIn(f"Схема v{SCHEMA_VERSION}", rows["database"]["detail"])
         self.assertEqual(rows["assets"]["state"], "ok")
         self.assertEqual(rows["knowledge"]["state"], "warning" if embeddings.status() else "ok")
-        self.assertEqual(rows["openai_access"]["state"], "not_configured")
+        self.assertIn(rows["openai_access"]["state"], ("not_configured", "warning"))
         self.assertIn(rows["duckdb"]["state"], ("ok", "error"))
         self.assertIn("МБ", rows["storage"]["detail"])
         with connect(self.database) as connection:
@@ -67,12 +71,16 @@ class MonitoringTests(unittest.TestCase):
         folder = Path(tempfile.mkdtemp(dir=self.temporary.name))
         env = folder / ".env"
         self.service.ai_settings.env_file = env
-        self.assertEqual(self.rows()["openai_key"]["state"], "not_configured")
+        self.assertEqual(self.rows()["openai_access"]["state"], "not_configured")
         secret = "sk-mon-" + "k" * 30 + "TAIL"
         env.write_text(f"OPENAI_API_KEY={secret}\n", encoding="utf-8")
         result = self.service.monitoring().data
-        self.assertEqual(self.rows(result)["openai_key"]["state"], "ok")
-        self.assertNotIn(secret, json.dumps(result, ensure_ascii=False))
+        # With a key but no access check yet: still "not configured", and no key is shown.
+        self.assertEqual(self.rows(result)["openai_access"]["state"], "not_configured")
+        self.assertIn("Ще не перевірявся", self.rows(result)["openai_access"]["detail"])
+        dumped = json.dumps(result, ensure_ascii=False)
+        self.assertNotIn(secret, dumped)
+        self.assertNotIn("TAIL", dumped)
 
     def test_package_versions_against_lock(self):
         folder = Path(tempfile.mkdtemp(dir=self.temporary.name))

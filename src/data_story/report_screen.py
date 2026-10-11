@@ -8,6 +8,7 @@ from nicegui import run, ui
 from .contracts import Failure
 from .markdown_editor import MarkdownEditor
 from .model_screen import panel
+from .reports import preview_html
 from .screen import button, error_line, page_header, progress_line
 
 
@@ -78,6 +79,7 @@ def report_screen(service, active, report_id=None):
                     controls.append(
                         button("Підготувати пояснення AI", lambda: action("ai"), "spark")
                     )
+                    controls.append(button("Переглянути як A4", lambda: sheet(), "preview"))
                     controls.append(
                         button("Сформувати HTML", lambda: action("render"), "doc", "primary")
                     )
@@ -162,6 +164,31 @@ def report_screen(service, active, report_id=None):
             ref["editor"] = MarkdownEditor(preview_text, max_length=100000)
 
         editor()
+
+    async def sheet() -> None:
+        """The current draft as one continuous A4 sheet in a dialog (author feedback 13).
+
+        Rendered in the app from the editor text — no Quarto run, nothing is saved.
+        """
+        report = state["report"]
+        text = await ref["editor"].markdown()
+        for name in report["files"]:
+            text = text.replace(f"]({figure_link(report, name)})", f"]({name})")
+        html = preview_html(text, lambda name: figure_link(report, name), set(report["files"]))
+        with ui.dialog().props("maximized=false") as dialog, ui.element("div").classes("a4-wrap"):
+            with ui.element("div").classes("a4-bar"):
+                ui.label(f"{report['title']} · попередній перегляд чернетки").classes("a4-title")
+                button("Закрити", dialog.close, "prev", "small")
+            with ui.element("div").classes("a4-sheet"):
+                ui.label(report["title"]).classes("a4-heading")
+                ui.html(html, sanitize=False).classes("a4-body")
+        dialog.on("hide", dialog.delete)
+        dialog.open()
+        await ui.run_javascript(
+            "window.MathJax && MathJax.typesetPromise && "
+            "MathJax.typesetPromise([document.querySelector('.a4-sheet')]);",
+            timeout=10,
+        )
 
     async def action(kind):
         if state["busy"]:

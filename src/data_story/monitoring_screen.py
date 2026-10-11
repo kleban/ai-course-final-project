@@ -11,6 +11,15 @@ ICONS = {"ok": "check", "warning": "warning", "error": "warning", "not_configure
          "not_implemented": "when"}  # fmt: skip
 
 
+def part(row: dict) -> None:
+    with ui.element("section").classes(f"model-panel monitor-{row['state']}"):
+        ui.label(row["title"]).classes("panel-title")
+        with ui.element("div").classes("monitor-state"):
+            ui.element("span").classes(f"ico ico-{ICONS[row['state']]}").props('aria-hidden="true"')
+            ui.label(row["state_title"])
+        ui.label(row["detail"]).classes("model-note mono-wrap")
+
+
 def monitoring_screen(service: ProjectService) -> None:
     ui.page_title("Моніторинг · Data Story")
     Shell(service, "monitoring", trail=[("Налаштування", None), ("Моніторинг", None)])
@@ -19,8 +28,8 @@ def monitoring_screen(service: ProjectService) -> None:
             "Налаштування",
             "shield",
             "Моніторинг сервісу",
-            "Які частини Data Story працюють. Перевірки локальні й швидкі; OpenAI тут не "
-            "викликається.",
+            "Чи працюють складові сервісу: вебсервер і API, бази даних, пошук у базі знань, "
+            "звіти та доступ до OpenAI. Перевірки локальні; OpenAI тут не викликається.",
         )
 
         async def check() -> None:
@@ -38,16 +47,19 @@ def monitoring_screen(service: ProjectService) -> None:
                     kpi("warning", STATE_TITLES["error"], str(summary["error"]))
                     kpi("info", "Не налаштовані / заплановані",
                         str(summary["not_configured"] + summary["not_implemented"]))  # fmt: skip
+                services = [r for r in data["rows"] if r["group"] == "service"]
+                details = [r for r in data["rows"] if r["group"] == "detail"]
                 with ui.element("div").classes("model-grid model-grid-three monitor-grid"):
-                    for row in data["rows"]:
-                        with ui.element("section").classes(f"model-panel monitor-{row['state']}"):
-                            ui.label(row["title"]).classes("panel-title")
-                            with ui.element("div").classes("monitor-state"):
-                                ui.element("span").classes(f"ico ico-{ICONS[row['state']]}").props(
-                                    'aria-hidden="true"'
-                                )
-                                ui.label(row["state_title"])
-                            ui.label(row["detail"]).classes("model-note mono-wrap")
+                    for row in services:
+                        part(row)
+                problems = data.get("detail_problems", 0)
+                title = "Технічні деталі проєкту" + (
+                    f" · зауважень: {problems}" if problems else " · усе гаразд"
+                )
+                with ui.expansion(title).classes("w-full monitor-details"):
+                    with ui.element("div").classes("model-grid model-grid-three monitor-grid"):
+                        for row in details:
+                            part(row)
                 ui.label(
                     f"Перевірено {data['checked_at'][:19].replace('T', ' ')} UTC · "
                     f"{data['duration_ms']:.0f} мс"

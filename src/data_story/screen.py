@@ -184,7 +184,7 @@ class Shell:
         for sheet in ("icons.css", "style.css", "charts.css"):
             version = asset_version(sheet)
             ui.add_head_html(f'<link rel="stylesheet" href="/assets/{sheet}?v={version}">')
-        if current in ("eda", "chart_settings", "model", "validation", "guides"):
+        if current in ("eda", "chart_settings", "model", "validation", "guides", "report"):
             ui.add_head_html("""<script>window.MathJax={tex:{packages:['base','ams']},
               options:{enableMenu:false,enableAssistiveMml:false},
               startup:{typeset:false},svg:{fontCache:'local'}};</script>
@@ -672,11 +672,6 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
 
     description_section(service, active)
     datasets_section(service, active, datasets_result)
-    button(
-        "Оглядовий аналіз",
-        partial(ui.navigate.to, eda_link(str(active.id), "statistics")),
-        "compare",
-    )
 
     ui.label("Інструкція аналізу").classes("section-title")
     instruction = service.instruction(active.project_type)
@@ -684,17 +679,12 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
         error_line(instruction)
     else:
         state = "типова" if instruction.data.is_default else "змінена"
-        ui.label(
-            f"Підготовлений промпт для AI-агента для типу «{kind.title}» ({state}). "
-            "Його можна змінити в розділі «Типи проєктів»."
-        ).classes("section-lead")
-        with ui.element("details").classes("howto instruction"):
-            with ui.element("summary"):
-                icon("doc")
-                ui.label("Показати інструкцію")
-            ui.markdown(instruction.data.text).classes("md")
+        ui.label(f"Підготовлений промпт для AI-агента для типу «{kind.title}» ({state}).").classes(
+            "section-lead"
+        )
+        # One action instead of a folded copy of the text (author feedback 8, history 097).
         button(
-            "Змінити інструкцію",
+            "Переглянути / редагувати інструкцію",
             lambda: ui.navigate.to(f"/settings?type={active.project_type}"),
             "edit",
             "small",
@@ -704,92 +694,53 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
     if isinstance(events_result, Failure):
         error_line(events_result)
         return
-    with ui.element("div").classes("trows log"):
-        for event in reversed(events):
-            title, ico = EVENT_TITLES.get(event.operation, (event.operation, "info"))
-            if event.operation.startswith(("dataset.", "metadata.")):
-                title = f"{title}: {event.payload.get('name', '')}"
-            if event.operation in (
-                "statistics.calculated",
-                "chart.built",
-                "preparation.previewed",
-                "preparation.saved",
-                "preparation.applied",
-                "training.prepared",
-                "model.trained",
-                "model.checked",
-                "assistant.asked",
-            ):
-                view_title = (
-                    EVENT_TITLES[event.operation][0]
-                    if event.operation.startswith(
-                        ("preparation.", "training.", "model.", "assistant.")
-                    )
-                    else STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
-                )
-                title = f"{view_title}: {event.payload.get('dataset_name', '')} · " + (
-                    "помилка" if event.payload.get("status") == "error" else "розраховано"
-                )
-            with ui.element("div").classes("trow"):
-                icon(ico)
-                ui.label(title)
-                ui.label(event.occurred_at.strftime("%d.%m.%Y %H:%M UTC")).classes("date")
-            if event.operation in (
-                "statistics.calculated",
-                "chart.built",
-                "preparation.previewed",
-                "preparation.saved",
-                "preparation.applied",
-                "training.prepared",
-                "model.trained",
-                "model.checked",
-                "assistant.asked",
-            ):
-                with ui.element("details").classes("howto stat-audit"):
-                    with ui.element("summary"):
-                        ui.label("Деталі розрахунку")
-                    for key, label in (
-                        ("row_count", "Рядків"),
-                        ("rows_before", "Рядків до підготовки"),
-                        ("rows_after", "Рядків після підготовки"),
-                        ("rows_removed", "Вилучено рядків"),
-                        ("train_count", "Навчальних рядків"),
-                        ("test_count", "Тестових рядків"),
-                        ("feature_count", "Ознак після кодування"),
-                        ("seed", "Параметр поділу"),
-                        ("target", "Ціль"),
-                        ("r2", "R² (тест)"),
-                        ("mae", "MAE (тест)"),
-                        ("rmse", "RMSE (тест)"),
-                        ("training_run_id", "Вибірки"),
-                        ("model_id", "Модель"),
-                        ("chart", "Графік"),
-                        ("mode", "Дія"),
-                        ("question", "Запит"),
-                        ("tools", "Інструменти"),
-                        ("usage_total", "Токени"),
-                        ("feature", "Ознака"),
-                        ("actions", "Операції"),
-                        ("plan_id", "План підготовки"),
-                        ("fields", "Поля"),
-                        ("sha256", "SHA-256"),
-                        ("metadata_state", "Стан метаданих"),
-                        ("metadata_updated_at", "Версія метаданих"),
-                        ("method", "Метод"),
-                        ("duration_ms", "Тривалість, мс"),
-                        ("error", "Помилка"),
-                    ):
-                        value = event.payload.get(key)
-                        if value is not None:
-                            ui.label(
-                                f"{label}: {', '.join(value) if isinstance(value, list) else value}"
-                            )
-    with ui.element("div").classes("footnote"):
-        icon("shield")
-        ui.label(
-            f"Ідентифікатор проєкту {active.id}. Журнал зберігається разом із проєктом; "
-            "секрети й мережеві заголовки не записуються."
-        )
+    # Compact journal (author feedback 9, history 097): one short line per event, newest
+    # first; older events folded. Full payloads stay in the database.
+    ordered = list(reversed(events))
+    with ui.element("div").classes("journal"):
+        for event in ordered[:JOURNAL_VISIBLE]:
+            journal_line(event)
+        if len(ordered) > JOURNAL_VISIBLE:
+            with ui.expansion(f"Ще {len(ordered) - JOURNAL_VISIBLE} подій").classes("w-full"):
+                for event in ordered[JOURNAL_VISIBLE:]:
+                    journal_line(event)
+    ui.label(
+        "Журнал зберігається разом із проєктом; секрети й мережеві заголовки не записуються."
+    ).classes("footnote")
+
+
+JOURNAL_VISIBLE = 10
+COUNTED = (
+    "statistics.calculated",
+    "chart.built",
+    "preparation.previewed",
+    "preparation.saved",
+    "preparation.applied",
+    "training.prepared",
+    "model.trained",
+    "model.checked",
+    "assistant.asked",
+)
+
+
+def journal_title(event: EventView) -> str:
+    title, _ = EVENT_TITLES.get(event.operation, (event.operation, "info"))
+    payload = event.payload
+    if event.operation.startswith(("dataset.", "metadata.")) and payload.get("name"):
+        return f"{title}: {payload['name']}"
+    if event.operation in COUNTED:
+        if not event.operation.startswith(("preparation.", "training.", "model.", "assistant.")):
+            title = STAT_VIEWS.get(str(payload.get("view")), "Статистика")
+        if payload.get("dataset_name"):
+            title += f": {payload['dataset_name']}"
+    return title
+
+
+def journal_line(event: EventView) -> None:
+    failed = event.payload.get("status") == "error"
+    with ui.element("div").classes("journal-row" + (" error" if failed else "")):
+        ui.label(event.occurred_at.strftime("%d.%m.%Y %H:%M")).classes("when")
+        ui.label(journal_title(event) + (" · помилка" if failed else ""))
 
 
 # ---------------------------------------------------------------- дані проєкту
@@ -883,12 +834,20 @@ def datasets_section(service: ProjectService, active: ProjectView, listing) -> N
                 ui.label(f"{number(item.row_count)} × {number(item.column_count)}").classes("date")
                 ui.label(file_size(item.size_bytes)).classes("date")
                 ui.label(date(item.created_at)).classes("date")
-                button(
-                    "Огляд",
-                    partial(ui.navigate.to, f"/?project={project_id}&dataset={item.id}"),
-                    "next",
-                    "small",
-                )
+                # Both actions belong to this data set (author feedback 7, history 097).
+                with ui.element("div").classes("dataset-actions"):
+                    button(
+                        "Огляд набору",
+                        partial(ui.navigate.to, f"/?project={project_id}&dataset={item.id}"),
+                        "data",
+                        "small",
+                    )
+                    button(
+                        "Оглядовий аналіз",
+                        partial(ui.navigate.to, eda_link(project_id, "statistics", str(item.id))),
+                        "compare",
+                        "small",
+                    )
 
 
 METADATA_STATES = {

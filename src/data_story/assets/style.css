@@ -209,7 +209,7 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .uploader .q-uploader__header { background:var(--shade); color:var(--ink); }
 .uploader .q-uploader__title { font-weight:600; font-size:.95em; white-space:normal; }
 .uploader .q-uploader__list { min-height:0; padding:0; }
-.datasets .trow-head, .datasets .trow { grid-template-columns:minmax(0,2.4fr) 70px 150px 90px 110px 100px; }
+.datasets .trow-head, .datasets .trow { grid-template-columns:minmax(0,2.4fr) 70px 150px 90px 110px 300px; }
 .columns .trow-head, .columns .trow { grid-template-columns:minmax(0,2.4fr) 100px 120px 90px repeat(3,minmax(0,1fr)); }
 .trow .num { text-align:right; font-variant-numeric:tabular-nums; }
 .columns .trow-head > :nth-child(n+4) { text-align:right; }
@@ -532,3 +532,72 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 @media (prefers-reduced-motion: reduce) {
   .progress-bar::after { animation:none; left:0; width:100%; opacity:.5; }
 }
+
+/* 097 — інтерактивні елементи мають бути помітні (коментарі автора 1, 2, 6, 10). */
+/* 6: звичайні кнопки — світло-синій фон палітри замість білого. */
+.btn { background:var(--band); border-color:#c5d1e6; color:var(--primary); }
+.btn:hover { background:#d2dcee; border-color:var(--primary); color:var(--primary); }
+.btn.ghost { background:transparent; border-color:transparent; }
+.markdown-tools .btn { background:transparent; color:var(--ink); }
+.markdown-tools .btn:hover { background:var(--shade); color:var(--primary); }
+.stat-views .btn[aria-pressed="true"] { background:var(--primary); border-color:var(--primary); color:#fff; }
+/* 1: шапка акордеона — тонка крапкова рамка й легкий фон, стрілка в кольорі акценту. */
+.q-expansion-item > .q-expansion-item__container > .q-item {
+  border:1px dotted var(--axis); background:var(--shade); min-height:36px; padding:4px 10px; }
+.q-expansion-item > .q-expansion-item__container > .q-item:hover { border-color:var(--primary); }
+.q-expansion-item--expanded > .q-expansion-item__container > .q-item { border-style:solid; border-color:var(--grid); }
+.q-expansion-item .q-expansion-item__toggle-icon { color:var(--primary); }
+.q-expansion-item { margin:4px 0; }
+/* 2: перемикачі-вкладки — рамка групи, світлий фон невибраних, роздільники, акцент вибраної. */
+.q-btn-toggle { border:1px solid var(--primary) !important; }
+.q-btn-toggle .q-btn { border-right:1px solid #c5d1e6; }
+.q-btn-toggle .q-btn:last-child { border-right:0; }
+.q-btn-toggle .q-btn:not([aria-pressed="true"]) { background:var(--band) !important; color:var(--primary) !important; }
+.q-btn-toggle .q-btn:not([aria-pressed="true"]):hover { background:#d2dcee !important; }
+.q-tabs { border-bottom:2px solid var(--primary); }
+.q-tab { background:var(--band); color:var(--primary); margin-right:2px; text-transform:none; }
+.q-tab--active { background:var(--primary); color:#fff; }
+.q-tab .q-tab__indicator { display:none; }
+/* 10: випадні списки — рамка, вибрані пункти з галочкою праворуч. */
+.q-menu { border:1px solid var(--axis); }
+.q-menu .q-item[aria-selected="true"] { background:var(--band); color:var(--primary); font-weight:600; }
+.q-menu .q-item[aria-selected="true"]::after { content:"✓"; margin-left:auto; padding-left:14px;
+  color:var(--primary); font-weight:700; align-self:center; }
+/* 4: пошук у базі знань — поле й кнопка в один рядок, однакова висота. */
+.search-row { display:flex; gap:8px; align-items:stretch; width:100%; }
+.search-row .q-field { flex:1 1 auto; }
+.search-row .btn { height:56px; padding:0 22px; flex:0 0 auto; }
+/* 14: службовий рядок відповіді помічника — дрібно й непомітно. */
+.assistant-sources { margin-top:-2px; }
+.assistant-meta { color:var(--axis); font-size:.78em; }
+/* 3: зразок кольору в полі HEX. */
+.color-field .q-field__prepend { padding-right:8px; }
+.color-swatch { width:22px; height:22px; border:1px solid var(--axis); }
+/* 9: компактний журнал дій. */
+.journal { width:100%; max-width:900px; font-size:.86em; }
+.journal-row { display:grid; grid-template-columns:120px minmax(0,1fr); gap:10px; padding:1px 0; color:var(--ink); }
+.journal-row .when { color:var(--ink2); font-variant-numeric:tabular-nums; }
+.journal-row.error { color:var(--accent); }
+/* 7: кнопки оглядового аналізу біля набору. */
+.dataset-actions { display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; }
+/* 13: попередній перегляд звіту як суцільний аркуш A4 у діалозі. */
+.a4-wrap { width:min(230mm, 96vw); max-width:none !important; max-height:94vh; display:flex; flex-direction:column;
+  background:#e9ecf1; padding:0; }
+.a4-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 14px;
+  background:#fff; border-bottom:2px solid var(--primary); }
+.a4-title { font-weight:600; color:var(--ink2); font-size:.9em; }
+.a4-sheet { overflow:auto; background:#fff; margin:10px auto; width:210mm; max-width:calc(100% - 20px);
+  box-sizing:border-box; padding:18mm 18mm 24mm; border:1px solid var(--grid); font-size:15px; line-height:1.55; }
+.a4-heading { font-family:var(--serif); font-size:2em; font-weight:700; line-height:1.2; margin-bottom:12px; }
+.a4-body h2 { font-family:var(--serif); font-size:1.4em; border-top:2px solid var(--primary); padding-top:8px; margin:30px 0 8px; }
+.a4-body h3 { font-family:var(--serif); font-size:1.15em; margin:20px 0 6px; }
+.a4-body table { border-collapse:collapse; width:100%; font-size:.92em; margin:10px 0 16px; border-top:1px solid var(--axis); }
+.a4-body th { text-align:left; color:var(--ink2); font-weight:600; padding:6px; border-bottom:1px solid var(--grid); }
+.a4-body td { padding:6px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
+.a4-body img { display:block; max-width:100%; margin:16px auto 4px; }
+.a4-body .a4-math { overflow-x:auto; margin:10px 0; }
+@media (max-width:700px) { .a4-sheet { padding:16px; } }
+.a4-body h2, .a4-body h3 { font-weight:700; }
+.a4-body ul, .a4-body ol { padding-left:1.4em; margin:6px 0 12px; }
+.a4-body ul { list-style:disc; } .a4-body ol { list-style:decimal; }
+.a4-body li { margin-bottom:3px; } .a4-body li::marker { color:var(--primary); }

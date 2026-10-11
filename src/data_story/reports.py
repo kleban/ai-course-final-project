@@ -47,24 +47,24 @@ def number(value) -> str:
         return str(value)
     if abs(value) < 1e-10:
         return "0" if value == 0 else "≈ 0"
+    # Author feedback 12 (history 097): two decimals are enough in reports and conclusions;
+    # values below 0,01 keep two significant digits so they do not turn into "0".
     if float(value).is_integer() and abs(value) < 1e15:
         text = f"{value:,.0f}"
-    elif abs(value) >= 1000:
-        text = f"{value:,.1f}"
-    elif abs(value) >= 0.001:
-        text = f"{value:.4g}"
+    elif abs(value) >= 0.01:
+        text = f"{value:,.2f}".rstrip("0").rstrip(".")
     else:
-        text = f"{value:.3e}"
+        text = f"{value:.2g}"
     return text.replace(",", "\u202f").replace(".", ",")
 
 
 def p_value(value) -> str:
-    """p-value like R's summary(): < 2,2e-16, scientific below 0.001, else three digits."""
+    """Rounded p-value (author feedback 12): < 0,001; three decimals below 0,01; else two."""
     if value is None:
         return "не визначено"
-    if value < 2.2e-16:
-        return "< 2,2e-16"
-    return (f"{value:.2e}" if value < 0.001 else f"{value:.3g}").replace(".", ",")
+    if value < 0.001:
+        return "< 0,001"
+    return (f"{value:.3f}" if value < 0.01 else f"{value:.2f}").replace(".", ",")
 
 
 CHOICE_LABELS: dict[str, tuple[str, Callable[[object], str]]] = {
@@ -167,6 +167,43 @@ def conclusion_section(conclusion: dict) -> str:
     when = (conclusion.get("approved_at") or "")[:10]
     lines += ["", f"_Висновки підготовлено з допомогою AI та затверджено автором {when}._"]
     return "\n".join(lines)
+
+
+DISPLAY_MATH = re.compile(r"\$\$(.+?)\$\$", re.S)
+INLINE_MATH = re.compile(r"(?<![\$\\])\$([^$\n]+?)\$")
+
+
+def preview_html(text: str, figure_url: Callable[[str], str], figures: set[str]) -> str:
+    """Draft Markdown → HTML for the A4 preview in the app (author feedback 13), no Quarto.
+
+    Raw HTML is escaped; formulas are kept for MathJax; only the report's own figures load.
+    """
+    import html as html_lib
+
+    import markdown2  # type: ignore[import-untyped]
+
+    kept: list[str] = []
+
+    def keep(match: re.Match, display: bool) -> str:
+        kept.append(html_lib.escape(match.group(1).strip()))
+        marker = f"MATHKEEP{len(kept) - 1}X"
+        return f"\n\n{marker}\n\n" if display else marker
+
+    body = DISPLAY_MATH.sub(lambda m: keep(m, True), text)
+    shown = len(kept)
+    body = INLINE_MATH.sub(lambda m: keep(m, False), body)
+    html = str(markdown2.markdown(body, extras=["tables", "cuddled-lists"], safe_mode="escape"))
+    for index, tex in enumerate(kept):
+        marker = f"MATHKEEP{index}X"
+        if index < shown:
+            html = html.replace(f"<p>{marker}</p>", f'<div class="a4-math">\\[{tex}\\]</div>')
+        html = html.replace(marker, f"\\({tex}\\)")
+
+    def image(match: re.Match) -> str:
+        name = match.group(1)
+        return f'src="{figure_url(name)}"' if name in figures else 'src=""'
+
+    return re.sub(r'src="([^"]*)"', image, html)
 
 
 def compose(snapshot: dict, narrative: dict | None = None) -> str:

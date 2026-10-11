@@ -63,6 +63,22 @@ def check_text(text: str, source_count: int) -> str:
     return text
 
 
+def rounded(value):
+    """Facts for the AI with report precision (author feedback 12): 2 decimals, or 2
+    significant digits below 0,01, so the model does not copy 17-digit numbers."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            return None
+        return round(value, 2) if abs(value) >= 0.01 else float(f"{value:.2g}")
+    if isinstance(value, list):
+        return [rounded(v) for v in value]
+    if isinstance(value, dict):
+        return {k: rounded(v) for k, v in value.items()}
+    return value
+
+
 def facts(model: dict) -> dict:
     """Deterministic facts of a saved model for the AI and for the author's check."""
     choices = model["choices"]
@@ -78,26 +94,33 @@ def facts(model: dict) -> dict:
             }
         )
     significant = [r["name"] for r in rows if r["p_value"] is not None and r["p_value"] < 0.05]
-    return {
-        "target": choices["target"],
-        "features": choices["features"],
-        "dataset": model["dataset_name"],
-        "train_count": model["train_count"],
-        "test_count": model["test_count"],
-        "r2_train": metrics["train"]["r2"],
-        "r2_test": metrics["test"]["r2"],
-        "r2_test_reason": metrics["test"].get("r2_reason"),
-        "mae_test": metrics["test"]["mae"],
-        "rmse_test": metrics["test"]["rmse"],
-        "baseline_mae": metrics["baseline_mae"],
-        "intercept": model["intercept"],
-        "coefficients": rows,
-        "significant_p_lt_0_05": significant,
-        "p_values_reason": model["inference"].get("reason"),
-        "warnings": list(
-            dict.fromkeys(model["warnings"] + model["limitations"] + model["preparation_warnings"])
-        ),
-    }
+    for r in rows:
+        p = r["p_value"]
+        r["p_value"] = None if p is None else "< 0,001" if p < 0.001 else round(p, 3)
+    return rounded(
+        {
+            "target": choices["target"],
+            "features": choices["features"],
+            "dataset": model["dataset_name"],
+            "train_count": model["train_count"],
+            "test_count": model["test_count"],
+            "r2_train": metrics["train"]["r2"],
+            "r2_test": metrics["test"]["r2"],
+            "r2_test_reason": metrics["test"].get("r2_reason"),
+            "mae_test": metrics["test"]["mae"],
+            "rmse_test": metrics["test"]["rmse"],
+            "baseline_mae": metrics["baseline_mae"],
+            "intercept": model["intercept"],
+            "coefficients": rows,
+            "significant_p_lt_0_05": significant,
+            "p_values_reason": model["inference"].get("reason"),
+            "warnings": list(
+                dict.fromkeys(
+                    model["warnings"] + model["limitations"] + model["preparation_warnings"]
+                )
+            ),
+        }
+    )
 
 
 def queries(model_facts: dict, summaries: list[dict]) -> list[str]:
@@ -195,7 +218,7 @@ class ConclusionStore:
                     "row_count": dataset.row_count,
                     "sql": dataset.profile.get("summary_sql", ""),
                     "columns": [str(c) for c in shown.columns],
-                    "rows": _json_rows(shown),
+                    "rows": rounded(_json_rows(shown)),
                     "truncated": len(frame) > SUMMARY_ROWS or len(frame.columns) > SUMMARY_COLUMNS,
                 }
             )
@@ -273,7 +296,7 @@ class ConclusionStore:
             "Ти формулюєш українською висновки аналітика за результатами лінійної регресії. "
             'Поверни тільки JSON {"text": "..."}; text — Markdown: 4–7 пунктів списку, без '
             "заголовків # і ##, без зображень, коду, HTML чи YAML. Використовуй лише числа з "
-            "model і summaries; не вигадуй нових чисел. Кожен пункт: що показують дані, наскільки "
+            "model і summaries; не вигадуй нових чисел; подавай їх з точністю до 2 знаків після коми. Кожен пункт: що показують дані, наскільки "
             "це надійно (тест, базовий прогноз, p-value, обмеження), що з цього випливає. "
             "Розрізняй статистичну значущість, практичну важливість і причинність. Біля тверджень "
             "про методику чи інтерпретацію став посилання на джерела у квадратних дужках [n] з "

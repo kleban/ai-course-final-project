@@ -118,12 +118,27 @@ class Answer:
     proposals: list[dict] = field(default_factory=list)
 
 
+def cited(text: str, sources: list[dict]) -> list[dict]:
+    """Sources the answer actually refers to (by section or book title), in their order.
+
+    All retrieved fragments go to the model as reference; the panel shows only the cited ones
+    (author feedback 14, history 097), so the answer is not buried under a list of sections.
+    """
+    folded = " ".join(text.split()).casefold()
+    return [
+        s
+        for s in sources
+        if " ".join(str(s.get("section", "")).split()).casefold() in folded
+        or (s.get("kind") == "book" and str(s.get("title", "")).casefold() in folded)
+    ]
+
+
 def _compact(value, limit: int = 3000) -> str:
     text = json.dumps(value, ensure_ascii=False, default=str)
     return text if len(text) <= limit else text[:limit] + " …[скорочено]"
 
 
-def _context_json(value: dict, limit: int = 12000) -> str:
+def _context_json(value: dict, limit: int = 7000) -> str:
     """Keep valid JSON and explicitly mark omitted list items within the prompt budget."""
     document = json.loads(json.dumps(value, ensure_ascii=False, default=str))
     omitted: dict[str, int] = {}
@@ -377,21 +392,27 @@ class Assistant:
         )
         with connect(self.service.store.database) as connection:
             ProjectStore._event(connection, project_id, "assistant.asked", audit)
-        return {**vars(answer), "task": task, "mode": mode, "block": block}
+        return {
+            **vars(answer),
+            "cited": cited(answer.text, answer.sources),
+            "task": task,
+            "mode": mode,
+            "block": block,
+        }
 
     def _solve(self, project_id: str, block: str, mode: str, task: str, question: str,
                page: dict, history: list[dict]) -> Answer:  # fmt: skip
         found = self.service.knowledge.search(question, 3)
         sources = found["hits"]
         if block == "eda":
-            guide = self.service.knowledge.search("Вибір графіка " + question[:400], 10)["hits"]
+            guide = self.service.knowledge.search("Вибір графіка " + question[:400], 4)["hits"]
             sources = list({h["id"]: h for h in sources + guide}.values())
-        rules = "\n".join(f"- [{h['section']}] {h['text']}" for h in sources) or "немає"
+        # Shorter rule texts and project instruction: a one-line question cost ~6 600 tokens.
+        rules = "\n".join(f"- [{h['section']}] {h['text'][:700]}" for h in sources) or "немає"
         books = found.get("book_hits", [])
         book_text = (
             "\n".join(
-                f"- [{h['title']} — {h['section']}; {h['source']}] {h['text'][:1200]}"
-                for h in books
+                f"- [{h['title']} — {h['section']}; {h['source']}] {h['text'][:900]}" for h in books
             )
             or "немає"
         )
@@ -399,7 +420,7 @@ class Assistant:
         instruction = self.service.instructions.get(self.service.store.get(project_id).project_type)
         instructions = (
             f"{RULES}\n\nДія: {MODES[mode]}. Блок: {BLOCKS[block]}.\n\n"
-            f"Інструкція типу проєкту:\n{instruction.text[:3000]}\n\n"
+            f"Інструкція типу проєкту:\n{instruction.text[:1500]}\n\n"
             f"Правила бази знань:\n{rules}\n\n"
             f"Фрагменти книжок (англійською; переказуй своїми словами українською й називай "
             f"книгу та сторінки, не цитуй довгими уривками):\n{book_text}\n\n"

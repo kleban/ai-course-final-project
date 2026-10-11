@@ -110,9 +110,15 @@ def options_editor(options: ChartOptions, changed, groups: tuple[str, ...]) -> A
                         on_change=notify,
                     ).props("outlined square")
                 elif control == "color":
-                    controls[name] = ui.input(
-                        title + " · HEX", value=value, on_change=notify
-                    ).props("outlined square")
+                    # Colour picker with a preview of the colour itself (author feedback 3);
+                    # the HEX code can still be typed. The picker is local (Quasar), no CDN.
+                    controls[name] = (
+                        ui.color_input(
+                            title + " · HEX", value=value, on_change=notify, preview=True
+                        )
+                        .props("outlined square")
+                        .classes("color-field")
+                    )
                 else:
                     controls[name] = ui.checkbox(title, value=value, on_change=notify)
 

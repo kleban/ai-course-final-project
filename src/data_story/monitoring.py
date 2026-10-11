@@ -45,9 +45,14 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# The main view shows the parts the service runs on (author feedback 5, history 097); the
+# rest are technical details of the whole project, shown collapsed.
+SERVICES = ("server", "database", "duckdb", "knowledge", "reports", "openai_access")
+
+
 def _row(key: str, title: str, state: str, detail: str) -> dict:
     return {"key": key, "title": title, "state": state, "state_title": STATE_TITLES[state],
-            "detail": detail}  # fmt: skip
+            "detail": detail, "group": "service" if key in SERVICES else "detail"}  # fmt: skip
 
 
 def lock_versions(lock: Path = ROOT / "requirements.lock") -> dict[str, str]:
@@ -132,7 +137,9 @@ class Monitor:
         fragments = sum(d["fragments"] for d in documents)
         self.service.knowledge._ensure_index()  # builds the index without logging a search
         if not fragments:
-            return _row("knowledge", "База знань (RAG)", NOT_CONFIGURED, "Документів немає.")
+            return _row(
+                "knowledge", "Пошук у базі знань (RAG)", NOT_CONFIGURED, "Документів немає."
+            )
         from . import embeddings
 
         reason = embeddings.status()
@@ -145,22 +152,20 @@ class Monitor:
             else ""
         )
         if reason:
-            return _row("knowledge", "База знань (RAG)", WARNING,
+            return _row("knowledge", "Пошук у базі знань (RAG)", WARNING,
                         f"Документів {len(documents)}, фрагментів {fragments}; лише TF-IDF. "
                         + reason + books)  # fmt: skip
-        return _row("knowledge", "База знань (RAG)", OK,
+        return _row("knowledge", "Пошук у базі знань (RAG)", OK,
                     f"Документів {len(documents)}, фрагментів {fragments}; гібридний пошук: "
                     f"embeddings {embeddings.MODEL} + TF-IDF, локально." + books)  # fmt: skip
 
-    def openai_key(self) -> dict:
-        status = key_status(self.service.ai_settings.env_file)
-        if status["state"] == "found":
-            return _row("openai_key", "Ключ OpenAI (.env)", OK,
-                        f"Знайдено {status['masked']}. Доступ не перевірявся тут.")  # fmt: skip
-        state = WARNING if status["state"] == "suspicious" else NOT_CONFIGURED
-        return _row("openai_key", "Ключ OpenAI (.env)", state, status["message"])
-
     def openai_access(self) -> dict:
+        # The key itself is not shown here (author feedback 5); only whether AI can work.
+        status = key_status(self.service.ai_settings.env_file)
+        if status["state"] != "found":
+            state = WARNING if status["state"] == "suspicious" else NOT_CONFIGURED
+            return _row("openai_access", "Доступ до OpenAI", state,
+                        "Ключ OpenAI не налаштовано або він некоректний: «Моделі AI».")  # fmt: skip
         checks = [c for c in self.service.openai.calls(limit=200) if c["task"] == "access_check"]
         if not checks:
             return _row("openai_access", "Доступ до OpenAI", NOT_CONFIGURED,
@@ -252,7 +257,7 @@ class Monitor:
         started = perf_counter()
         checks: list[Callable[[], dict]] = [
             self.server, self.database_check, self.files, self.packages, self.assets,
-            self.storage, self.matrices, self.knowledge, self.openai_key, self.openai_access,
+            self.storage, self.matrices, self.knowledge, self.openai_access,
             self.errors, self.duckdb,
         ]  # fmt: skip
         rows = []
@@ -268,7 +273,13 @@ class Monitor:
         result = {
             "checked_at": _now(),
             "rows": rows,
-            "summary": {state: sum(r["state"] == state for r in rows) for state in STATE_TITLES},
+            "summary": {
+                state: sum(r["state"] == state for r in rows if r["group"] == "service")
+                for state in STATE_TITLES
+            },
+            "detail_problems": sum(
+                r["state"] in (WARNING, ERROR) for r in rows if r["group"] == "detail"
+            ),
             "duration_ms": (perf_counter() - started) * 1000,
         }
         with connect(self.database) as connection:

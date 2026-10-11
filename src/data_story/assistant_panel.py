@@ -13,7 +13,7 @@ from nicegui import run, ui
 from .assistant import BLOCKS, MAX_HISTORY, MODES, SUGGESTIONS
 from .contracts import Failure
 from .metadata import KIND_TITLES, ROLE_TITLES
-from .screen import button, error_line, icon
+from .screen import button, error_line, icon, progress_line
 from .service import ProjectService
 
 HINTS = {
@@ -130,7 +130,7 @@ def assistant_panel(
             ref["question"].set_value("")
             chips.set_visibility(False)
             with status:
-                ui.label("Помічник працює… це може тривати до хвилини.").classes("model-note")
+                progress_line("Помічник працює…", "Зазвичай до хвилини.")
             try:
                 response = await run.io_bound(
                     service.assistant_ask,
@@ -178,14 +178,22 @@ def assistant_panel(
                             for t in data["tools"]
                         )
                     )
-                if data["sources"]:
-                    details.append("джерела: " + "; ".join(s["section"] for s in data["sources"]))
                 tokens = data["usage_total"]
                 details.append(
-                    f"{data['model']} · рівень {data['level']} · спроб {len(data['attempts'])} · "
-                    f"токени: {tokens if tokens is not None else 'невідомо'}"
+                    f"{data['model']} · токени: {tokens if tokens is not None else 'невідомо'}"
                 )
-                ui.label(" · ".join(details)).classes("model-note")
+                # Only the sources the answer refers to; the full retrieval is in the journal.
+                if data.get("cited"):
+                    ui.label(
+                        "Джерела: "
+                        + "; ".join(
+                            s["title"] + " — " + s["section"]
+                            if s.get("kind") == "book"
+                            else s["section"]
+                            for s in data["cited"]
+                        )
+                    ).classes("model-note assistant-sources")
+                ui.label(" · ".join(details)).classes("assistant-meta")
 
         def restart() -> None:
             history.clear()

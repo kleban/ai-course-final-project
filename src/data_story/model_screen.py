@@ -169,25 +169,20 @@ def model_result(item: dict, project_id: str | None = None) -> None:
                 formula = ui.element("div").classes("math-formula")
                 formula._props["data-formula"] = tex
                 ui.label(explanation).classes("model-note")
-        with panel("Походження"):
+        # Author feedback 11 (history 097): no hashes, ids or internal versions on screen —
+        # they stay in the saved model for reports and checks.
+        with panel("Налаштування моделі"):
             choices = doc["choices"]
             for text in (
-                f"Оцінювач: {doc['estimator']} · scikit-learn {doc['sklearn_version']}",
-                f"Параметри: {', '.join(f'{k}={v}' for k, v in doc['params'].items())}",
                 f"Набір: {doc['dataset_name']}",
-                f"SHA-256 джерела: {doc['source_sha256']}",
-                f"Вибірки: {doc['training_run_id']}",
-                f"SHA-256 матриць: {doc['matrix_sha256']}",
                 f"Ціль: {choices['target']} · ознаки: {', '.join(choices['features'])}",
                 f"Поділ {100 - choices['test_percent']}/{choices['test_percent']} · "
-                f"число відтворення {choices['seed']} · кодування {choices['encoding']} · "
-                f"пропуски: числа {choices['numeric_missing']}, "
-                f"категорії {choices['category_missing']}",
-                f"Версія метаданих: {doc['metadata_updated_at'] or 'не збережені'}",
-                f"Ранг матриці з вільним членом: {doc['rank']} з {doc['feature_count'] + 1}",
-                f"Ідентифікатор моделі: {item['id']}",
+                f"кодування категорій: {'one-hot' if choices['encoding'] == 'onehot' else choices['encoding']}",
+                f"Пропуски: числа — {choices['numeric_missing']}, "
+                f"категорії — {choices['category_missing']}",
+                f"Модель: лінійна регресія (scikit-learn {doc['sklearn_version']})",
             ):
-                ui.label(text).classes("model-note mono-wrap")
+                ui.label(text).classes("model-note")
 
 
 def model_screen(service: ProjectService, active: ProjectView, run_id: str | None) -> None:

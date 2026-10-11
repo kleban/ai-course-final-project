@@ -103,7 +103,11 @@ class ConclusionTests(unittest.TestCase):
         self.assertEqual(self.seen["task"], "conclusions")
         payload = self.seen["payload"]
         self.assertEqual(payload["model"]["target"], "y")
-        self.assertEqual(payload["model"]["r2_test"], model["document"]["metrics"]["test"]["r2"])
+        # Facts go to the AI with report precision (author feedback 12, history 097).
+        self.assertEqual(
+            payload["model"]["r2_test"], round(model["document"]["metrics"]["test"]["r2"], 2)
+        )
+        self.assertTrue(all(len(str(c["value"])) <= 8 for c in payload["model"]["coefficients"]))
         self.assertIn("x1", payload["model"]["significant_p_lt_0_05"])
         self.assertTrue(3 <= len(payload["sources"]) <= 5)
         self.assertEqual([s["n"] for s in payload["sources"]], list(range(1, 6)))

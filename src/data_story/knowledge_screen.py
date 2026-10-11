@@ -40,13 +40,12 @@ def knowledge_screen(service: ProjectService) -> None:
             search_box = panel("Перевірити пошук")
             docs_box = panel("Документи")
         with search_box:
-            query = (
-                ui.input(
+            # Field and button in one row, the same height (author feedback 4, history 097).
+            search_row = ui.element("div").classes("search-row")
+            with search_row:
+                query = ui.input(
                     "Запитання", placeholder="Наприклад: що означають зірочки біля коефіцієнта"
-                )
-                .props("outlined square")
-                .classes("model-select")
-            )
+                ).props("outlined square")
 
             searching = {"on": False}
 
@@ -96,7 +95,8 @@ def knowledge_screen(service: ProjectService) -> None:
                         ui.label(data["semantic_reason"]).classes("model-warning")
 
             query.on("keydown.enter", search)
-            find = button("Знайти", search, "search", "primary")
+            with search_row:
+                find = button("Знайти", search, "search", "primary")
             results = ui.column().classes("w-full")
         with docs_box:
             documents_list(service)

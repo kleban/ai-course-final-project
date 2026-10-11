@@ -245,11 +245,16 @@ class ReportTests(unittest.TestCase):
 
     def test_numbers_p_values_and_notes_are_readable(self):
         self.assertEqual(number(1075684.1), "1\u202f075\u202f684,1")
-        self.assertEqual(number(0.44219), "0,4422")
+        self.assertEqual(number(1075684.126), "1\u202f075\u202f684,13")
+        self.assertEqual(number(0.44219), "0,44")
+        self.assertEqual(number(-1.5), "-1,5")
+        self.assertEqual(number(0.0034567), "0,0035")
         self.assertEqual(number(None), "не визначено")
-        self.assertEqual(p_value(0.0), "< 2,2e-16")
-        self.assertEqual(p_value(0.0123), "0,0123")
-        self.assertEqual(p_value(0.0004), "4,00e-04")
+        self.assertEqual(p_value(0.0), "< 0,001")
+        self.assertEqual(p_value(0.0004), "< 0,001")
+        self.assertEqual(p_value(0.0067), "0,007")
+        self.assertEqual(p_value(0.0123), "0,01")
+        self.assertEqual(p_value(0.7517), "0,75")
         self.assertEqual(
             unique_notes(["Метадані не підтверджено", "Метадані не підтверджено."]),
             ["Метадані не підтверджено"],
