@@ -88,7 +88,9 @@ class ProjectStore:
         with self._connection() as connection:
             return self._get(connection, project_id)
 
-    def save_description(self, project_id: str, description: str) -> Project:
+    def save_description(
+        self, project_id: str, description: str, *, expected_description: str | None = None
+    ) -> Project:
         """Markdown description of the project; the change and its event commit together."""
         if not isinstance(description, str):
             raise ValueError("Опис: очікується текст.")
@@ -96,6 +98,12 @@ class ProjectStore:
             raise ValueError(f"Опис: не більше {DESCRIPTION_LIMIT} символів.")
         description = description.replace("\r\n", "\n").strip()
         with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if (
+                expected_description is not None
+                and self._get(connection, project_id).description != expected_description
+            ):
+                raise ValueError("Опис змінився після створення чернетки. Створіть нову чернетку.")
             self._get(connection, project_id)
             connection.execute(
                 "UPDATE projects SET description = ? WHERE id = ?", (description, project_id)
@@ -104,7 +112,11 @@ class ProjectStore:
                 connection,
                 project_id,
                 "project.description_saved",
-                {"length": len(description), "empty": not description},
+                {
+                    "length": len(description),
+                    "empty": not description,
+                    **({"origin": "ai_draft"} if expected_description is not None else {}),
+                },
             )
             return self._get(connection, project_id)
 

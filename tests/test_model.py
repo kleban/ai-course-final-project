@@ -382,6 +382,8 @@ class ModelStoreTests(unittest.TestCase):
         self.assertEqual(
             [s["name"] for s in schemas],
             [
+                "propose_project_description",
+                "propose_metadata",
                 "list_training_runs",
                 "train_linear_regression",
                 "explain_model_result",
@@ -390,7 +392,8 @@ class ModelStoreTests(unittest.TestCase):
             ],
         )
         self.assertEqual({t.mode for t in TOOLS.values()}, {"advise", "execute", "explain"})
-        self.assertIn("training_run_id", schemas[1]["parameters"]["properties"])
+        training_schema = next(s for s in schemas if s["name"] == "train_linear_regression")
+        self.assertIn("training_run_id", training_schema["parameters"]["properties"])
         listed = run_tool(self.service, self.project.id, "list_training_runs", {}).data
         self.assertIsNone(listed[0]["model_id"])
         trained = run_tool(

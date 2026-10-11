@@ -16,12 +16,14 @@ from .contracts import (
     ErrorInfo,
     Failure,
     KnowledgeQuery,
+    MetadataDraftQuery,
     ModelCheckQuery,
     ModelTrainQuery,
+    ProjectDraftQuery,
     Success,
 )
 from .model import explain
-from .service import ProjectService
+from .service import ProjectService, execute, validate_input
 
 Mode = Literal["advise", "execute", "explain"]
 
@@ -125,9 +127,54 @@ def _knowledge(service: ProjectService, _project_id: str, args: dict) -> Success
     return service.knowledge_search(args)
 
 
+def _project_draft(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
+    from .assistant_drafts import propose_project
+
+    return execute(
+        lambda: {
+            "proposal": propose_project(
+                service, project_id, validate_input(ProjectDraftQuery, args).model_dump(mode="json")
+            )
+        }
+    )
+
+
+def _metadata_draft(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
+    from .assistant_drafts import propose_metadata
+
+    return execute(
+        lambda: {
+            "proposal": propose_metadata(
+                service,
+                project_id,
+                validate_input(MetadataDraftQuery, args).model_dump(mode="json"),
+            )
+        }
+    )
+
+
 TOOLS: dict[str, AssistantTool] = {
     tool.name: tool
     for tool in (
+        AssistantTool(
+            "propose_project_description",
+            "execute",
+            "Підготувати українську Markdown-чернетку опису проєкту з його мети. "
+            "Показує пропозицію для перегляду; нічого не зберігає. Користувач застосує її кнопкою.",
+            ProjectDraftQuery,
+            False,
+            _project_draft,
+        ),
+        AssistantTool(
+            "propose_metadata",
+            "execute",
+            "Запропонувати опис набору та зміни описів, назв, одиниць, типів і ролей відомих полів "
+            "на основі наданих сирих описів. Невідомі одиниці й значення не вигадувати. "
+            "Лише чернетка для перегляду; нічого не зберігає і не підтверджує.",
+            MetadataDraftQuery,
+            False,
+            _metadata_draft,
+        ),
         AssistantTool(
             "list_training_runs",
             "advise",

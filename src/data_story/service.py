@@ -29,6 +29,7 @@ from .contracts import (
     DatasetCopyRequest,
     DatasetPreview,
     DatasetView,
+    DraftApply,
     ErrorInfo,
     EventView,
     Failure,
@@ -305,6 +306,18 @@ class ProjectService:
             )
 
         return execute(action)
+
+    def assistant_apply_draft(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        """Explicit user action; no OpenAI call and no automatic metadata confirmation."""
+        from .assistant_drafts import apply
+
+        return execute(
+            lambda: apply(
+                self,
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                validate_input(DraftApply, raw),
+            )
+        )
 
     def monitoring(self) -> Success[dict] | Failure:
         """Local health of every part of the service (08b); no OpenAI call."""

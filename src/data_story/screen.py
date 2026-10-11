@@ -600,6 +600,11 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
     from .assistant_panel import ai_shortcut
 
     ai_shortcut("З чого почати аналіз?", "advise", "З чого почати аналіз цього проєкту?")
+    ai_shortcut(
+        "Чернетка опису",
+        "execute",
+        "Створи чернетку опису проєкту з його мети через інструмент пропозиції. Не зберігай автоматично.",
+    )
     events_result = service.events(str(active.id))
     events: list[EventView] = events_result.data if isinstance(events_result, Success) else []
     opened = sum(1 for e in events if e.operation == "project.opened")
@@ -1320,6 +1325,13 @@ def issue_list(found) -> None:
 
 
 def metadata_section(service: ProjectService, active: ProjectView, dataset_id: str, result) -> None:
+    from .assistant_panel import ai_shortcut
+
+    ai_shortcut(
+        "Чернетка метаданих",
+        "execute",
+        "Створи чернетку метаданих обраного набору із сирого опису через інструмент пропозиції. Не вигадуй одиниць і не зберігай автоматично.",
+    )
     base = f"/?project={active.id}&dataset={dataset_id}"
     with ui.element("div").classes("section-bar"):
         ui.label("Метадані").classes("section-title")
@@ -1337,7 +1349,7 @@ def metadata_section(service: ProjectService, active: ProjectView, dataset_id: s
     meta = result.data
     ui.label(
         f"{metadata_status(meta)}. Опис полів допомагає статистиці, вибору цільової змінної "
-        "й поясненням. Перетворення текстового опису в поля через AI з’явиться на етапі 08."
+        "й поясненням. Кнопка «Чернетка метаданих» пропонує опис полів через AI для вашої перевірки."
     ).classes("section-lead")
     if meta.document.dataset.description:
         ui.label(meta.document.dataset.description).classes("lead small")

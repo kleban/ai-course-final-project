@@ -18,6 +18,7 @@ from .contracts import (
     DatasetCopyRequest,
     DatasetPreview,
     DatasetView,
+    DraftApply,
     EventView,
     Failure,
     HeatmapQuery,
@@ -125,6 +126,12 @@ def router(service: ProjectService) -> APIRouter:
     @api.post("/projects/{project_id}/assistant", response_model=Success[dict] | Failure)
     def assistant_ask(project_id: str, query: AssistantQuery):
         return response(service.assistant_ask(project_id, query.model_dump(mode="json")))
+
+    @api.post(
+        "/projects/{project_id}/assistant/drafts/apply", response_model=Success[dict] | Failure
+    )
+    def assistant_apply_draft(project_id: str, query: DraftApply):
+        return response(service.assistant_apply_draft(project_id, query.model_dump(mode="json")))
 
     @api.get("/monitoring", response_model=Success[dict] | Failure)
     def monitoring():

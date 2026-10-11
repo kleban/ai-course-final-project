@@ -270,7 +270,15 @@ class MetadataStore:
         document = MetadataDocument.model_validate_json(row["document"])
         return Metadata(dataset_id, document, True, row["updated_at"], row["confirmed_at"])
 
-    def save(self, dataset_id: str, raw: object, *, confirm: bool = False) -> Metadata:
+    def save(
+        self,
+        dataset_id: str,
+        raw: object,
+        *,
+        confirm: bool = False,
+        expected_version: tuple[bool, str | None] | None = None,
+        expected_sources: tuple[str, ...] | None = None,
+    ) -> Metadata:
         fresh = self._fresh(dataset_id)
         try:
             document = MetadataDocument.model_validate(raw)
@@ -298,9 +306,27 @@ class MetadataStore:
         dataset = self.datasets.get(dataset_id)
         now = _now()
         with connect(self.database) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if expected_sources is not None:
+                sources = connection.execute(
+                    "SELECT id FROM metadata_sources WHERE dataset_id=? ORDER BY created_at, id",
+                    (dataset_id,),
+                ).fetchall()
+                if tuple(row["id"] for row in sources) != expected_sources:
+                    raise MetadataError(
+                        "Джерела змінилися після створення чернетки. Створіть нову чернетку."
+                    )
             previous = connection.execute(
-                "SELECT confirmed_at FROM dataset_metadata WHERE dataset_id = ?", (dataset_id,)
+                "SELECT confirmed_at, updated_at FROM dataset_metadata WHERE dataset_id = ?",
+                (dataset_id,),
             ).fetchone()
+            if expected_version is not None and expected_version != (
+                previous is not None,
+                previous["updated_at"] if previous else None,
+            ):
+                raise MetadataError(
+                    "Метадані змінилися після створення чернетки. Створіть нову чернетку."
+                )
             confirmed_at = now if confirm else None
             connection.execute(
                 "INSERT INTO dataset_metadata VALUES (?, ?, ?, ?) ON CONFLICT(dataset_id) DO UPDATE "
@@ -316,6 +342,7 @@ class MetadataStore:
                     "dataset_id": dataset_id,
                     "name": dataset.name,
                     "was_confirmed": "так" if previous and previous["confirmed_at"] else "ні",
+                    **({"origin": "ai_draft"} if expected_version is not None else {}),
                 },
             )
         return Metadata(dataset_id, document, True, now, confirmed_at)

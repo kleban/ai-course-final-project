@@ -12,6 +12,7 @@ from nicegui import run, ui
 
 from .assistant import BLOCKS, MAX_HISTORY, MODES, SUGGESTIONS
 from .contracts import Failure
+from .metadata import KIND_TITLES, ROLE_TITLES
 from .screen import button, error_line, icon
 from .service import ProjectService
 
@@ -40,6 +41,9 @@ def assistant_panel(
     service: ProjectService, project_id: str, block: str, page: dict | None = None
 ) -> None:
     page = _clean_page(page or {})
+    hints = dict(HINTS)
+    if block == "data":
+        hints["execute"] = "Створить чернетку для перегляду. Запис — лише після «Застосувати»."
     history: list[dict] = []
     ref: dict[str, Any] = {}
     drawer = (
@@ -68,8 +72,8 @@ def assistant_panel(
         ui.label("Бачу сторінку: " + " · ".join(where)).classes("model-note assistant-where")
         mode = ui.toggle(MODES, value="explain" if block in ("model", "validation") else "advise")
         mode.props("square no-caps unelevated dense").classes("assistant-modes")
-        hint = ui.label(HINTS[mode.value]).classes("model-note")
-        mode.on_value_change(lambda e: hint.set_text(HINTS[e.value]))
+        hint = ui.label(hints[mode.value]).classes("model-note")
+        mode.on_value_change(lambda e: hint.set_text(hints[e.value]))
         thread = ui.column().classes("w-full assistant-thread")
         with ui.element("div").classes("assistant-chips") as chips:
             for text in SUGGESTIONS[block]:
@@ -137,6 +141,8 @@ def assistant_panel(
             )
             bubble("assistant", data["text"])
             with thread:
+                for proposal in data.get("proposals", []):
+                    draft_preview(service, project_id, proposal)
                 if data.get("question") and data["question"]["options"]:
                     with ui.element("div").classes("assistant-chips"):
                         for option in data["question"]["options"]:
@@ -215,3 +221,59 @@ def ai_shortcut(label: str, mode: str, question: str) -> None:
     ):
         icon("spark")
         ui.label(label)
+
+
+def draft_preview(service: ProjectService, project_id: str, proposal: dict) -> None:
+    """Show editable project text or every proposed metadata change before explicit apply."""
+    with ui.column().classes("w-full assistant-draft").style("gap: 4px"):
+        is_project = proposal["kind"] == "project_description"
+        ui.label("Чернетка опису проєкту" if is_project else "Чернетка метаданих").classes(
+            "section-title"
+        )
+        if is_project:
+            editor = (
+                ui.textarea(value=proposal["text"])
+                .props("outlined square autogrow maxlength=20000")
+                .classes("w-full")
+            )
+        else:
+            metadata = proposal["metadata"]
+            if metadata.get("description") is not None:
+                ui.label(metadata["description"]).classes("model-note")
+            for column in metadata["columns"]:
+                ui.label(column["name"]).classes("font-bold")
+                for key, title in (
+                    ("label", "Назва"),
+                    ("description", "Опис"),
+                    ("unit", "Одиниця"),
+                    ("kind", "Тип"),
+                    ("role", "Роль"),
+                ):
+                    if column.get(key) is not None:
+                        value = column[key]
+                        if key == "kind":
+                            value = KIND_TITLES[value]
+                        elif key == "role":
+                            value = ROLE_TITLES[value]
+                        ui.label(f"{title}: {value or 'порожньо'}").classes("model-note")
+            ui.label(
+                "Після застосування метадані залишаться чернеткою. Підтвердіть їх окремо після перевірки."
+            ).classes("model-note")
+        result_line = ui.label().classes("model-note")
+
+        async def apply_draft() -> None:
+            apply_button.props("disabled")
+            try:
+                payload = {**proposal, "text": editor.value} if is_project else proposal
+                result = await run.io_bound(service.assistant_apply_draft, project_id, payload)
+                if isinstance(result, Failure):
+                    result_line.set_text(result.error.message)
+                    apply_button.props(remove="disabled")
+                    return
+                result_line.set_text("Застосовано. Оновіть сторінку, щоб побачити збережені зміни.")
+                ui.notify("Чернетку застосовано", type="positive")
+            except Exception:
+                apply_button.props(remove="disabled")
+                raise
+
+        apply_button = button("Застосувати", apply_draft, "check", "primary")

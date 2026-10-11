@@ -504,5 +504,34 @@ class AssistantQuery(StrictModel):
     history: list[AssistantTurn] = Field(default_factory=list, max_length=20)
 
 
+class ProjectDraftQuery(StrictModel):
+    text: Annotated[str, Field(strict=True, min_length=1, max_length=DESCRIPTION_LIMIT)]
+
+
+class MetadataColumnDraft(StrictModel):
+    name: Annotated[str, Field(strict=True, min_length=1, max_length=200)]
+    label: Annotated[str, Field(strict=True, max_length=200)] | None = None
+    description: Annotated[str, Field(strict=True, max_length=2000)] | None = None
+    unit: Annotated[str, Field(strict=True, max_length=100)] | None = None
+    kind: Literal["number", "category", "text", "date", "bool", "id"] | None = None
+    role: Literal["feature", "target", "id", "ignore"] | None = None
+
+
+class MetadataDraftQuery(StrictModel):
+    dataset_id: UUID
+    description: Annotated[str, Field(strict=True, max_length=4000)] | None = None
+    columns: list[MetadataColumnDraft] = Field(min_length=1, max_length=200)
+
+
+class DraftApply(StrictModel):
+    kind: Literal["project_description", "metadata"]
+    project_id: UUID
+    base_token: str = Field(pattern=r"^[a-f0-9]{64}$")
+    text: Annotated[str, Field(strict=True, min_length=1, max_length=DESCRIPTION_LIMIT)] | None = (
+        None
+    )
+    metadata: MetadataDraftQuery | None = None
+
+
 class KnowledgeDocument(StrictModel):
     text: Annotated[str, Field(strict=True, min_length=1, max_length=20000)]
