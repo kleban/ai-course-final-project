@@ -25,6 +25,8 @@ DEFAULTS = Path(__file__).parent / "knowledge"
 METHOD = "tfidf-char_wb-3-5"
 MIN_SCORE = 0.08
 MAX_QUERY = 500
+MAX_DOCUMENT = 20000
+MAX_DOCUMENTS = 50
 
 
 class KnowledgeError(ValueError):
@@ -86,18 +88,120 @@ class KnowledgeStore:
         self.defaults = defaults
         self._index: tuple[str, TfidfVectorizer, np.ndarray, list[Fragment]] | None = None
 
+    def _defaults(self) -> dict[str, str]:
+        return {p.stem: p.read_text(encoding="utf-8") for p in sorted(self.defaults.glob("*.md"))}
+
     def _seed(self, connection) -> None:
-        if connection.execute("SELECT 1 FROM knowledge_documents LIMIT 1").fetchone():
-            return
-        for path in sorted(self.defaults.glob("*.md")):
-            text = path.read_text(encoding="utf-8")
-            meta, _ = parse(path.stem, text)
+        """Insert missing defaults and refresh unedited defaults; edited rows stay untouched."""
+        rows = {
+            r["id"]: r
+            for r in connection.execute("SELECT id, text, is_default FROM knowledge_documents")
+        }
+        for document_id, text in self._defaults().items():
+            row = rows.get(document_id)
+            if row is not None and (not row["is_default"] or row["text"] == text):
+                continue
+            meta, _ = parse(document_id, text)
             connection.execute(
-                "INSERT INTO knowledge_documents VALUES (?, ?, ?, ?, ?, 1, ?)",
-                (path.stem, meta["title"], meta["source"], meta["priority"], text, _now()),
+                "INSERT INTO knowledge_documents VALUES (?, ?, ?, ?, ?, 1, ?) ON CONFLICT(id) "
+                "DO UPDATE SET title=excluded.title, source=excluded.source, "
+                "priority=excluded.priority, text=excluded.text, updated_at=excluded.updated_at",
+                (document_id, meta["title"], meta["source"], meta["priority"], text, _now()),
             )
 
+    def _event(self, connection, operation: str, payload: dict) -> None:
+        connection.execute(
+            "INSERT INTO config_events VALUES (?, ?, ?, ?, ?)",
+            (str(uuid4()), "knowledge", operation, _now(), json.dumps(payload, ensure_ascii=False)),
+        )
+
+    def _validated(self, document_id: str, text: str) -> tuple[dict, list[Fragment], str]:
+        text = str(text).replace("\r\n", "\n").strip() + "\n"
+        if len(text) > MAX_DOCUMENT:
+            raise KnowledgeError(f"Документ задовгий: до {MAX_DOCUMENT} символів.")
+        try:
+            meta, fragments = parse(document_id, text)
+        except KnowledgeError:
+            raise
+        except ValueError as error:  # a non-numeric priority
+            raise KnowledgeError("Пріоритет має бути цілим числом від 1 до 9.") from error
+        if not meta["title"]:
+            raise KnowledgeError("Вкажіть назву документа в рядку «# Назва».")
+        if not 1 <= meta["priority"] <= 9:
+            raise KnowledgeError("Пріоритет має бути цілим числом від 1 до 9.")
+        return meta, fragments, text
+
+    def document(self, document_id: str) -> dict:
+        found = next((d for d in self.documents() if d["id"] == document_id), None)
+        if found is None:
+            raise KnowledgeError("Документ бази знань не знайдено.")
+        return found
+
+    def save(self, document_id: str, text: str) -> dict:
+        """Replace one document after validation; the previous text goes to the audit log."""
+        previous = self.document(document_id)
+        meta, fragments, text = self._validated(document_id, text)
+        default = self._defaults().get(document_id)
+        same_as_default = default is not None and default.strip() == text.strip()
+        with connect(self.database) as connection:
+            connection.execute(
+                "UPDATE knowledge_documents SET title=?, source=?, priority=?, text=?, "
+                "is_default=?, updated_at=? WHERE id=?",
+                (meta["title"], meta["source"], meta["priority"], text, int(same_as_default),
+                 _now(), document_id),
+            )  # fmt: skip
+            self._event(connection, "knowledge.saved", {
+                "id": document_id, "title": meta["title"], "fragments": len(fragments),
+                "previous_text": previous["text"],
+            })  # fmt: skip
+        return self.document(document_id)
+
+    def create(self, text: str) -> dict:
+        with connect(self.database) as connection:
+            self._seed(connection)
+            count = connection.execute("SELECT COUNT(*) FROM knowledge_documents").fetchone()[0]
+        if count >= MAX_DOCUMENTS:
+            raise KnowledgeError(f"У базі знань може бути до {MAX_DOCUMENTS} документів.")
+        document_id = "user-" + uuid4().hex[:8]
+        meta, fragments, text = self._validated(document_id, text)
+        with connect(self.database) as connection:
+            connection.execute(
+                "INSERT INTO knowledge_documents VALUES (?, ?, ?, ?, ?, 0, ?)",
+                (document_id, meta["title"], meta["source"], meta["priority"], text, _now()),
+            )
+            self._event(connection, "knowledge.created",
+                        {"id": document_id, "title": meta["title"], "fragments": len(fragments)})  # fmt: skip
+        return self.document(document_id)
+
+    def reset(self, document_id: str) -> dict:
+        """Return a built-in document to its repository text."""
+        default = self._defaults().get(document_id)
+        if default is None:
+            raise KnowledgeError("Це ваш документ: типової версії немає, його можна видалити.")
+        previous = self.document(document_id)
+        meta, _ = parse(document_id, default)
+        with connect(self.database) as connection:
+            connection.execute(
+                "UPDATE knowledge_documents SET title=?, source=?, priority=?, text=?, "
+                "is_default=1, updated_at=? WHERE id=?",
+                (meta["title"], meta["source"], meta["priority"], default, _now(), document_id),
+            )
+            self._event(connection, "knowledge.reset",
+                        {"id": document_id, "previous_text": previous["text"]})  # fmt: skip
+        return self.document(document_id)
+
+    def delete(self, document_id: str) -> None:
+        """Delete a user document; built-in documents can only be reset."""
+        if document_id in self._defaults():
+            raise KnowledgeError("Типовий документ не видаляється — його можна повернути.")
+        previous = self.document(document_id)
+        with connect(self.database) as connection:
+            connection.execute("DELETE FROM knowledge_documents WHERE id=?", (document_id,))
+            self._event(connection, "knowledge.deleted",
+                        {"id": document_id, "previous_text": previous["text"]})  # fmt: skip
+
     def documents(self) -> list[dict]:
+        defaults = self._defaults()
         with connect(self.database) as connection:
             self._seed(connection)
             rows = connection.execute(
@@ -111,6 +215,7 @@ class KnowledgeStore:
                 "priority": r["priority"],
                 "text": r["text"],
                 "is_default": bool(r["is_default"]),
+                "builtin": r["id"] in defaults,
                 "updated_at": r["updated_at"],
                 "fragments": len(parse(r["id"], r["text"])[1]),
             }

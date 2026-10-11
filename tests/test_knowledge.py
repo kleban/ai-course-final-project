@@ -1,7 +1,9 @@
 """Stage 07 RAG: rule documents, fragments, local search on Ukrainian control questions."""
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import test_preparation_store as fixtures
 from fastapi import FastAPI
@@ -105,3 +107,89 @@ class KnowledgeTests(unittest.TestCase):
         tool = run_tool(self.service, self.project.id, "search_knowledge", {"query": "витік даних"})
         self.assertIsInstance(tool, Success)
         json.dumps(tool.data)
+
+
+class KnowledgeEditorTests(unittest.TestCase):
+    setUp = fixtures.PreparationStoreTests.setUp
+
+    DOC = "# Мої правила\nДжерело: власний досвід\nПріоритет: 1\n\n## Сезонність цін\nЦіни на житло навесні вищі.\n"
+
+    def test_save_changes_search_and_logs_previous_text(self):
+        store = self.service.knowledge
+        original = store.document("03-regression-metrics")
+        text = (
+            original["text"]
+            + "\n## Медіанна похибка\nМедіанна абсолютна похибка стійка до викидів.\n"
+        )
+        saved = self.service.knowledge_save("03-regression-metrics", {"text": text})
+        self.assertIsInstance(saved, Success)
+        self.assertFalse(saved.data["is_default"])
+        self.assertTrue(saved.data["builtin"])
+        hits = store.search("медіанна абсолютна похибка")["hits"]
+        self.assertEqual(hits[0]["section"], "Медіанна похибка")
+        with connect(self.database) as connection:
+            row = connection.execute(
+                "SELECT payload FROM config_events WHERE operation='knowledge.saved'"
+            ).fetchone()
+        self.assertEqual(json.loads(row[0])["previous_text"], original["text"])
+
+    def test_reset_restores_builtin_and_unedited_defaults_follow_repository(self):
+        self.service.knowledge_save("05-model-check", {"text": self.DOC})
+        restored = self.service.knowledge_reset("05-model-check").data
+        self.assertTrue(restored["is_default"])
+        self.assertIn("Графік похибок", restored["text"])
+        folder = Path(tempfile.mkdtemp(dir=self.temporary.name))
+        (folder / "a.md").write_text("# A\n\n## Перше\nстарий текст\n", encoding="utf-8")
+        (folder / "b.md").write_text("# B\n\n## Друге\nтекст b\n", encoding="utf-8")
+        database = Path(self.temporary.name) / "kb.sqlite3"
+        store = KnowledgeStore(database, defaults=folder)
+        store.save("b", "# B\n\n## Друге\nмій текст\n")
+        (folder / "a.md").write_text("# A\n\n## Перше\nновий текст\n", encoding="utf-8")
+        (folder / "b.md").write_text("# B\n\n## Друге\nоновлений b\n", encoding="utf-8")
+        (folder / "c.md").write_text("# C\n\n## Третє\nновий документ\n", encoding="utf-8")
+        texts = {d["id"]: d["text"] for d in store.documents()}
+        self.assertIn("новий текст", texts["a"])  # unedited default follows the repository
+        self.assertIn("мій текст", texts["b"])  # the user's edit is kept
+        self.assertIn("c", texts)
+
+    def test_create_and_delete_user_document(self):
+        created = self.service.knowledge_create({"text": self.DOC}).data
+        self.assertTrue(created["id"].startswith("user-"))
+        self.assertFalse(created["builtin"])
+        self.assertEqual(self.service.knowledge.search("сезонність цін навесні")["hits"][0]["section"],
+                         "Сезонність цін")  # fmt: skip
+        self.assertIsInstance(self.service.knowledge_reset(created["id"]), Failure)
+        self.assertIsInstance(self.service.knowledge_delete(created["id"]), Success)
+        self.assertEqual(len(self.service.knowledge.documents()), 5)
+        self.assertIsInstance(self.service.knowledge_delete("01-visualization"), Failure)
+
+    def test_invalid_documents_refused(self):
+        for text in (
+            "без заголовка",
+            "# Назва\nтекст без розділів",
+            "# Назва\nПріоритет: високий\n\n## A\nb",
+            "# Назва\nПріоритет: 12\n\n## A\nb",
+            "# Назва\n\n## A\n" + "x" * 20001,
+        ):
+            self.assertIsInstance(self.service.knowledge_save("01-visualization", {"text": text}),
+                                  Failure)  # fmt: skip
+        self.assertTrue(self.service.knowledge.document("01-visualization")["is_default"])
+        self.assertIsInstance(self.service.knowledge_save("nope", {"text": self.DOC}), Failure)
+
+    def test_http_editor_endpoints(self):
+        app = FastAPI()
+        app.include_router(router(self.service))
+        install_error_handlers(app)
+        with TestClient(app) as client:
+            created = client.post("/api/knowledge/documents", json={"text": self.DOC})
+            self.assertEqual(created.status_code, 200, created.text)
+            document_id = created.json()["data"]["id"]
+            route = f"/api/knowledge/documents/{document_id}"
+            self.assertEqual(
+                client.put(route, json={"text": self.DOC + "\n## Ще\nтекст\n"}).status_code, 200
+            )
+            self.assertEqual(client.delete(route).status_code, 200)
+            self.assertEqual(
+                client.post("/api/knowledge/documents/01-visualization/reset").status_code, 200
+            )
+            self.assertEqual(client.post("/api/knowledge/documents", json={}).status_code, 422)

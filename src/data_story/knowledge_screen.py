@@ -1,10 +1,13 @@
 """Settings → knowledge base: rule documents and a local search check for RAG (stage 07)."""
 
+from functools import partial
+
 from nicegui import run, ui
 
 from .contracts import Failure
+from .markdown_editor import MarkdownEditor
 from .model_screen import panel
-from .screen import Shell, button, error_line, page_header
+from .screen import Shell, button, error_line, error_text, page_header
 from .service import ProjectService
 
 
@@ -71,14 +74,119 @@ def knowledge_screen(service: ProjectService) -> None:
             button("Знайти", search, "search", "primary")
             results = ui.column().classes("w-full")
         with docs_box:
-            total = sum(d["fragments"] for d in documents.data)
-            ui.label(f"Документів: {len(documents.data)} · фрагментів (розділів): {total}").classes(
-                "model-note"
+            documents_list(service)
+
+
+TEMPLATE = """# Назва документа
+Джерело: звідки правило (лекція, книга, власний досвід)
+Пріоритет: 2
+
+## Перший розділ
+Текст правила. Кожен розділ «##» — окремий фрагмент для пошуку.
+"""
+FORMAT_HINT = (
+    "Формат: перший рядок «# Назва», далі «Джерело: …» і «Пріоритет: 1–9» "
+    "(1 — найважливіше), потім розділи «## Назва розділу». Кожен розділ — окремий фрагмент."
+)
+
+
+def documents_list(service: ProjectService) -> None:
+    @ui.refreshable
+    def listing() -> None:
+        documents = service.knowledge_documents()
+        if isinstance(documents, Failure):
+            error_line(documents)
+            return
+        total = sum(d["fragments"] for d in documents.data)
+        ui.label(f"Документів: {len(documents.data)} · фрагментів (розділів): {total}").classes(
+            "model-note"
+        )
+        button("Новий документ", lambda: edit(None, TEMPLATE), "plus", "small")
+        for document in documents.data:
+            state = (
+                "типовий" if document["is_default"]
+                else "змінений" if document["builtin"]
+                else "ваш"
+            )  # fmt: skip
+            with ui.expansion(
+                f"{document['title']} · {document['fragments']} розд. · {state}"
+            ).classes("w-full knowledge-doc"):
+                ui.label(f"Джерело: {document['source']}").classes("model-note mono-wrap")
+                with ui.row().classes("gap-1"):
+                    button(
+                        "Редагувати",
+                        partial(edit, document["id"], document["text"]),
+                        "edit",
+                        "small",
+                    )
+                    if document["builtin"] and not document["is_default"]:
+                        button(
+                            "Повернути типовий",
+                            partial(reset, document["id"]),
+                            "undo",
+                            "small",
+                        )
+                    if not document["builtin"]:
+                        button("Видалити", partial(remove, document), "warning", "small")
+                ui.markdown(document["text"].split("\n", 3)[-1]).classes("md")
+
+    def notify(result, text: str) -> bool:
+        if isinstance(result, Failure):
+            ui.notify(error_text(result), type="negative")
+            return False
+        ui.notify(text, type="positive")
+        listing.refresh()
+        return True
+
+    def reset(document_id: str) -> None:
+        notify(service.knowledge_reset(document_id), "Повернуто типовий текст.")
+
+    def remove(document: dict) -> None:
+        with ui.dialog() as dialog, ui.card().classes("knowledge-dialog"):
+            ui.label(f"Видалити документ «{document['title']}»?").classes("panel-title")
+            ui.label("Попередній текст лишиться в журналі налаштувань.").classes("model-note")
+            with ui.row().classes("gap-2"):
+
+                def confirm() -> None:
+                    if notify(service.knowledge_delete(document["id"]), "Документ видалено."):
+                        dialog.close()
+
+                button("Видалити", confirm, "warning", "primary")
+                button("Скасувати", dialog.close, "undo")
+        dialog.open()
+
+    def edit(document_id: str | None, text: str) -> None:
+        with (
+            ui.dialog().props("maximized=false") as dialog,
+            ui.card().classes("knowledge-dialog knowledge-editor"),
+        ):
+            ui.label("Новий документ" if document_id is None else "Редагування документа").classes(
+                "panel-title"
             )
-            for document in documents.data:
-                state = "типовий" if document["is_default"] else "змінений"
-                with ui.expansion(
-                    f"{document['title']} · {document['fragments']} розд. · {state}"
-                ).classes("w-full"):
-                    ui.label(f"Джерело: {document['source']}").classes("model-note mono-wrap")
-                    ui.markdown(document["text"].split("\n", 3)[-1]).classes("md")
+            ui.label(FORMAT_HINT).classes("model-note")
+            editor = MarkdownEditor(text)
+            message = ui.label("").classes("error-message").props('role="alert"')
+
+            async def save() -> None:
+                try:
+                    value = await editor.markdown()
+                except TimeoutError:
+                    message.set_text("Редактор не відповів. Спробуйте ще раз.")
+                    return
+                result = (
+                    service.knowledge_create({"text": value})
+                    if document_id is None
+                    else service.knowledge_save(document_id, {"text": value})
+                )
+                if isinstance(result, Failure):
+                    message.set_text(error_text(result))
+                    return
+                notify(result, "Документ збережено; пошук уже використовує нову версію.")
+                dialog.close()
+
+            with ui.row().classes("gap-2"):
+                button("Зберегти", save, "check", "primary")
+                button("Скасувати", dialog.close, "undo")
+        dialog.open()
+
+    listing()

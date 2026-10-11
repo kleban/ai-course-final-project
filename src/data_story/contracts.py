@@ -502,3 +502,7 @@ class AssistantQuery(StrictModel):
     question: Annotated[str, Field(strict=True, min_length=1, max_length=2000)]
     page: AssistantPage = Field(default_factory=AssistantPage)
     history: list[AssistantTurn] = Field(default_factory=list, max_length=20)
+
+
+class KnowledgeDocument(StrictModel):
+    text: Annotated[str, Field(strict=True, min_length=1, max_length=20000)]

@@ -39,6 +39,7 @@ from .contracts import (
     HistogramView,
     InstructionUpdate,
     InstructionView,
+    KnowledgeDocument,
     KnowledgeQuery,
     MetadataIssue,
     MetadataSourceView,
@@ -331,6 +332,24 @@ class ProjectService:
 
     def knowledge_documents(self) -> Success[list[dict]] | Failure:
         return execute(self.knowledge.documents)
+
+    def knowledge_save(self, document_id: str, raw: object) -> Success[dict] | Failure:
+        return execute(
+            lambda: self.knowledge.save(document_id, validate_input(KnowledgeDocument, raw).text)
+        )
+
+    def knowledge_create(self, raw: object) -> Success[dict] | Failure:
+        return execute(lambda: self.knowledge.create(validate_input(KnowledgeDocument, raw).text))
+
+    def knowledge_reset(self, document_id: str) -> Success[dict] | Failure:
+        return execute(lambda: self.knowledge.reset(document_id))
+
+    def knowledge_delete(self, document_id: str) -> Success[dict] | Failure:
+        def action() -> dict:
+            self.knowledge.delete(document_id)
+            return {"deleted": document_id}
+
+        return execute(action)
 
     def knowledge_search(self, raw: object) -> Success[dict] | Failure:
         """Local RAG retrieval: the most similar rule fragments with source and section."""

@@ -26,6 +26,7 @@ from .contracts import (
     HistogramView,
     InstructionUpdate,
     InstructionView,
+    KnowledgeDocument,
     KnowledgeQuery,
     MetadataSourceView,
     MetadataText,
@@ -144,6 +145,22 @@ def router(service: ProjectService) -> APIRouter:
     @api.get("/knowledge/documents", response_model=Success[list[dict]] | Failure)
     def knowledge_documents():
         return response(service.knowledge_documents())
+
+    @api.post("/knowledge/documents", response_model=Success[dict] | Failure)
+    def knowledge_create(request: KnowledgeDocument):
+        return response(service.knowledge_create(request.model_dump()))
+
+    @api.put("/knowledge/documents/{document_id}", response_model=Success[dict] | Failure)
+    def knowledge_save(document_id: str, request: KnowledgeDocument):
+        return response(service.knowledge_save(document_id, request.model_dump()))
+
+    @api.post("/knowledge/documents/{document_id}/reset", response_model=Success[dict] | Failure)
+    def knowledge_reset(document_id: str):
+        return response(service.knowledge_reset(document_id))
+
+    @api.delete("/knowledge/documents/{document_id}", response_model=Success[dict] | Failure)
+    def knowledge_delete(document_id: str):
+        return response(service.knowledge_delete(document_id))
 
     @api.post("/knowledge/search", response_model=Success[dict] | Failure)
     def knowledge_search(query: KnowledgeQuery):

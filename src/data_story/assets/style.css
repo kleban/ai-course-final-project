@@ -488,3 +488,8 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .monitor-not_configured, .monitor-not_implemented { border-top-color:var(--axis); }
 .monitor-not_configured .monitor-state, .monitor-not_implemented .monitor-state { color:var(--ink2); }
 .monitor-grid { grid-auto-rows:auto; }
+/* Knowledge editor (081): editing happens in a wide dialog with the Markdown editor. */
+.knowledge-dialog { border-radius:0 !important; box-shadow:none; border-top:4px solid var(--primary); padding:16px 20px; }
+.knowledge-editor { width:min(960px, 96vw); max-width:96vw !important; }
+.knowledge-doc .md h2 { font-size:1.05em; margin:10px 0 4px; }
+.knowledge-doc .md h1 { font-size:1.15em; }
