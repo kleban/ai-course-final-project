@@ -13,6 +13,7 @@ from .chart_screen import chart_settings_screen
 from .config import Settings
 from .contracts import (
     HTTP_STATUS,
+    AssistantQuery,
     DatasetCandidate,
     DatasetCopyRequest,
     DatasetPreview,
@@ -119,6 +120,10 @@ def router(service: ProjectService) -> APIRouter:
     @api.post("/configuration/ai/reset", response_model=Success[dict] | Failure)
     def reset_ai_configuration():
         return response(service.reset_ai_configuration())
+
+    @api.post("/projects/{project_id}/assistant", response_model=Success[dict] | Failure)
+    def assistant_ask(project_id: str, query: AssistantQuery):
+        return response(service.assistant_ask(project_id, query.model_dump(mode="json")))
 
     @api.post("/configuration/ai/check", response_model=Success[list[dict]] | Failure)
     def ai_check_access():

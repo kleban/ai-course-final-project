@@ -95,6 +95,12 @@ KINDS = {401: "stop", 403: "next", 404: "next", 400: "next", 408: "transient", 4
 BACKOFF = (1.0, 2.0, 4.0, 8.0, 16.0)
 MAX_PAUSE = 20.0
 
+
+def function_calls(payload: dict) -> list[dict]:
+    """Function calls requested by the model in a Responses payload."""
+    return [item for item in payload.get("output") or [] if item.get("type") == "function_call"]
+
+
 ERRORS = {
     401: "OpenAI не прийняв ключ (401). Перевірте OPENAI_API_KEY у файлі .env.",
     403: "Немає доступу до цієї моделі або дії (403).",
@@ -203,28 +209,61 @@ class OpenAIClient:
         max_output_tokens: int | None = None,
         accept: Callable[[str], str | None] | None = None,
     ) -> dict:
-        """Solve one task: up to 3 model levels, each with ``retries`` repeats on failures.
+        """Solve one text task: up to 3 model levels, each with ``retries`` repeats on failures.
 
         ``accept`` may reject a technically valid answer (returns the reason); the next level
         then gets the task. Returns the answer and the full attempt history.
         """
+
+        def check(payload: dict) -> str | None:
+            answer = output_text(payload)
+            if not answer.strip():
+                return "Модель повернула порожню відповідь."
+            return accept(answer) if accept is not None else None
+
+        result = self.run(
+            task,
+            {"instructions": instructions, "input": text},
+            check,
+            project_id=project_id,
+            max_output_tokens=max_output_tokens,
+        )
+        return {key: value for key, value in result.items() if key != "payload"} | {
+            "text": output_text(result["payload"]),
+            "status": result["payload"].get("status"),
+        }
+
+    def chain(self, task: str) -> list[str]:
         if task not in TASKS:
             raise AiError("Невідома задача AI.")
         config = self.settings.get()
         chain = [m for m in config.chain(task) if m != "local" and MODELS[m].kind == "text"]
         if not chain:
             raise AiError("Для цієї задачі в налаштуваннях не обрано текстову модель OpenAI.")
-        run_id = str(uuid4())
+        return chain
+
+    def run(
+        self,
+        task: str,
+        extra: dict,
+        check: Callable[[dict], str | None],
+        project_id: str | None = None,
+        max_output_tokens: int | None = None,
+        models: list[str] | None = None,
+        run_id: str | None = None,
+    ) -> dict:
+        """One Responses request resolved through retries and model levels (D-79).
+
+        ``extra`` is merged into the body (instructions, input, tools …); ``check`` may reject
+        a successful payload, which moves the task to the next level.
+        """
+        config = self.settings.get()
+        chain = models or self.chain(task)
+        run_id = run_id or str(uuid4())
         history: list[dict] = []
         tokens = max_output_tokens or config.max_output_tokens
         for level, model in enumerate(chain, 1):
-            body = {
-                "model": model,
-                "instructions": instructions,
-                "input": text,
-                "max_output_tokens": tokens,
-                "store": False,
-            }
+            body = {"model": model, "max_output_tokens": tokens, "store": False, **extra}
             for attempt in range(1, config.retries + 2):
                 entry = self._entry(run_id, task, model, level, attempt, project_id, "POST",
                                     "/responses", body)  # fmt: skip
@@ -232,21 +271,21 @@ class OpenAIClient:
                 try:
                     status, payload = self._request("POST", "/responses", body)
                     entry["http_status"] = status
-                    answer = output_text(payload)
                     entry.update(
                         usage=usage_of(payload),
                         response_id=payload.get("id"),
                         response_status=payload.get("status"),
                         incomplete=(payload.get("incomplete_details") or {}).get("reason"),
-                        response={"text": _cut(answer)},
+                        response={
+                            "text": _cut(output_text(payload)),
+                            "tool_calls": [c["name"] for c in function_calls(payload)],
+                        },
                     )
-                    problem = None
-                    if payload.get("status") == "incomplete":
-                        problem = f"Відповідь обірвана ({entry['incomplete'] or 'incomplete'})."
-                    elif not answer.strip():
-                        problem = "Модель повернула порожню відповідь."
-                    elif accept is not None:
-                        problem = accept(answer)
+                    problem = (
+                        f"Відповідь обірвана ({entry['incomplete'] or 'incomplete'})."
+                        if payload.get("status") == "incomplete"
+                        else check(payload)
+                    )
                     if problem:
                         raise Attempt("next", problem)
                 except Attempt as failure:
@@ -278,11 +317,11 @@ class OpenAIClient:
                     "call_id": entry["id"],
                     "model": model,
                     "level": level,
-                    "text": answer,
+                    "remaining": chain[level - 1 :],
                     "usage": entry["usage"],
                     "usage_total": _sum_usage(history),
-                    "status": payload.get("status"),
                     "attempts": history,
+                    "payload": payload,
                 }
         raise AiError(
             f"Задачу не вдалося виконати: {len(history)} спроб на {len(chain)} рівнях моделей. "

@@ -447,3 +447,26 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .fake-key { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:6px; }
 .fake-key input { flex:1 1 200px; min-width:0; border:1px solid var(--axis); padding:6px 8px; font:inherit; }
 .fake-key .model-note { flex-basis:100%; }
+/* AI assistant (09): quiet corner button, side panel only on demand. */
+.assistant-fab { position:fixed; right:20px; bottom:20px; z-index:2000; display:flex; align-items:center; gap:6px;
+  padding:8px 14px; background:#fff; color:var(--primary); border:1px solid var(--primary); font:inherit; font-weight:600; cursor:pointer; }
+.assistant-fab:hover, .assistant-fab:focus-visible { background:var(--primary); color:#fff; outline:none; }
+.assistant-fab .ico { color:inherit; }
+.assistant-drawer { background:#fff !important; padding:16px 18px !important; gap:10px !important; }
+.assistant-head { display:flex; align-items:center; gap:8px; width:100%; }
+.assistant-head .ico { color:var(--primary); }
+.assistant-head .panel-title { margin:0; flex:1; }
+.assistant-close { border:none; background:none; font-size:1.5em; line-height:1; cursor:pointer; color:var(--ink2); }
+.assistant-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.assistant-chip { border:1px solid var(--grid); background:var(--shade); padding:4px 8px; font:inherit; font-size:.86em; cursor:pointer; text-align:left; }
+.assistant-chip:hover { border-color:var(--primary); color:var(--primary); }
+.assistant-answer { border-left:3px solid var(--primary); padding-left:10px; }
+@media (max-width:600px) { .assistant-fab { right:12px; bottom:12px; } }
+.assistant-modes { border:1px solid var(--grid); }
+.assistant-modes .q-btn { padding:4px 10px; }
+.assistant-thread { gap:8px !important; }
+.assistant-msg { padding:6px 10px; max-width:100%; }
+.assistant-msg.user { background:var(--shade); align-self:flex-end; }
+.assistant-msg.assistant { border-left:3px solid var(--primary); }
+.assistant-chip.answer { border-color:var(--primary); background:#fff; color:var(--primary); }
+.assistant-where { font-style:italic; }

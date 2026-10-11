@@ -24,6 +24,7 @@ from .charts import (
 )
 from .configuration import InstructionStore
 from .contracts import (
+    AssistantQuery,
     DatasetCandidate,
     DatasetCopyRequest,
     DatasetPreview,
@@ -288,6 +289,21 @@ class ProjectService:
 
     def reset_ai_configuration(self) -> Success[dict] | Failure:
         return execute(lambda: self.ai_settings.reset().model_dump())
+
+    def assistant_ask(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        """AI assistant in a project: advise, execute with tools, or explain (explicit call)."""
+        from .assistant import Assistant
+
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(AssistantQuery, raw)
+            page = {k: str(v) for k, v in query.page.model_dump().items() if v is not None}
+            history = [turn.model_dump() for turn in query.history]
+            return Assistant(self).ask(
+                validated, query.block, query.mode, query.question, page, history
+            )
+
+        return execute(action)
 
     def ai_check_access(self) -> Success[list[dict]] | Failure:
         """Free check: are the configured OpenAI models reachable with the key from .env."""

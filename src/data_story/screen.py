@@ -65,6 +65,7 @@ EVENT_TITLES = {
     "training.prepared": ("Підготовлено вибірки для регресії", "methods"),
     "model.trained": ("Навчено лінійну регресію", "regression"),
     "model.checked": ("Побудовано графік перевірки моделі", "check"),
+    "assistant.asked": ("Запит до AI-помічника", "spark"),
 }
 FORMAT_TITLES = {"csv": "CSV"}
 
@@ -437,6 +438,11 @@ def projects_screen(
         else "projects"
     )
     shell = Shell(service, current, active, trail)
+    if active and current in ("data", "eda", "preparation", "model", "validation"):
+        from .assistant_panel import assistant_panel
+
+        page = {"dataset_id": dataset_id, "tool": chart, "run_id": run_id}
+        assistant_panel(service, str(active.id), current, page)
     with ui.column().classes("page"):
         if isinstance(active_result, Failure):
             error_line(active_result)
@@ -647,10 +653,13 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "training.prepared",
                 "model.trained",
                 "model.checked",
+                "assistant.asked",
             ):
                 view_title = (
                     EVENT_TITLES[event.operation][0]
-                    if event.operation.startswith(("preparation.", "training.", "model."))
+                    if event.operation.startswith(
+                        ("preparation.", "training.", "model.", "assistant.")
+                    )
                     else STAT_VIEWS.get(str(event.payload.get("view")), "Статистика")
                 )
                 title = f"{view_title}: {event.payload.get('dataset_name', '')} · " + (
@@ -669,6 +678,7 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                 "training.prepared",
                 "model.trained",
                 "model.checked",
+                "assistant.asked",
             ):
                 with ui.element("details").classes("howto stat-audit"):
                     with ui.element("summary"):
@@ -689,6 +699,10 @@ def project_view(service: ProjectService, active: ProjectView) -> None:
                         ("training_run_id", "Вибірки"),
                         ("model_id", "Модель"),
                         ("chart", "Графік"),
+                        ("mode", "Дія"),
+                        ("question", "Запит"),
+                        ("tools", "Інструменти"),
+                        ("usage_total", "Токени"),
                         ("feature", "Ознака"),
                         ("actions", "Операції"),
                         ("plan_id", "План підготовки"),

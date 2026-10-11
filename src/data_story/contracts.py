@@ -111,6 +111,7 @@ class EventView(StrictModel):
         "training.prepared",
         "model.trained",
         "model.checked",
+        "assistant.asked",
     ]
     occurred_at: AwareDatetime
     payload: dict[str, Any]
@@ -480,3 +481,24 @@ class ModelCheckQuery(StrictModel):
 class KnowledgeQuery(StrictModel):
     query: Annotated[str, Field(strict=True, min_length=1, max_length=500)]
     limit: Annotated[int, Field(strict=True, ge=1, le=10)] = 3
+
+
+class AssistantPage(StrictModel):
+    """Where the user is: selected dataset, chart tool, saved split or model."""
+
+    dataset_id: UUID | None = None
+    tool: Annotated[str, Field(strict=True, max_length=40)] | None = None
+    run_id: UUID | None = None
+
+
+class AssistantTurn(StrictModel):
+    role: Literal["user", "assistant"]
+    text: Annotated[str, Field(strict=True, max_length=4000)]
+
+
+class AssistantQuery(StrictModel):
+    block: Literal["data", "eda", "preparation", "model", "validation"]
+    mode: Literal["advise", "execute", "explain"]
+    question: Annotated[str, Field(strict=True, min_length=1, max_length=2000)]
+    page: AssistantPage = Field(default_factory=AssistantPage)
+    history: list[AssistantTurn] = Field(default_factory=list, max_length=20)
