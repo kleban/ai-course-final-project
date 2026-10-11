@@ -443,6 +443,10 @@ def projects_screen(
         from .assistant_panel import assistant_panel
 
         page = {"dataset_id": dataset_id, "tool": chart, "run_id": run_id}
+        if current in ("eda", "preparation") and not page.get("dataset_id"):
+            listed = service.list_datasets(str(active.id))
+            if isinstance(listed, Success) and listed.data:
+                page["dataset_id"] = str(listed.data[0].id)
         assistant_panel(service, str(active.id), current, page)
     with ui.column().classes("page"):
         if isinstance(active_result, Failure):

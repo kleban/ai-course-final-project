@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from data_story.ai_settings import AiConfiguration
+from data_story.assistant import Assistant, _context_json
 from data_story.contracts import Failure, Success
 from data_story.openai_client import OpenAIClient
 from data_story.web import install_error_handlers, router
@@ -214,3 +215,99 @@ class AssistantTests(unittest.TestCase):
              "page": {"dataset_id": foreign.id}},
         )  # fmt: skip
         self.assertNotIn("zzz", self.requests[0]["instructions"])
+
+    def test_dataset_facts_match_known_statistics_and_union(self):
+        facts = Assistant(self.service).dataset_facts(
+            self.project.id, {"dataset_id": self.dataset.id}
+        )
+        columns = {c["name"]: c for c in facts["columns"]}
+        self.assertEqual(facts["rows_with_missing"], 2)
+        self.assertAlmostEqual(facts["rows_with_missing_percent"], 200 / 3)
+        self.assertEqual(columns["x"]["missing"], 1)
+        self.assertAlmostEqual(columns["x"]["missing_percent"], 100 / 3)
+        self.assertEqual(columns["x"]["statistics"]["mean"], 2)
+        self.assertEqual(columns["x"]["statistics"]["median"], 2)
+        self.assertEqual(columns["x"]["statistics"]["count"], 2)
+        self.assertNotIn("statistics", columns["s"])
+        self.assertEqual(facts["sha256"], self.dataset.sha256)
+
+    def test_author_missing_code_and_invalid_code_are_not_zero(self):
+        dataset = self.service.datasets.add(self.project.id, "codes.csv", b"x\n1\n-99\n3\n")
+        metadata = self.service.metadata(dataset.id).data.document.model_dump()
+        metadata["columns"][0]["missing_codes"] = ["-99"]
+        self.service.save_metadata(dataset.id, {"document": metadata, "confirm": True})
+        assistant = Assistant(self.service)
+        facts = assistant.dataset_facts(self.project.id, {"dataset_id": dataset.id})
+        self.assertEqual(facts["rows_with_missing"], 1)
+        self.assertEqual(facts["columns"][0]["additional_missing"], 1)
+        self.assertEqual(facts["columns"][0]["statistics"]["mean"], 2)
+        self.assertEqual(facts["metadata_state"], "confirmed")
+        metadata["columns"][0]["missing_codes"] = ["invalid"]
+        self.service.save_metadata(dataset.id, {"document": metadata, "confirm": False})
+        unknown = assistant.dataset_facts(self.project.id, {"dataset_id": dataset.id})
+        self.assertIsNone(unknown["rows_with_missing"])
+        self.assertIsNone(unknown["columns"][0]["missing"])
+        self.assertIsNone(unknown["columns"][0]["missing_percent"])
+        self.assertTrue(unknown["columns"][0]["error"])
+
+    def test_facts_reject_foreign_or_missing_selection_without_calculation(self):
+        from unittest.mock import patch
+
+        foreign = self.store.create("Other")
+        dataset = self.service.datasets.add(foreign.id, "private.csv", b"secret\n100\n")
+        with patch.object(self.service.statistics_store, "calculate") as calculate:
+            assistant = Assistant(self.service)
+            self.assertEqual(assistant.dataset_facts(self.project.id, {})["status"], "not_selected")
+            facts = assistant.dataset_facts(self.project.id, {"dataset_id": dataset.id})
+            self.assertEqual(facts["status"], "unavailable")
+            self.assertNotIn("secret", json.dumps(facts))
+            calculate.assert_not_called()
+
+    def test_facts_report_damaged_source_instead_of_statistics(self):
+        path = self.service.datasets.files_root / self.dataset.stored_path
+        path.write_bytes(b"x,s\n999,changed\n")
+        facts = Assistant(self.service).dataset_facts(
+            self.project.id, {"dataset_id": self.dataset.id}
+        )
+        self.assertEqual(facts["status"], "unavailable")
+        self.assertNotIn("columns", facts)
+        self.assertIn("пошкоджений", facts["message"])
+
+    def test_eda_and_preparation_send_parseable_facts_without_table_rows(self):
+        for block in ("eda", "preparation"):
+            self.fake([text_reply("У x є один пропуск.")])
+            self.service.assistant_ask(
+                self.project.id,
+                {
+                    "block": block,
+                    "mode": "advise",
+                    "question": "Які пропуски?",
+                    "page": {"dataset_id": self.dataset.id},
+                },
+            )
+            instructions = self.requests[0]["instructions"]
+            context = json.loads(instructions.split("Контекст проєкту (JSON):\n")[1])
+            self.assertEqual(context["dataset_facts"]["rows_with_missing"], 2)
+            self.assertNotIn('"top"', json.dumps(context["dataset_facts"]))
+            self.assertNotIn(
+                "dataset_facts", Assistant(self.service).context(self.project.id, "model")
+            )
+
+    def test_large_context_stays_valid_and_reports_omissions(self):
+        context = {
+            "project": {"name": "Test"},
+            "dataset_facts": {
+                "row_count": 100,
+                "columns": [{"name": "field" + str(i), "mean": i} for i in range(100)],
+            },
+        }
+        packed = _context_json(context, 600)
+        self.assertLessEqual(len(packed), 600)
+        decoded = json.loads(packed)
+        self.assertEqual(decoded["dataset_facts"]["row_count"], 100)
+        self.assertEqual(
+            len(decoded["dataset_facts"]["columns"])
+            + decoded["omitted_items"]["dataset_facts.columns"],
+            100,
+        )
+        self.assertEqual(len(context["dataset_facts"]["columns"]), 100)

@@ -17,6 +17,7 @@ from .assistant_tools import TOOLS, run_tool
 from .contracts import Failure
 from .openai_client import AiError, function_calls, output_text
 from .projects import ProjectStore
+from .statistics import StatisticsError
 from .storage import connect
 
 Mode = Literal["advise", "execute", "explain"]
@@ -110,9 +111,120 @@ def _compact(value, limit: int = 3000) -> str:
     return text if len(text) <= limit else text[:limit] + " …[скорочено]"
 
 
+def _context_json(value: dict, limit: int = 12000) -> str:
+    """Keep valid JSON and explicitly mark omitted list items within the prompt budget."""
+    document = json.loads(json.dumps(value, ensure_ascii=False, default=str))
+    omitted: dict[str, int] = {}
+
+    def lists(node, path=""):
+        found = []
+        if isinstance(node, dict):
+            for key, child in node.items():
+                found += lists(child, f"{path}.{key}" if path else key)
+        elif isinstance(node, list) and node:
+            found.append((path, node))
+        return found
+
+    while True:
+        text = json.dumps(document, ensure_ascii=False, separators=(",", ":"))
+        if len(text) <= limit:
+            return text
+        candidates = lists(document)
+        if not candidates:
+            return text  # bounded scalar fields; never cut JSON or manufacture missing facts
+        path, items = max(candidates, key=lambda item: len(json.dumps(item[1])))
+        items.pop()
+        omitted[path] = omitted.get(path, 0) + 1
+        document["omitted_items"] = omitted
+
+
 class Assistant:
     def __init__(self, service):
         self.service = service
+
+    def dataset_facts(self, project_id: str, page: dict) -> dict:
+        """Reuse audited statistics, including author missing codes; never send table rows."""
+        dataset_id = page.get("dataset_id")
+        if not dataset_id:
+            return {"status": "not_selected", "message": "Набір даних не обрано."}
+        found = self.service.dataset(dataset_id)
+        if isinstance(found, Failure) or str(found.data.project_id) != project_id:
+            return {"status": "unavailable", "message": "Набір недоступний у цьому проєкті."}
+        try:
+            described = self.service.statistics_store.calculate(
+                project_id, dataset_id, "descriptive"
+            )
+            missing = self.service.statistics_store.calculate(project_id, dataset_id, "missing")
+        except StatisticsError as error:
+            return {"status": "unavailable", "message": str(error)}
+        if any(
+            described[key] != missing[key]
+            for key in ("sha256", "metadata_updated_at", "metadata_state")
+        ):
+            return {
+                "status": "unavailable",
+                "message": "Дані або метадані змінилися. Повторіть запит.",
+            }
+        summaries = {c["name"]: c for c in described["columns"]}
+        ordered = sorted(
+            missing["columns"],
+            key=lambda c: (
+                -(c["missing_percent"] if c["missing_percent"] is not None else -1),
+                c["role"] != "target",
+            ),
+        )
+        columns = []
+        numeric_count = 0
+        for column in ordered[:40]:
+            item = {
+                key: column[key]
+                for key in (
+                    "name",
+                    "kind",
+                    "role",
+                    "base_missing",
+                    "additional_missing",
+                    "missing",
+                    "missing_percent",
+                    "invalid_infinite",
+                    "error",
+                    "reason",
+                )
+            }
+            summary = summaries[column["name"]]["statistics"]
+            if column["kind"] == "number" and summary is not None and numeric_count < 10:
+                item["statistics"] = {
+                    key: summary.get(key)
+                    for key in (
+                        "count",
+                        "mean",
+                        "std",
+                        "min",
+                        "median",
+                        "max",
+                        "empty_reason",
+                        "std_reason",
+                    )
+                }
+                numeric_count += 1
+            columns.append(item)
+        return {
+            "status": "available",
+            "dataset_id": dataset_id,
+            "sha256": missing["sha256"],
+            "row_count": missing["row_count"],
+            "metadata_state": missing["metadata_state"],
+            "metadata_updated_at": missing["metadata_updated_at"],
+            "warnings": missing["warnings"],
+            "reason": missing["reason"],
+            "method": {"statistics": described["method"], "missing": missing["method"]},
+            "rows_with_missing": missing["rows_with_missing"],
+            "rows_with_missing_percent": missing["rows_with_missing_percent"],
+            "fields_total": len(ordered),
+            "fields_omitted": max(0, len(ordered) - len(columns)),
+            "numeric_summaries_included": numeric_count,
+            "columns": columns,
+        }
 
     def page_context(self, project_id: str, block: str, page: dict) -> dict:
         """What the user sees now: block, selected dataset with its fields, chart, model."""
@@ -154,6 +266,8 @@ class Assistant:
             },  # fmt: skip
             "Поточна сторінка": self.page_context(project_id, block, page or {}),
         }
+        if block in ("eda", "preparation"):
+            context["dataset_facts"] = self.dataset_facts(project_id, page or {})
         datasets = self.service.list_datasets(project_id)
         if not isinstance(datasets, Failure):
             context["datasets"] = [
@@ -235,7 +349,7 @@ class Assistant:
             f"{RULES}\n\nДія: {MODES[mode]}. Блок: {BLOCKS[block]}.\n\n"
             f"Інструкція типу проєкту:\n{instruction.text[:3000]}\n\n"
             f"Правила бази знань:\n{rules}\n\n"
-            f"Контекст проєкту (JSON):\n{_compact(self.context(project_id, block, page), 5000)}"
+            f"Контекст проєкту (JSON):\n{_context_json(self.context(project_id, block, page))}"
         )
         client = self.service.openai
         config = self.service.ai_settings.get()
