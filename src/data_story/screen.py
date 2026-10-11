@@ -73,6 +73,8 @@ EVENT_TITLES = {
     "preparation.previewed": ("Перегляд підготовки", "methods"),
     "preparation.saved": ("Збережено план підготовки", "check"),
     "preparation.applied": ("Створено підготовлений набір", "methods"),
+    "summary.previewed": ("Перегляд зведення DuckDB", "table"),
+    "summary.created": ("Створено набір-зведення DuckDB", "table"),
     "training.prepared": ("Підготовлено вибірки для регресії", "methods"),
     "model.trained": ("Навчено лінійну регресію", "regression"),
     "model.checked": ("Побудовано графік перевірки моделі", "check"),
@@ -433,7 +435,7 @@ def projects_screen(
             trail.append(("Метадані", None))
     if active and view == "eda":
         trail.append(("Оглядовий аналіз", None))
-    if active and view in ("preparation", "training"):
+    if active and view in ("preparation", "training", "combine"):
         trail.append(("Підготовка даних", None))
     if active and view == "model":
         trail.append(("Модель", None))
@@ -441,7 +443,7 @@ def projects_screen(
         trail.append(("Перевірка моделі", None))
     current = (
         "preparation"
-        if view == "training"
+        if view in ("training", "combine")
         else view
         if view in ("eda", "preparation", "model", "validation", "report")
         else "data"
@@ -479,6 +481,10 @@ def projects_screen(
             from .training_screen import training_screen
 
             training_screen(service, active, dataset_id)
+        elif active and view == "combine":
+            from .combine_screen import combine_screen
+
+            combine_screen(service, active, dataset_id)
         elif active and view == "preparation":
             from .preparation_screen import preparation_screen
 
@@ -935,6 +941,8 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
         f"кодування {source.get('encoding', '?')}",
         f"роздільник: {delimiter.get(source.get('delimiter', ''), source.get('delimiter', '?'))}",
     ]
+    if source.get("summary_recipe"):
+        details.append("зведення DuckDB · джерела збережено")
     if source.get("prepared_from"):
         details.append("підготовлений набір · оригінал збережено")
         ui.label(
@@ -951,6 +959,9 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
         else:
             details.append("копія набору з іншого проєкту")
     page_header("Набір даних · " + active.name, "data", data.name, " · ".join(details))
+    if source.get("summary_recipe"):
+        with ui.expansion("Як отримано: SQL, складений сервісом").classes("w-full"):
+            ui.code(str(source.get("summary_sql", "")), language="sql").classes("w-full")
     button(
         "Оглядовий аналіз",
         partial(ui.navigate.to, eda_link(str(active.id), "statistics", dataset_id)),

@@ -54,6 +54,11 @@ def preparation_screen(
         partial(ui.navigate.to, f"/?project={project_id}&dataset={selected}&view=training"),
         "next",
     )
+    button(
+        "Зведення та з'єднання (DuckDB)",
+        partial(ui.navigate.to, f"/?project={project_id}&dataset={selected}&view=combine"),
+        "table",
+    )
     metadata = service.metadata(selected)
     if isinstance(metadata, Failure):
         error_line(metadata)

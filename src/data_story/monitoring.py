@@ -185,11 +185,12 @@ class Monitor:
         try:
             version = importlib.metadata.version("duckdb")
         except importlib.metadata.PackageNotFoundError:
-            return _row("duckdb", "DuckDB", NOT_IMPLEMENTED,
-                        "Не встановлено й не використовується: для поточного обсягу вистачає "
-                        "pandas і SQLite (D-65). Файлів DuckDB немає.")  # fmt: skip
-        return _row("duckdb", "DuckDB", WARNING,
-                    f"Пакет {version} встановлено, але сервіс його не використовує.")  # fmt: skip
+            return _row("duckdb", "DuckDB", ERROR,
+                        "Не встановлено: зведення й з'єднання наборів недоступні. "
+                        "Запустіть Setup.cmd.")  # fmt: skip
+        return _row("duckdb", "DuckDB", OK,
+                    f"Пакет {version}: зведення й з'єднання наборів у пам'яті, "
+                    "SQL складає сервіс (D-92).")  # fmt: skip
 
     def matrices(self) -> dict:
         """Saved train/test matrices exist and match their SHA-256; models link to them."""

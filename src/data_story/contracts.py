@@ -14,6 +14,7 @@ from pydantic import (
 )
 
 from .chart_configuration import ChartOptions, Theme
+from .combine import Recipe
 from .configuration import INSTRUCTION_LIMIT
 from .metadata import MetadataDocument
 from .preparation import MissingRule
@@ -572,3 +573,9 @@ class ReportRevision(StrictModel):
 
 class ReportSave(ReportRevision):
     markdown: Annotated[str, Field(strict=True, min_length=1, max_length=100000)]
+
+
+class SummarySave(StrictModel):
+    recipe: Recipe
+    preview_token: str = Field(pattern=r"^[a-f0-9]{64}$")
+    name: Annotated[str, Field(max_length=160)] | None = None

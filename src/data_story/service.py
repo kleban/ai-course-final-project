@@ -22,6 +22,7 @@ from .charts import (
     missing_svg,
     scatter_svg,
 )
+from .combine import Recipe, SummaryError, SummaryStore
 from .configuration import InstructionStore
 from .contracts import (
     AssistantQuery,
@@ -71,6 +72,7 @@ from .contracts import (
     StatisticsQuery,
     StatisticsRow,
     Success,
+    SummarySave,
     TrainingQuery,
 )
 from .dataset_copy import DatasetCopier
@@ -138,6 +140,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         KnowledgeError,
         AiError,
         ReportError,
+        SummaryError,
     ) as error:
         return Failure(
             error=ErrorInfo(
@@ -185,6 +188,7 @@ class ProjectService:
         self.training_store = TrainingStore(self.datasets)
         self.model_store = ModelStore(self.training_store)
         self.knowledge = KnowledgeStore(store.database)
+        self.summaries = SummaryStore(self.datasets)
         self.ai_settings = AiSettingsStore(store.database)
         self.openai = OpenAIClient(store.database, self.ai_settings)
         self.reports = ReportStore(self)
@@ -254,6 +258,33 @@ class ProjectService:
                 kind,
             )
         )
+
+    def summary_fields(self, project_id: str, dataset_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.summaries.fields(
+                str(validate_input(ProjectId, {"id": project_id}).id),
+                str(validate_input(ProjectId, {"id": dataset_id}).id),
+            )
+        )
+
+    def summary_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        return execute(
+            lambda: self.summaries.preview(
+                str(validate_input(ProjectId, {"id": project_id}).id), validate_input(Recipe, raw)
+            )
+        )
+
+    def summary_create(self, project_id: str, raw: object) -> Success[DatasetView] | Failure:
+        def action() -> DatasetView:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(SummarySave, raw)
+            return DatasetView.from_dataset(
+                self.summaries.create(
+                    validated, request.recipe, request.preview_token, request.name
+                )
+            )
+
+        return execute(action)
 
     def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action() -> dict:

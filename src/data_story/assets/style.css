@@ -509,3 +509,14 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .report-files a.btn { text-decoration:none; }
 .report-figure { width:100%; max-width:520px; margin:4px 0 12px; }
 @media (max-width:700px) { .report-frame { height:560px; } }
+
+/* Joins and summaries (DuckDB): step controls and a compact result table. */
+.combine-field { flex:1 1 220px; min-width:0; max-width:360px; }
+.combine-op { flex:0 1 200px; min-width:0; }
+.combine-table { width:100%; overflow-x:auto; border-top:1px solid var(--axis); }
+.combine-table table { border-collapse:collapse; width:100%; font-size:.9em; }
+.combine-table th { text-align:left; font-weight:600; color:var(--ink2); padding:6px 8px; border-bottom:1px solid var(--grid); white-space:nowrap; }
+.combine-table td { padding:5px 8px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; white-space:nowrap; }
+@media (max-width:700px) { .combine-field, .combine-op { flex-basis:100%; max-width:100%; } }
+.combine-result { width:100%; }
+.combine-table td { text-align:left; }

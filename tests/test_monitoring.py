@@ -36,7 +36,7 @@ class MonitoringTests(unittest.TestCase):
         self.assertEqual(rows["assets"]["state"], "ok")
         self.assertEqual(rows["knowledge"]["state"], "warning" if embeddings.status() else "ok")
         self.assertEqual(rows["openai_access"]["state"], "not_configured")
-        self.assertIn(rows["duckdb"]["state"], ("not_implemented", "warning"))
+        self.assertIn(rows["duckdb"]["state"], ("ok", "error"))
         self.assertIn("МБ", rows["storage"]["detail"])
         with connect(self.database) as connection:
             payload = json.loads(

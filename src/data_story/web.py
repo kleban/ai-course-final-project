@@ -10,6 +10,7 @@ from nicegui import app, ui
 from .ai_settings import AiConfiguration
 from .chart_configuration import ChartConfiguration
 from .chart_screen import chart_settings_screen
+from .combine import Recipe
 from .config import Settings
 from .contracts import (
     HTTP_STATUS,
@@ -53,6 +54,7 @@ from .contracts import (
     StatisticsPage,
     StatisticsQuery,
     Success,
+    SummarySave,
     TrainingQuery,
 )
 from .datasets import MAX_BYTES
@@ -117,6 +119,21 @@ def router(service: ProjectService) -> APIRouter:
             # Inline preview of the self-contained HTML (opened in the app and in a new tab).
             return FileResponse(result.data, media_type="text/html; charset=utf-8")
         return FileResponse(result.data, filename=result.data.name)
+
+    @api.get(
+        "/projects/{project_id}/summaries/fields/{dataset_id}",
+        response_model=Success[list[dict]] | Failure,
+    )
+    def summary_fields(project_id: str, dataset_id: str):
+        return response(service.summary_fields(project_id, dataset_id))
+
+    @api.post("/projects/{project_id}/summaries/preview", response_model=Success[dict] | Failure)
+    def summary_preview(project_id: str, query: Recipe):
+        return response(service.summary_preview(project_id, query.model_dump(mode="json")))
+
+    @api.post("/projects/{project_id}/summaries", response_model=Success[DatasetView] | Failure)
+    def summary_create(project_id: str, query: SummarySave):
+        return response(service.summary_create(project_id, query.model_dump(mode="json")))
 
     @api.post("/projects/{project_id}/preparation/preview", response_model=Success[dict] | Failure)
     def preparation_preview(project_id: str, query: PreparationQuery):
