@@ -25,6 +25,7 @@ INSTALL = (ROOT / CONFIG["installation"]).resolve()
 if not INSTALL.is_relative_to(ROOT):
     raise RuntimeError("Модель embeddings має бути всередині проєкту.")
 BATCH = 16
+RETRY_SECONDS = 120
 LOG = logging.getLogger(__name__)
 
 
@@ -57,11 +58,18 @@ class Embedder:
     """L2-normalised sentence vectors: the model's pooled output, else CLS or mean pooling."""
 
     def __init__(self) -> None:
-        from onnxruntime import InferenceSession, SessionOptions
+        from onnxruntime import GraphOptimizationLevel, InferenceSession, SessionOptions
         from tokenizers import Tokenizer
 
         options = SessionOptions()
         options.log_severity_level = 3
+        # Memory-lean loading (history 095): the FP32 model is 2.3 GB, and full graph
+        # optimisation, weight pre-packing and the memory arena copied weights, so the server
+        # process hit "bad allocation". Basic optimisation keeps the results the same.
+        options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_BASIC
+        options.enable_cpu_mem_arena = False
+        options.enable_mem_pattern = False
+        options.add_session_config_entry("session.disable_prepacking", "1")
         self.session = InferenceSession(
             str(_path("onnx/model.onnx")), options, providers=["CPUExecutionProvider"]
         )
@@ -117,7 +125,9 @@ _state: dict = {}
 def embedder() -> Embedder | None:
     """Shared embedder for the process; None (with the reason in ``status()``) if unavailable."""
     with _lock:
-        if "embedder" in _state:
+        if "embedder" in _state and (
+            _state["embedder"] is not None or time.monotonic() - _state["at"] < RETRY_SECONDS
+        ):
             return _state["embedder"]
         reason = missing()
         instance = None
@@ -127,7 +137,8 @@ def embedder() -> Embedder | None:
             except Exception as error:  # a damaged model file, an incompatible runtime, no memory
                 reason = failure_reason(error)
                 LOG.exception("Embeddings model %s failed to load", MODEL)
-        _state.update(embedder=instance, reason=reason)
+        # A failure (e.g. temporarily not enough memory) is retried after RETRY_SECONDS.
+        _state.update(embedder=instance, reason=reason, at=time.monotonic())
         return instance
 
 
