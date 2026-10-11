@@ -120,6 +120,18 @@ def router(service: ProjectService) -> APIRouter:
     def reset_ai_configuration():
         return response(service.reset_ai_configuration())
 
+    @api.post("/configuration/ai/check", response_model=Success[list[dict]] | Failure)
+    def ai_check_access():
+        return response(service.ai_check_access())
+
+    @api.post("/configuration/ai/test", response_model=Success[dict] | Failure)
+    def ai_test_request():
+        return response(service.ai_test_request())
+
+    @api.get("/configuration/ai/calls", response_model=Success[dict] | Failure)
+    def ai_calls():
+        return response(service.ai_calls())
+
     @api.get("/knowledge/documents", response_model=Success[list[dict]] | Failure)
     def knowledge_documents():
         return response(service.knowledge_documents())

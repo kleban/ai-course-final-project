@@ -59,6 +59,12 @@ with sync_playwright() as pw:
     page.get_by_text("Ключ не надіслано й не збережено", exact=False).wait_for()
     ok("fake field cleared", field.input_value() == "")
 
+    if "Немає файла .env" in state or "не вписано" in state:
+        page.get_by_role("button", name="Пробний запит").click()
+        page.get_by_text("Ключ OpenAI не знайдено у файлі .env", exact=False).first.wait_for()
+        ok("missing key explained, nothing sent", True)
+        page.get_by_text("eda_advice", exact=False).first.wait_for()
+        ok("failed call in AI log", page.get_by_text("помилок: 1", exact=False).count() == 1)
     page.locator('[data-task="model_advice"]').click()
     page.get_by_role("option", name="gpt-6-luna", exact=False).click()
     page.get_by_role("button", name="Зберегти").click()

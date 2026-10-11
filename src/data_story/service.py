@@ -73,6 +73,7 @@ from .knowledge import KnowledgeError, KnowledgeStore
 from .metadata import MetadataError, MetadataStore, issues
 from .model import ModelError, ModelNotFound
 from .model_store import ModelStore
+from .openai_client import AiError, OpenAIClient
 from .preparation import PreparationError
 from .preparation_store import PreparationStore
 from .prepared_datasets import PreparedDatasets
@@ -128,6 +129,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         PreparationError,
         ModelError,
         KnowledgeError,
+        AiError,
     ) as error:
         return Failure(
             error=ErrorInfo(
@@ -176,6 +178,7 @@ class ProjectService:
         self.model_store = ModelStore(self.training_store)
         self.knowledge = KnowledgeStore(store.database)
         self.ai_settings = AiSettingsStore(store.database)
+        self.openai = OpenAIClient(store.database, self.ai_settings)
 
     def preparation_preview(self, project_id: str, raw: object) -> Success[dict] | Failure:
         def action() -> dict:
@@ -285,6 +288,24 @@ class ProjectService:
 
     def reset_ai_configuration(self) -> Success[dict] | Failure:
         return execute(lambda: self.ai_settings.reset().model_dump())
+
+    def ai_check_access(self) -> Success[list[dict]] | Failure:
+        """Free check: are the configured OpenAI models reachable with the key from .env."""
+        return execute(self.openai.check_models)
+
+    def ai_test_request(self) -> Success[dict] | Failure:
+        """One tiny paid request, only on an explicit click, to prove the whole path works."""
+        return execute(
+            lambda: self.openai.respond(
+                "eda_advice",
+                "Відповідай українською одним коротким реченням.",
+                "Підтверди, що з'єднання з Data Story працює.",
+                max_output_tokens=256,
+            )
+        )
+
+    def ai_calls(self) -> Success[dict] | Failure:
+        return execute(lambda: {"calls": self.openai.calls(), "totals": self.openai.totals()})
 
     def knowledge_documents(self) -> Success[list[dict]] | Failure:
         return execute(self.knowledge.documents)

@@ -1,6 +1,6 @@
 """Settings → AI models: OpenAI model per pipeline task, limits, key state from .env."""
 
-from nicegui import ui
+from nicegui import run, ui
 
 from .contracts import Failure
 from .model_screen import panel
@@ -73,6 +73,85 @@ def ai_settings_screen(service: ProjectService) -> None:
                     "Ліміти зупиняють відповідь або агента зі зрозумілим станом; грошовий облік "
                     "не ведемо, лише токени."
                 ).classes("model-note")
+        with ui.element("div").classes("model-grid model-grid-main"):
+            with panel("Перевірка з'єднання"):
+                ui.label(
+                    "«Перевірити доступ» лише питає OpenAI, чи доступні обрані моделі, без "
+                    "генерації тексту. «Пробний запит» — один короткий платний запит "
+                    "(до 256 вихідних токенів)."
+                ).classes("model-note")
+                check_out = ui.column().classes("w-full")
+
+                async def check() -> None:
+                    check_out.clear()
+                    with check_out:
+                        ui.label("Перевіряємо…").classes("model-note")
+                    result = await run.io_bound(service.ai_check_access)
+                    check_out.clear()
+                    with check_out:
+                        if isinstance(result, Failure):
+                            error_line(result)
+                        else:
+                            for row in result.data:
+                                ui.label(f"{row['model']}: {row['message']}").classes(
+                                    "stat-context" if row["available"] else "error-message"
+                                )
+                    calls.refresh()
+
+                async def test() -> None:
+                    check_out.clear()
+                    with check_out:
+                        ui.label("Надсилаємо пробний запит…").classes("model-note")
+                    result = await run.io_bound(service.ai_test_request)
+                    check_out.clear()
+                    with check_out:
+                        if isinstance(result, Failure):
+                            error_line(result)
+                        else:
+                            usage = result.data["usage"]
+                            ui.label(result.data["text"] or "(порожня відповідь)").classes(
+                                "model-explain"
+                            )
+                            ui.label(
+                                f"{result.data['model']} · токени: "
+                                f"{usage['total_tokens'] if usage['total_tokens'] is not None else 'невідомо'}"
+                            ).classes("model-note")
+                    calls.refresh()
+
+                with ui.row().classes("gap-2"):
+                    button("Перевірити доступ", check, "check")
+                    button("Пробний запит", test, "spark")
+            with panel("Журнал викликів AI"):
+
+                @ui.refreshable
+                def calls() -> None:
+                    response = service.ai_calls()
+                    if isinstance(response, Failure):
+                        error_line(response)
+                        return
+                    totals = response.data["totals"]
+                    ui.label(
+                        f"Викликів: {totals['calls']} · помилок: {totals['errors']} · "
+                        f"відомих токенів: {totals['total_tokens']} "
+                        f"(вхід {totals['input_tokens']}, вихід {totals['output_tokens']}) · "
+                        f"без даних про токени: {totals['unknown_usage']}"
+                    ).classes("model-note")
+                    if not response.data["calls"]:
+                        ui.label("Викликів ще не було.").classes("model-note")
+                    for call in response.data["calls"][:8]:
+                        usage = call.get("usage") or {}
+                        tokens = usage.get("total_tokens")
+                        line = (
+                            f"{call['started_at'][:19].replace('T', ' ')} UTC · {call['task']} · "
+                            f"{call['model']} · "
+                            + ("успіх" if call["status"] == "success" else "помилка")
+                            + (f" · {tokens} ток." if tokens is not None else "")
+                        )
+                        ui.label(line).classes("model-note mono-wrap")
+                        if call.get("error"):
+                            ui.label(call["error"]).classes("error-message")
+
+                calls()
         with ui.element("div").classes("model-grid model-grid-three ai-stages"):
             for stage in data["stages"]:
                 with panel(stage):
