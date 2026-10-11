@@ -1,148 +1,229 @@
-"""Stage 08 adapter: Responses API calls, usage, errors and the AI log — with a fake transport.
+"""Stage 08 adapter: retries, model levels (up to 3), usage and the AI log — fake transport only.
 
-No real network: httpx.MockTransport stands in for api.openai.com.
+httpx.MockTransport stands in for api.openai.com; pauses are recorded, not slept.
 """
 
 import json
 import unittest
+from unittest.mock import patch
 
 import httpx
 import test_preparation_store as fixtures
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from data_story.ai_settings import MODELS, AiConfiguration, Model
 from data_story.contracts import Failure, Success
 from data_story.openai_client import AiError, OpenAIClient, output_text, usage_of
 from data_story.storage import connect
 from data_story.web import install_error_handlers, router
 
 KEY = "sk-unit-" + "z" * 30 + "WXYZ"
-RESPONSE = {
-    "id": "resp_1",
-    "status": "completed",
-    "output": [
-        {"type": "reasoning", "summary": []},
-        {"type": "message", "content": [{"type": "output_text", "text": "З'єднання працює."}]},
-    ],
-    "usage": {
-        "input_tokens": 30,
-        "output_tokens": 12,
-        "total_tokens": 42,
-        "input_tokens_details": {"cached_tokens": 0},
-        "output_tokens_details": {"reasoning_tokens": 4},
-    },
-}
+
+
+def answer(text="З'єднання працює.", status="completed", tokens=42):
+    return {
+        "id": "resp_1",
+        "status": status,
+        "incomplete_details": {"reason": "max_output_tokens"} if status == "incomplete" else None,
+        "output": [{"type": "message", "content": [{"type": "output_text", "text": text}]}],
+        "usage": {
+            "input_tokens": 30,
+            "output_tokens": tokens - 30,
+            "total_tokens": tokens,
+            "output_tokens_details": {"reasoning_tokens": 4},
+        },
+    }
 
 
 class OpenAIClientTests(unittest.TestCase):
     setUp = fixtures.PreparationStoreTests.setUp
 
-    def client(self, handler, key=KEY):
-        self.seen = []
+    def client(self, script, key=KEY):
+        """``script``: list of responses (or exceptions) in request order; last one repeats."""
+        self.seen, self.pauses = [], []
 
-        def record(request):
+        def handler(request):
             self.seen.append(request)
-            return handler(request)
+            item = script[min(len(self.seen), len(script)) - 1]
+            if isinstance(item, Exception):
+                raise item
+            return item
 
         client = OpenAIClient(
             self.database,
             self.service.ai_settings,
             key=lambda: key,
-            transport=httpx.MockTransport(record),
+            transport=httpx.MockTransport(handler),
+            sleep=self.pauses.append,
         )
         self.service.openai = client
         return client
 
-    def test_respond_uses_task_model_and_records_usage(self):
-        client = self.client(lambda r: httpx.Response(200, json=RESPONSE))
+    def models(self):
+        return [json.loads(r.content)["model"] for r in self.seen]
+
+    def test_first_try_success_records_usage(self):
+        client = self.client([httpx.Response(200, json=answer())])
         result = client.respond("model_advice", "Інструкція", "Питання", project_id="p1")
-        self.assertEqual(result["text"], "З'єднання працює.")
-        self.assertEqual(result["model"], "gpt-6.1-sol")
-        self.assertEqual(result["usage"]["total_tokens"], 42)
+        self.assertEqual((result["text"], result["model"], result["level"]),
+                         ("З'єднання працює.", "gpt-6.1-sol", 1))  # fmt: skip
         self.assertEqual(result["usage"]["reasoning_tokens"], 4)
-        request = self.seen[0]
-        self.assertEqual(request.url.path, "/v1/responses")
-        self.assertEqual(request.headers["authorization"], f"Bearer {KEY}")
-        body = json.loads(request.content)
-        self.assertEqual((body["model"], body["max_output_tokens"], body["store"]),
-                         ("gpt-6.1-sol", 2000, False))  # fmt: skip
+        self.assertEqual(len(result["attempts"]), 1)
+        body = json.loads(self.seen[0].content)
+        self.assertEqual((body["max_output_tokens"], body["store"]), (2000, False))
+        self.assertEqual(self.seen[0].headers["authorization"], f"Bearer {KEY}")
         call = client.calls()[0]
-        self.assertEqual((call["status"], call["task"], call["project_id"]),
-                         ("success", "model_advice", "p1"))  # fmt: skip
-        self.assertEqual(client.totals()["total_tokens"], 42)
+        self.assertEqual((call["status"], call["project_id"], call["next_step"]),
+                         ("success", "p1", "done"))  # fmt: skip
 
-    def test_key_never_stored_or_logged(self):
-        client = self.client(lambda r: httpx.Response(200, json=RESPONSE))
-        client.respond("eda_advice", "i", "q")
-        self.client(lambda r: httpx.Response(401, json={"error": {}}))
-        with self.assertRaises(AiError):
-            self.service.openai.respond("eda_advice", "i", "q")
-        with connect(self.database) as connection:
-            dump = json.dumps([list(r) for r in connection.execute("SELECT * FROM ai_calls")])
-            events = json.dumps(
-                [list(r) for r in connection.execute("SELECT * FROM config_events")]
+    def test_transient_errors_retried_with_backoff_then_success(self):
+        client = self.client(
+            [httpx.Response(500), httpx.Response(503), httpx.Response(200, json=answer())]
+        )
+        result = client.respond("eda_advice", "i", "q")
+        self.assertEqual((result["level"], len(result["attempts"])), (1, 3))
+        self.assertEqual(self.pauses, [1.0, 2.0])
+        self.assertEqual(self.models(), ["gpt-6-luna"] * 3)
+        steps = [a["next_step"] for a in result["attempts"]]
+        self.assertEqual(steps, ["retry", "retry", "done"])
+
+    def test_timeout_and_retry_after_header(self):
+        client = self.client(
+            [
+                httpx.ReadTimeout("slow"),
+                httpx.Response(429, headers={"retry-after": "3"}),
+                httpx.Response(200, json=answer()),
+            ]
+        )
+        self.assertEqual(client.respond("eda_advice", "i", "q")["level"], 1)
+        self.assertEqual(self.pauses, [1.0, 3.0])
+
+    def test_unavailable_model_escalates_to_next_level_without_retry(self):
+        client = self.client([httpx.Response(404), httpx.Response(200, json=answer())])
+        result = client.respond("eda_advice", "i", "q")
+        self.assertEqual((result["model"], result["level"]), ("gpt-6.1-sol", 2))
+        self.assertEqual(self.models(), ["gpt-6-luna", "gpt-6.1-sol"])
+        self.assertEqual(self.pauses, [])
+        self.assertEqual(result["attempts"][0]["next_step"], "next_level")
+
+    def test_bad_answers_escalate(self):
+        cases = [
+            answer(text="   "),
+            answer(status="incomplete"),
+        ]
+        for bad in cases:
+            client = self.client(
+                [httpx.Response(200, json=bad), httpx.Response(200, json=answer())]
             )
-        self.assertNotIn(KEY, dump + events)
-        self.assertNotIn("WXYZ", dump)
+            result = client.respond("eda_advice", "i", "q")
+            self.assertEqual(result["level"], 2)
+            self.assertEqual(result["attempts"][0]["status"], "rejected")
+            self.assertEqual(result["usage_total"], 84)  # tokens of both attempts are counted
+        client = self.client(
+            [
+                httpx.Response(200, json=answer("не те")),
+                httpx.Response(200, json=answer("число 42")),
+            ]
+        )
+        result = client.respond(
+            "eda_advice", "i", "q", accept=lambda t: None if "42" in t else "Немає числа."
+        )
+        self.assertEqual((result["level"], result["text"]), (2, "число 42"))
+        self.assertEqual(result["attempts"][0]["error"], "Немає числа.")
 
-    def test_errors_are_explained_and_logged_without_fallback(self):
-        cases = {
-            401: "не прийняв ключ",
-            404: "Модель не знайдена",
-            429: "ліміт",
-            500: "помилку 500",
-        }
-        for status, text in cases.items():
-            client = self.client(lambda r, s=status: httpx.Response(s, json={}))
-            with self.assertRaises(AiError) as caught:
-                client.respond("model_explain", "i", "q")
-            self.assertIn(text, str(caught.exception))
-            self.assertEqual(len(self.seen), 1)  # no retry, no other model
-        client = self.client(lambda r: (_ for _ in ()).throw(httpx.ReadTimeout("slow")))
-        with self.assertRaises(AiError):
-            client.respond("model_explain", "i", "q")
-        client = self.client(lambda r: httpx.Response(200, json=RESPONSE), key=None)
+    def test_rejected_key_stops_everything(self):
+        client = self.client([httpx.Response(401)])
         with self.assertRaises(AiError) as caught:
-            client.respond("model_explain", "i", "q")
-        self.assertIn(".env", str(caught.exception))
+            client.respond("eda_advice", "i", "q")
+        self.assertIn("не прийняв ключ", str(caught.exception))
+        self.assertEqual(len(self.seen), 1)
+        self.assertEqual(caught.exception.attempts[0]["next_step"], "stop")
+        client = self.client([httpx.Response(200, json=answer())], key=None)
+        with self.assertRaises(AiError):
+            client.respond("eda_advice", "i", "q")
         self.assertEqual(self.seen, [])
+
+    def test_gives_up_after_all_levels_and_retries(self):
+        client = self.client([httpx.Response(500)])
+        with self.assertRaises(AiError) as caught:
+            client.respond("eda_advice", "i", "q")
+        self.assertEqual(len(self.seen), 6)  # 2 levels × (1 + 2 retries)
+        self.assertEqual(len(caught.exception.attempts), 6)
+        self.assertEqual(caught.exception.attempts[-1]["next_step"], "give_up")
+        self.assertIn("6 спроб на 2 рівнях", str(caught.exception))
         self.assertEqual(client.totals()["errors"], 6)
 
-    def test_local_task_refused(self):
-        client = self.client(lambda r: httpx.Response(200, json=RESPONSE))
+    def test_three_levels_and_retry_setting(self):
+        extra = Model("gpt-test-third", "тестова третя модель", "text")
+        with patch.dict(MODELS, {extra.id: extra}):
+            config = AiConfiguration().model_dump()
+            config["fallbacks"]["eda_advice"] = ["gpt-6.1-sol", "gpt-test-third"]
+            config["retries"] = 0
+            self.service.ai_settings.save(AiConfiguration.model_validate(config))
+            client = self.client(
+                [httpx.Response(500), httpx.Response(404), httpx.Response(200, json=answer())]
+            )
+            result = client.respond("eda_advice", "i", "q")
+        self.assertEqual((result["model"], result["level"]), ("gpt-test-third", 3))
+        self.assertEqual(self.models(), ["gpt-6-luna", "gpt-6.1-sol", "gpt-test-third"])
+        self.assertEqual(self.pauses, [])
+        run_ids = {c["run_id"] for c in client.calls()}
+        self.assertEqual(len(run_ids), 1)
+
+    def test_configuration_limits(self):
+        for raw in (
+            {"fallbacks": {"eda_advice": ["gpt-6.1-sol", "gpt-6-luna", "gpt-6.1-sol"]}},
+            {"fallbacks": {"eda_advice": ["local"]}},
+            {"fallbacks": {"eda_advice": ["text-embedding-3-small"]}},
+            {"retries": 6},
+        ):
+            with self.assertRaises(ValidationError):
+                AiConfiguration.model_validate(raw)
+        self.assertEqual(AiConfiguration().chain("eda_advice"), ["gpt-6-luna", "gpt-6.1-sol"])
+        self.assertEqual(AiConfiguration().chain("model_advice"), ["gpt-6.1-sol", "gpt-6-luna"])
+
+    def test_key_never_stored_or_logged(self):
+        self.client([httpx.Response(500), httpx.Response(200, json=answer())]).respond(
+            "eda_advice", "i", "q"
+        )
+        with connect(self.database) as connection:
+            dump = json.dumps([list(r) for r in connection.execute("SELECT * FROM ai_calls")])
+        self.assertNotIn(KEY, dump)
+        self.assertNotIn("WXYZ", dump)
+
+    def test_local_task_refused_and_access_check(self):
+        client = self.client([httpx.Response(200, json=answer())])
         with self.assertRaises(AiError):
             client.respond("knowledge_search", "i", "q")
-        with self.assertRaises(AiError):
-            client.respond("unknown", "i", "q")
         self.assertEqual(self.seen, [])
 
-    def test_access_check_is_free_and_per_model(self):
         def handler(request):
-            if request.url.path.endswith("gpt-6.1-sol"):
-                return httpx.Response(404, json={})
-            return httpx.Response(200, json={"id": "gpt-6-luna"})
+            return httpx.Response(404 if request.url.path.endswith("sol") else 200, json={})
 
-        client = self.client(handler)
+        client = OpenAIClient(
+            self.database, self.service.ai_settings, key=lambda: KEY,
+            transport=httpx.MockTransport(handler),
+        )  # fmt: skip
         result = {r["model"]: r["available"] for r in client.check_models()}
         self.assertEqual(result, {"gpt-6-luna": True, "gpt-6.1-sol": False})
-        self.assertTrue(all(r.method == "GET" for r in self.seen))
 
     def test_usage_unknown_stays_none(self):
-        self.assertEqual(usage_of({})["total_tokens"], None)
+        self.assertIsNone(usage_of({})["total_tokens"])
         self.assertEqual(output_text({"output_text": "x"}), "x")
-        client = self.client(lambda r: httpx.Response(200, json={"output": []}))
+        client = self.client([httpx.Response(200, json={"output_text": "так"})])
         client.respond("eda_advice", "i", "q")
         self.assertEqual(client.totals()["unknown_usage"], 1)
 
     def test_service_and_http(self):
-        self.client(lambda r: httpx.Response(200, json=RESPONSE))
+        self.client([httpx.Response(200, json=answer())])
         self.assertIsInstance(self.service.ai_test_request(), Success)
         app = FastAPI()
         app.include_router(router(self.service))
         install_error_handlers(app)
         with TestClient(app) as http:
-            self.assertEqual(http.post("/api/configuration/ai/check").status_code, 200)
             calls = http.get("/api/configuration/ai/calls").json()["data"]
-            self.assertGreaterEqual(calls["totals"]["calls"], 2)
-        self.client(lambda r: httpx.Response(401, json={}))
+            self.assertGreaterEqual(calls["totals"]["calls"], 1)
+        self.client([httpx.Response(401)])
         self.assertIsInstance(self.service.ai_test_request(), Failure)

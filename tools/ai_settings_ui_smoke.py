@@ -67,11 +67,17 @@ with sync_playwright() as pw:
         ok("failed call in AI log", page.get_by_text("помилок: 1", exact=False).count() == 1)
     page.locator('[data-task="model_advice"]').click()
     page.get_by_role("option", name="gpt-6-luna", exact=False).click()
+    ok("three levels per task", page.locator('[data-level="model_advice-3"]').count() == 1)
+    page.locator('[data-level="model_advice-2"]').click()
+    page.get_by_role("option", name="—", exact=True).click()
+    page.get_by_label("Повтори на одній моделі (тайм-аут, мережа, 429, 5xx)").fill("3")
     page.get_by_role("button", name="Зберегти").click()
     page.get_by_text("Налаштування збережено", exact=False).wait_for()
     with httpx.Client(base_url=BASE) as api:
         saved = api.get("/api/configuration/ai").json()["data"]
         ok("choice persisted", saved["configuration"]["models"]["model_advice"] == "gpt-6-luna")
+        ok("level 2 cleared", saved["configuration"]["fallbacks"]["model_advice"] == [])
+        ok("retries saved", saved["configuration"]["retries"] == 3)
         ok("api has no key value", FAKE not in str(saved))
     page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "ai-settings.png"), full_page=True)

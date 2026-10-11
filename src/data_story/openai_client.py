@@ -6,6 +6,7 @@ There is no silent fallback to another model and no automatic retry.
 """
 
 import json
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +25,25 @@ TEXT_LIMIT = 4000  # stored request/response text is cut and marked
 
 
 class AiError(RuntimeError):
-    """An OpenAI call could not be made or did not succeed; the message is for the user."""
+    """An OpenAI task could not be completed; the message is for the user."""
+
+    def __init__(self, message: str, attempts: list[dict] | None = None):
+        super().__init__(message)
+        self.attempts = attempts or []
+
+
+class Attempt(Exception):
+    """One failed attempt. ``kind`` decides what happens next:
+
+    - ``stop`` — no key or key rejected: nothing else can help, the task stops;
+    - ``transient`` — timeout, network, 429, 5xx: repeat the same model with a pause;
+    - ``next`` — model unavailable, bad request, empty or cut answer: go to the next level.
+    """
+
+    def __init__(self, kind: str, message: str, retry_after: float | None = None):
+        super().__init__(message)
+        self.kind = kind
+        self.retry_after = retry_after
 
 
 def _now() -> str:
@@ -71,26 +90,36 @@ def output_text(payload: dict) -> str:
     return "".join(parts)
 
 
+KINDS = {401: "stop", 403: "next", 404: "next", 400: "next", 408: "transient", 409: "transient",
+         429: "transient"}  # fmt: skip
+BACKOFF = (1.0, 2.0, 4.0, 8.0, 16.0)
+MAX_PAUSE = 20.0
+
 ERRORS = {
     401: "OpenAI не прийняв ключ (401). Перевірте OPENAI_API_KEY у файлі .env.",
     403: "Немає доступу до цієї моделі або дії (403).",
     404: "Модель не знайдена або недоступна для вашого облікового запису (404).",
-    429: "Перевищено ліміт запитів або квоту OpenAI (429). Спробуйте пізніше.",
+    429: "Перевищено ліміт запитів або квоту OpenAI (429).",
+    400: "OpenAI відхилив запит для цієї моделі (400).",
 }
 
 
 class OpenAIClient:
+    """Resolves a task with retries and model levels; every attempt is logged (D-79)."""
+
     def __init__(
         self,
         database: Path,
         settings: AiSettingsStore,
         key: Callable[[], str | None] | None = None,
         transport: httpx.BaseTransport | None = None,
+        sleep: Callable[[float], None] = time.sleep,
     ):
         self.database = ensure_schema(database)
         self.settings = settings
         self._key = key or (lambda: env_key(settings.env_file))
         self.transport = transport
+        self.sleep = sleep
 
     def _client(self, key: str) -> httpx.Client:
         return httpx.Client(
@@ -116,53 +145,54 @@ class OpenAIClient:
                 ),
             )
 
-    def _call(self, method: str, path: str, task: str, model: str, body: dict | None,
-              project_id: str | None) -> tuple[dict, dict]:  # fmt: skip
+    def _request(self, method: str, path: str, body: dict | None) -> tuple[int, dict]:
+        """One HTTP exchange; failures become ``Attempt`` with the right next step."""
         key = self._key()
-        entry: dict = {
+        if not key:
+            raise Attempt("stop", "Ключ OpenAI не знайдено у файлі .env (OPENAI_API_KEY).")
+        try:
+            with self._client(key) as client:
+                response = client.request(method, path, json=body)
+        except httpx.TimeoutException as error:
+            raise Attempt("transient", "OpenAI не відповів вчасно.") from error
+        except httpx.HTTPError as error:
+            raise Attempt("transient", "Немає з'єднання з OpenAI.") from error
+        status = response.status_code
+        if status >= 400:
+            retry_after = None
+            try:
+                retry_after = float(response.headers.get("retry-after", ""))
+            except ValueError:
+                pass
+            kind = KINDS.get(status, "transient" if status >= 500 else "next")
+            raise Attempt(
+                kind, ERRORS.get(status, f"OpenAI повернув помилку {status}."), retry_after
+            )
+        try:
+            return status, response.json()
+        except ValueError as error:
+            raise Attempt(
+                "transient", "OpenAI повернув відповідь, яку не вдалося прочитати."
+            ) from error
+
+    def _entry(self, run_id: str, task: str, model: str, level: int, attempt: int,
+               project_id: str | None, method: str, path: str, body: dict | None) -> dict:  # fmt: skip
+        return {
             "id": str(uuid4()),
+            "run_id": run_id,
             "started_at": _now(),
             "task": task,
             "model": model,
+            "level": level,
+            "attempt": attempt,
             "project_id": project_id,
-            "request": {
-                "method": method,
-                "path": path,
-                "body": _body(body),
-            },
+            "request": {"method": method, "path": path, "body": _body(body)},
         }
-        started = perf_counter()
-        try:
-            if not key:
-                raise AiError("Ключ OpenAI не знайдено у файлі .env (OPENAI_API_KEY).")
-            try:
-                with self._client(key) as client:
-                    response = client.request(method, path, json=body)
-            except httpx.TimeoutException as error:
-                raise AiError(
-                    "OpenAI не відповів вчасно. Перевірте мережу й спробуйте ще раз."
-                ) from error
-            except httpx.HTTPError as error:
-                raise AiError("Немає з'єднання з OpenAI. Перевірте мережу.") from error
-            entry["http_status"] = response.status_code
-            if response.status_code >= 400:
-                raise AiError(
-                    ERRORS.get(
-                        response.status_code, f"OpenAI повернув помилку {response.status_code}."
-                    )
-                )
-            try:
-                payload = response.json()
-            except ValueError as error:
-                raise AiError("OpenAI повернув відповідь, яку не вдалося прочитати.") from error
-        except AiError as error:
-            entry.update(
-                status="error", error=str(error), duration_ms=(perf_counter() - started) * 1000
-            )
-            self._log(entry)
-            raise
-        entry.update(status="success", duration_ms=(perf_counter() - started) * 1000)
-        return entry, payload
+
+    def _pause(self, attempt: int, retry_after: float | None) -> float:
+        pause = min(retry_after if retry_after is not None else BACKOFF[attempt - 1], MAX_PAUSE)
+        self.sleep(pause)
+        return pause
 
     def respond(
         self,
@@ -171,56 +201,118 @@ class OpenAIClient:
         text: str,
         project_id: str | None = None,
         max_output_tokens: int | None = None,
+        accept: Callable[[str], str | None] | None = None,
     ) -> dict:
-        """One explicit Responses API call with the model configured for the task."""
+        """Solve one task: up to 3 model levels, each with ``retries`` repeats on failures.
+
+        ``accept`` may reject a technically valid answer (returns the reason); the next level
+        then gets the task. Returns the answer and the full attempt history.
+        """
         if task not in TASKS:
             raise AiError("Невідома задача AI.")
         config = self.settings.get()
-        model = config.models[task]
-        if model == "local" or MODELS[model].kind != "text":
+        chain = [m for m in config.chain(task) if m != "local" and MODELS[m].kind == "text"]
+        if not chain:
             raise AiError("Для цієї задачі в налаштуваннях не обрано текстову модель OpenAI.")
-        body = {
-            "model": model,
-            "instructions": instructions,
-            "input": text,
-            "max_output_tokens": max_output_tokens or config.max_output_tokens,
-            "store": False,
-        }
-        entry, payload = self._call("POST", "/responses", task, model, body, project_id)
-        answer = output_text(payload)
-        entry.update(
-            usage=usage_of(payload),
-            response_id=payload.get("id"),
-            response_status=payload.get("status"),
-            incomplete=(payload.get("incomplete_details") or {}).get("reason"),
-            response={"text": _cut(answer)},
+        run_id = str(uuid4())
+        history: list[dict] = []
+        tokens = max_output_tokens or config.max_output_tokens
+        for level, model in enumerate(chain, 1):
+            body = {
+                "model": model,
+                "instructions": instructions,
+                "input": text,
+                "max_output_tokens": tokens,
+                "store": False,
+            }
+            for attempt in range(1, config.retries + 2):
+                entry = self._entry(run_id, task, model, level, attempt, project_id, "POST",
+                                    "/responses", body)  # fmt: skip
+                started = perf_counter()
+                try:
+                    status, payload = self._request("POST", "/responses", body)
+                    entry["http_status"] = status
+                    answer = output_text(payload)
+                    entry.update(
+                        usage=usage_of(payload),
+                        response_id=payload.get("id"),
+                        response_status=payload.get("status"),
+                        incomplete=(payload.get("incomplete_details") or {}).get("reason"),
+                        response={"text": _cut(answer)},
+                    )
+                    problem = None
+                    if payload.get("status") == "incomplete":
+                        problem = f"Відповідь обірвана ({entry['incomplete'] or 'incomplete'})."
+                    elif not answer.strip():
+                        problem = "Модель повернула порожню відповідь."
+                    elif accept is not None:
+                        problem = accept(answer)
+                    if problem:
+                        raise Attempt("next", problem)
+                except Attempt as failure:
+                    entry["duration_ms"] = (perf_counter() - started) * 1000
+                    entry.update(status="error" if "usage" not in entry else "rejected",
+                                 error=str(failure), kind=failure.kind)  # fmt: skip
+                    retry = failure.kind == "transient" and attempt <= config.retries
+                    entry["next_step"] = (
+                        "stop" if failure.kind == "stop"
+                        else "retry" if retry
+                        else "next_level" if level < len(chain)
+                        else "give_up"
+                    )  # fmt: skip
+                    if retry:
+                        entry["pause_s"] = self._pause(attempt, failure.retry_after)
+                    self._log(entry)
+                    history.append(_short(entry))
+                    if failure.kind == "stop":
+                        raise AiError(str(failure), history) from failure
+                    if retry:
+                        continue
+                    break
+                entry.update(status="success", duration_ms=(perf_counter() - started) * 1000,
+                             next_step="done")  # fmt: skip
+                self._log(entry)
+                history.append(_short(entry))
+                return {
+                    "run_id": run_id,
+                    "call_id": entry["id"],
+                    "model": model,
+                    "level": level,
+                    "text": answer,
+                    "usage": entry["usage"],
+                    "usage_total": _sum_usage(history),
+                    "status": payload.get("status"),
+                    "attempts": history,
+                }
+        raise AiError(
+            f"Задачу не вдалося виконати: {len(history)} спроб на {len(chain)} рівнях моделей. "
+            f"Остання причина: {history[-1]['error']}",
+            history,
         )
-        self._log(entry)
-        return {
-            "call_id": entry["id"],
-            "model": model,
-            "text": answer,
-            "usage": entry["usage"],
-            "status": payload.get("status"),
-            "incomplete": entry["incomplete"],
-        }
 
     def check_models(self) -> list[dict]:
         """Free access check: GET /models/{id} for each configured text model, no generation."""
+        config = self.settings.get()
         models = sorted(
-            {m for m in self.settings.get().models.values() if MODELS[m].kind == "text"}
+            {m for task in TASKS for m in config.chain(task) if MODELS[m].kind == "text"}
         )
+        run_id = str(uuid4())
         result = []
         for model in models:
+            entry = self._entry(run_id, "access_check", model, 1, 1, None, "GET",
+                                f"/models/{model}", None)  # fmt: skip
+            started = perf_counter()
             try:
-                entry, payload = self._call(
-                    "GET", f"/models/{model}", "access_check", model, None, None
+                status, payload = self._request("GET", f"/models/{model}", None)
+                entry.update(
+                    status="success", http_status=status, response={"id": payload.get("id")}
                 )
-                entry.update(response={"id": payload.get("id")}, usage=None)
-                self._log(entry)
                 result.append({"model": model, "available": True, "message": "Доступна"})
-            except AiError as error:
-                result.append({"model": model, "available": False, "message": str(error)})
+            except Attempt as failure:
+                entry.update(status="error", error=str(failure), kind=failure.kind)
+                result.append({"model": model, "available": False, "message": str(failure)})
+            entry["duration_ms"] = (perf_counter() - started) * 1000
+            self._log(entry)
         return result
 
     def calls(self, limit: int = 20) -> list[dict]:
@@ -231,16 +323,14 @@ class OpenAIClient:
         return [json.loads(r["document"]) for r in rows]
 
     def totals(self) -> dict:
-        """Known tokens and the number of calls with unknown usage (no money)."""
+        """Known tokens over all attempts and the number of answers with unknown usage."""
         calls = self.calls(limit=100000)
         known = [
-            c["usage"]
-            for c in calls
-            if c.get("usage") and c["usage"].get("total_tokens") is not None
+            c["usage"] for c in calls if (c.get("usage") or {}).get("total_tokens") is not None
         ]
         return {
             "calls": len(calls),
-            "errors": sum(c["status"] == "error" for c in calls),
+            "errors": sum(c["status"] != "success" for c in calls),
             "total_tokens": sum(u["total_tokens"] for u in known),
             "input_tokens": sum(u.get("input_tokens") or 0 for u in known),
             "output_tokens": sum(u.get("output_tokens") or 0 for u in known),
@@ -248,7 +338,19 @@ class OpenAIClient:
                 1
                 for c in calls
                 if c["task"] != "access_check"
-                and c["status"] == "success"
-                and not (c.get("usage") and c["usage"].get("total_tokens") is not None)
+                and "usage" in c
+                and (c.get("usage") or {}).get("total_tokens") is None
             ),
         }
+
+
+def _short(entry: dict) -> dict:
+    return {
+        key: entry.get(key)
+        for key in ("level", "model", "attempt", "status", "error", "next_step", "pause_s")
+    } | {"total_tokens": (entry.get("usage") or {}).get("total_tokens")}
+
+
+def _sum_usage(history: list[dict]) -> int | None:
+    known = [h["total_tokens"] for h in history if h["total_tokens"] is not None]
+    return sum(known) if known else None

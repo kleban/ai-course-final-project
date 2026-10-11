@@ -184,15 +184,32 @@ TASKS: dict[str, Task] = {
 }
 
 
+MAX_LEVELS = 3
+
+
+def default_fallbacks() -> dict[str, list[str]]:
+    """Level 2 for text tasks: the other text model (escalate luna → sol, back up sol → luna)."""
+    other = {"gpt-6-luna": "gpt-6.1-sol", "gpt-6.1-sol": "gpt-6-luna"}
+    return {k: [other[t.default]] if t.default in other else [] for k, t in TASKS.items()}
+
+
 class AiConfiguration(BaseModel):
+    """Level 1 model per task (``models``), up to two extra levels (``fallbacks``) and retries.
+
+    A level is tried with ``retries`` repeats on transient failures (timeout, network, 429,
+    5xx); an unavailable model, an empty or cut answer moves to the next level (D-79).
+    """
+
     model_config = ConfigDict(extra="forbid", strict=True)
     models: dict[str, str] = Field(default_factory=lambda: {k: t.default for k, t in TASKS.items()})
+    fallbacks: dict[str, list[str]] = Field(default_factory=default_fallbacks)
+    retries: Annotated[int, Field(ge=0, le=5)] = 2
     max_output_tokens: Annotated[int, Field(ge=256, le=32000)] = 2000
     max_agent_steps: Annotated[int, Field(ge=1, le=20)] = 6
 
     @model_validator(mode="after")
     def known(self) -> "AiConfiguration":
-        for key, model in self.models.items():
+        def check(key: str, model: str) -> None:
             if key not in TASKS:
                 raise ValueError(f"Невідома задача: {key}.")
             if model not in MODELS:
@@ -200,9 +217,28 @@ class AiConfiguration(BaseModel):
             allowed = {TASKS[key].kind, "local"}
             if MODELS[model].kind not in allowed:
                 raise ValueError(f"Модель {model} не підходить для задачі «{TASKS[key].title}».")
+
+        for key, model in self.models.items():
+            check(key, model)
+        for key, chain in self.fallbacks.items():
+            if len(chain) > MAX_LEVELS - 1:
+                raise ValueError(f"Не більше {MAX_LEVELS} рівнів моделей для задачі.")
+            for model in chain:
+                check(key, model)
+                if model == "local":
+                    raise ValueError("Запасний рівень має бути моделлю OpenAI.")
         for key, task in TASKS.items():  # new tasks get their default
             self.models.setdefault(key, task.default)
+            self.fallbacks.setdefault(key, default_fallbacks()[key])
         return self
+
+    def chain(self, task: str) -> list[str]:
+        """Distinct models in level order: level 1, then the configured fallbacks."""
+        result: list[str] = []
+        for model in [self.models[task], *self.fallbacks.get(task, [])]:
+            if model not in result:
+                result.append(model)
+        return result
 
 
 def key_status(env_file: Path = ENV_FILE) -> dict:

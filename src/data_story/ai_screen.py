@@ -47,6 +47,7 @@ def ai_settings_screen(service: ProjectService) -> None:
         config, key = data["configuration"], data["key"]
         models = {m["id"]: m for m in data["models"]}
         selects: dict[str, ui.select] = {}
+        fallback_selects: dict[str, list[ui.select]] = {}
         with ui.element("div").classes("model-grid model-top"):
             with panel("Ключ OpenAI"):
                 ui.label(
@@ -65,6 +66,13 @@ def ai_settings_screen(service: ProjectService) -> None:
                     min=256,
                     max=32000,
                     step=256,
+                ).props("outlined square")
+                retries = ui.number(
+                    "Повтори на одній моделі (тайм-аут, мережа, 429, 5xx)",
+                    value=config["retries"],
+                    min=0,
+                    max=5,
+                    step=1,
                 ).props("outlined square")
                 steps = ui.number(
                     "Максимум кроків агента", value=config["max_agent_steps"], min=1, max=20, step=1
@@ -108,13 +116,14 @@ def ai_settings_screen(service: ProjectService) -> None:
                         if isinstance(result, Failure):
                             error_line(result)
                         else:
-                            usage = result.data["usage"]
                             ui.label(result.data["text"] or "(порожня відповідь)").classes(
                                 "model-explain"
                             )
+                            total = result.data["usage_total"]
                             ui.label(
-                                f"{result.data['model']} · токени: "
-                                f"{usage['total_tokens'] if usage['total_tokens'] is not None else 'невідомо'}"
+                                f"{result.data['model']} (рівень {result.data['level']}) · "
+                                f"спроб: {len(result.data['attempts'])} · токени всіх спроб: "
+                                f"{total if total is not None else 'невідомо'}"
                             ).classes("model-note")
                     calls.refresh()
 
@@ -170,16 +179,39 @@ def ai_settings_screen(service: ProjectService) -> None:
                                 ui.select(
                                     allowed,
                                     value=config["models"][task["key"]],
-                                    label="Модель",
+                                    label="Рівень 1 · основна модель",
                                 )
                                 .props(f'outlined square dense data-task="{task["key"]}"')
                                 .classes("model-select")
                             )
+                            if task["kind"] == "text":
+                                spare = {
+                                    "": "—",
+                                    **{m: t for m, t in allowed.items() if m != "local"},
+                                }
+                                chain = config["fallbacks"].get(task["key"], [])
+                                fallback_selects[task["key"]] = [
+                                    ui.select(
+                                        spare,
+                                        value=chain[i] if i < len(chain) else "",
+                                        label=f"Рівень {i + 2} · якщо попередній не впорався",
+                                    )
+                                    .props(
+                                        f'outlined square dense data-level="{task["key"]}-{i + 2}"'
+                                    )
+                                    .classes("model-select")
+                                    for i in range(2)
+                                ]
         message = ui.label("").classes("model-note")
 
         def save() -> None:
             raw = {
                 "models": {key: select.value for key, select in selects.items()},
+                "fallbacks": {
+                    key: [select.value for select in levels if select.value]
+                    for key, levels in fallback_selects.items()
+                },
+                "retries": int(retries.value if retries.value is not None else -1),
                 "max_output_tokens": int(tokens.value or 0),
                 "max_agent_steps": int(steps.value or 0),
             }
@@ -198,6 +230,11 @@ def ai_settings_screen(service: ProjectService) -> None:
                 return
             for key, select in selects.items():
                 select.set_value(result.data["models"][key])
+            for key, levels in fallback_selects.items():
+                chain = result.data["fallbacks"].get(key, [])
+                for i, select in enumerate(levels):
+                    select.set_value(chain[i] if i < len(chain) else "")
+            retries.set_value(result.data["retries"])
             tokens.set_value(result.data["max_output_tokens"])
             steps.set_value(result.data["max_agent_steps"])
             message.set_text("Повернуто типові моделі й ліміти.")
