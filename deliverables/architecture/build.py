@@ -2,14 +2,14 @@ from html import escape as e
 
 W, H = 1600, 900
 parts = []
-def box(x, y, w, h, title, lines, cls="b", tcls="bt"):
+def box(x, y, w, h, title, lines, cls="b", tcls="bt", lcls="bl", pad=14):
     parts.append(f'<rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}"/>')
     ty = y + 26
     for t in title.split("\n"):
-        parts.append(f'<text class="{tcls}" x="{x+14}" y="{ty}">{e(t)}</text>'); ty += 19
+        parts.append(f'<text class="{tcls}" x="{x+pad}" y="{ty}">{e(t)}</text>'); ty += 19
     ty += 4
     for t in lines:
-        parts.append(f'<text class="bl" x="{x+14}" y="{ty}">{e(t)}</text>'); ty += 17
+        parts.append(f'<text class="{lcls}" x="{x+pad}" y="{ty}">{e(t)}</text>'); ty += 16
 
 def line(d, cls="ln", badge=None, bx=0, by=0):
     parts.append(f'<path class="{cls}" d="{d}" marker-start="url(#{"as" if "ai" not in cls else "aso"})" marker-end="url(#{"ae" if "ai" not in cls else "aeo"})"/>')
@@ -28,39 +28,40 @@ parts.append('<text class="srvl" x="338" y="62">Сервер Data Story · од�
 box(345, 80, 670, 90, "Інтерфейс і API", ["NiceGUI 3 (сторінки, WebSocket) + FastAPI (HTTP /api, JSON) на uvicorn"], "b core")
 box(345, 220, 670, 90, "Сервіс-оркестратор (ProjectService)", ["перевіряє вхідні дані (pydantic), викликає модулі, пише журнал подій;", "AI викликається лише явною дією користувача"], "b core")
 mods = [
- ("Дані і\nстатистика", ["pandas, NumPy", "CSV, метадані,", "пропуски"]),
+ ("Дані й\nстатистика", ["pandas, NumPy", "CSV, пропуски"]),
  ("Графіки", ["SVG сервісу,", "спільна тема,", "MathJax"]),
- ("Зведення", ["DuckDB 1.5", "SQL складає", "сервіс"]),
- ("Модель", ["scikit-learn:", "лінійна регресія,", "SciPy: p-value"]),
- ("AI-логіка", ["помічник,", "висновки,", "чернетки звіту"]),
+ ("Зведення", ["DuckDB 1.5,", "SQL складає", "сервіс"]),
+ ("Модель", ["scikit-learn,", "SciPy (p-value)"]),
+ ("AI-логіка", ["помічник,", "висновки,", "пояснення"]),
+ ("Звіти", ["збирає знімок:", "модель,", "статистика,", "графіки,", "висновки"]),
 ]
 for i, (t, ls) in enumerate(mods):
-    x = 345 + i * 136
-    box(x, 360, 124, 125, t, ls, "b mod" + (" modai" if i == 4 else ""))
-    cx = x + 62
+    x = 345 + i * 113
+    box(x, 360, 104, 125, t, ls, "b mod" + (" modai" if i == 4 else ""), "btm", "blm", 9)
+    cx = x + 52
     parts.append(f'<path class="ln" d="M{cx} 310 V360" marker-start="url(#as)" marker-end="url(#ae)"/>')
     parts.append(f'<path class="bus" d="M{cx} 485 V540"/>')
-parts.append(f'')
-parts.append('<circle class="bd" cx="407" cy="335" r="13"/><text class="bn" x="407" y="339.5">3</text>')
-parts.append('<path class="bus" d="M407 540 H951"/>')
+parts.append('<circle class="bd" cx="397" cy="335" r="13"/><text class="bn" x="397" y="339.5">3</text>')
+parts.append('<path class="bus" d="M397 540 H962"/>')
+parts.append('<text class="busl" x="560" y="560">спільні збережені результати</text>')
 # storage
 box(320, 670, 350, 140, "SQLite (схема v16)", ["проєкти, метадані, події журналу,", "вибірки, моделі, звіти, висновки,", "правила бази знань, журнал викликів AI"], "b store")
 box(690, 670, 350, 140, "Файли runtime/", ["CSV-оригінали й зведення, матриці .npz,", "SVG і HTML звітів,", "уривки книжок і вектори .npy"], "b store")
 line("M495 540 V670", "ln", "4", 495, 605)
-line("M865 540 V670", "ln", "5", 865, 605)
+line("M760 540 V670", "ln", "5", 760, 605)
 # browser <-> UI
 line("M240 125 H345", "ln", "1", 292, 125)
 # UI <-> orchestrator
 line("M680 170 V220", "ln", "2", 680, 195)
 # right column
-box(1170, 35, 400, 175, "RAG · база знань", ["пошук за словами (TF-IDF) і за змістом (bge-m3)", "правила: 5 документів, 32 розділи (SQLite)", "книжки: 28 перевірених уривків із 5 книжок", "результат: 3–5 фрагментів + джерело, сторінки"], "b rag")
+box(1170, 35, 400, 175, "RAG · база знань", ["пошук за словами (TF-IDF) і за змістом (bge-m3)", "правила: 5 документів, 32 розділи (SQLite)", "книжки: 106 перевірених уривків із 5 книжок", "результат: 3–5 фрагментів + джерело, сторінки"], "b rag")
 box(1170, 250, 400, 110, "Модель embeddings BAAI/bge-m3", ["ONNX Runtime, локально (~2,3 ГБ)", "текст → вектор 1024 чисел"], "b rag")
 box(1170, 410, 400, 120, "Звіти · Quarto 1.10", ["окремий процес (CLI), без інтернету", "Markdown (.qmd) + SVG → HTML офлайн"], "b rep")
 box(1180, 675, 390, 140, "LLM · OpenAI Responses API", ["gpt-6-luna / gpt-6.1-sol — модель за задачею", "httpx, ключ лише в .env; до 3 рівнів моделей", "обов’язковий для AI-функцій; єдиний через інтернет"], "b llm")
 line("M1015 265 H1095 V122 H1170", "ln", "6", 1095, 190)
 line("M1370 210 V250", "ln", "7", 1370, 230)
-line("M1013 400 H1135 V470 H1170", "ln", "9", 1135, 435)
-line("M1013 445 H1115 V745 H1180", "ln ai", "8", 1115, 600)
+line("M1014 400 H1135 V470 H1170", "ln", "9", 1135, 435)
+line("M870 485 V580 H1115 V745 H1180", "ln ai", "8", 1115, 660)
 
 svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="http://www.w3.org/2000/svg">
 <title id="t">Архітектура Data Story</title>
@@ -77,13 +78,13 @@ svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="htt
 flows = [
  ("1", "Браузер ⇄ Інтерфейс і API", "дія користувача: клік, форма, файл CSV, питання помічнику", "сторінка, таблиці, SVG-графіки, результат дії", "NiceGUI (WebSocket), FastAPI (HTTP, JSON)"),
  ("2", "Інтерфейс ⇄ Оркестратор", "виклик сервісу з даними форми", "результат або зрозуміла помилка", "pydantic-контракти, Success / Failure"),
- ("3", "Оркестратор ⇄ модулі", "набір, параметри розрахунку, обрані поля", "статистика, SVG, зведення, модель, текст AI", "pandas, NumPy, DuckDB, scikit-learn, SciPy"),
+ ("3", "Оркестратор ⇄ модулі", "набір, параметри розрахунку, обрані поля", "статистика, SVG, зведення, модель, текст AI, чернетка звіту", "pandas, NumPy, DuckDB, scikit-learn, SciPy"),
  ("4", "Модулі ⇄ SQLite", "SQL: читання й запис стану, подія журналу", "рядки: проєкти, метадані, моделі, звіти", "SQLite (sqlite3), схема v16"),
  ("5", "Модулі ⇄ файли", "CSV, матриці вибірок, SVG і HTML звітів", "файли з перевіркою SHA-256", "файлова система runtime/"),
  ("6", "Оркестратор ⇄ RAG", "питання користувача або факти моделі", "3–5 фрагментів правил і книжок із джерелом і сторінками", "TF-IDF (scikit-learn) + вектори"),
  ("7", "RAG ⇄ bge-m3", "текст запиту (фрагменти — заздалегідь)", "вектор 1024 чисел для пошуку за змістом", "ONNX Runtime, BAAI/bge-m3"),
  ("8", "AI-логіка ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти + список інструментів", "текст / JSON або виклик інструмента; інструмент виконує сервіс локально й повертає результат", "OpenAI Responses API, httpx"),
- ("9", "AI-логіка ⇄ Quarto", "Markdown звіту (.qmd) і SVG-графіки", "HTML-звіт, що відкривається без інтернету", "Quarto CLI 1.10, MathJax, шрифти сервісу"),
+ ("9", "Звіти ⇄ Quarto", "Markdown звіту (.qmd): знімок моделі, статистика, SVG-графіки, затверджені висновки; після D-98 — також таблиці аналітичної бази DuckDB", "HTML-звіт, що відкривається без інтернету", "Quarto CLI 1.10, MathJax, шрифти сервісу"),
 ]
 rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="8" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td></tr>' for n,a,b,c,d in flows)
 
@@ -94,7 +95,7 @@ steps = [
  ("6, 7", "З фактів складаються 3–4 запитання до бази знань; bge-m3 перетворює їх на вектори, RAG повертає 3–5 фрагментів правил і книжок."),
  ("8", "Один запит до OpenAI: інструкції + факти + фрагменти з номерами [1]…[5]. Відповідь перевіряється: посилання лише на наявні джерела, без HTML і коду."),
  ("4", "Чернетка зберігається в SQLite разом із фактами, джерелами й кількістю токенів; виклик записується в журнал AI."),
- ("1", "Автор редагує й затверджує текст; нова чернетка звіту бере затверджені висновки, Quarto (9) формує HTML."),
+ ("1", "Автор редагує й затверджує текст. Модуль «Звіти» збирає знімок моделі, статистики, графіків і затверджених висновків; Quarto (9) формує HTML."),
 ]
 steplis = "".join(f'<li><span class="sn">{e(n)}</span><span>{e(t)}</span></li>' for n,t in steps)
 
@@ -131,13 +132,14 @@ svg text {{ font-family:var(--sans); fill:var(--ink); }}
 .b.user {{ fill:var(--band); }} .b.core {{ fill:var(--band); }} .b.mod {{ fill:#fff; }} .b.modai {{ fill:var(--aiband); stroke:var(--ai); }}
 .b.store {{ fill:var(--store); stroke:#8a96a8; }} .b.rag {{ fill:#e9eef7; stroke-dasharray:6 4; }} .b.rep {{ fill:#fff; stroke-dasharray:6 4; }}
 .b.llm {{ fill:var(--aiband); stroke:var(--ai); stroke-width:2; }}
-.bt {{ font-size:16px; font-weight:700; }} .bl {{ font-size:13px; fill:var(--ink2) !important; }}
+.bt {{ font-size:16px; font-weight:700; }} .btm {{ font-size:14.5px; font-weight:700; }} .blm {{ font-size:12px; fill:var(--ink2) !important; }} .bl {{ font-size:13px; fill:var(--ink2) !important; }}
 .srv {{ fill:none; stroke:var(--primary); stroke-width:2.5; }}
 .srvl {{ font-size:14px; font-weight:600; fill:var(--primary) !important; }}
 .zone {{ fill:none; stroke:#9aa4b2; stroke-width:1.2; stroke-dasharray:3 5; }}
 .zl {{ font-size:13px; fill:var(--ink2) !important; font-style:italic; }} .zlo {{ font-size:13px; font-weight:600; fill:var(--ai) !important; }}
 .ln {{ fill:none; stroke:var(--primary); stroke-width:2; }} .ln.ai {{ stroke:var(--ai); stroke-dasharray:7 5; }}
 .bus {{ fill:none; stroke:#8a96a8; stroke-width:1.5; }}
+.busl {{ font-size:12px; fill:var(--ink2) !important; font-style:italic; }}
 .mh {{ fill:var(--primary); }} .mho {{ fill:var(--ai); }}
 .bd {{ fill:var(--primary); }} .bdo {{ fill:var(--ai); }}
 .bn {{ font-size:13px; font-weight:700; fill:#fff !important; text-anchor:middle; }}
