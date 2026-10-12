@@ -2,11 +2,11 @@ from html import escape as e
 from pathlib import Path
 from shutil import copyfile
 
-# Architecture of Data Story as implemented (history 116): one diagram, numbered flows 1–12.
+# Architecture of Data Story as implemented (history 118): grouped layers, numbered flows 1–7.
 # Generates deliverables/architecture/{architecture.html, architecture.svg} and the in-app page
 # src/data_story/assets/about/index.html («Про проєкт»). Run: python deliverables/architecture/build.py
 
-W, H = 1600, 930
+W, H = 1600, 920
 parts = []
 def box(x, y, w, h, title, lines, cls="b", tcls="bt", lcls="bl", pad=14):
     parts.append(f'<rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}"/>')
@@ -17,79 +17,60 @@ def box(x, y, w, h, title, lines, cls="b", tcls="bt", lcls="bl", pad=14):
     for t in lines:
         parts.append(f'<text class="{lcls}" x="{x+pad}" y="{ty}">{e(t)}</text>'); ty += 16
 
-def badge(n, bx, by, ai=False):
+def line(d, n, bx, by, ai=False, label=None, lx=0, ly=0):
+    m = "o" if ai else ""
+    parts.append(f'<path class="ln{" ai" if ai else ""}" d="{d}" marker-start="url(#as{m})" marker-end="url(#ae{m})"/>')
+    if label:
+        parts.append(f'<text class="busl" x="{lx}" y="{ly}">{e(label)}</text>')
     parts.append(f'<circle class="bd{" bdo" if ai else ""}" cx="{bx}" cy="{by}" r="13"/><text class="bn" x="{bx}" y="{by+4.5}">{n}</text>')
 
-def line(d, cls="ln", n=None, bx=0, by=0, ends=True):
-    ai = "ai" in cls
-    marks = f' marker-start="url(#{"aso" if ai else "as"})" marker-end="url(#{"aeo" if ai else "ae"})"' if ends else ""
-    parts.append(f'<path class="{cls}" d="{d}"{marks}/>')
-    if n:
-        badge(n, bx, by, ai)
+# zones: everything is local except the bottom-right corner (internet)
+parts.append('<path class="zone" d="M15 15 H1590 V690 H1210 V870 H15 Z"/>')
+parts.append('<text class="zl" x="30" y="895">Комп’ютер користувача (Windows) · розрахунки, дані, SQL, RAG і звіти — локально</text>')
+parts.append('<text class="zlo" x="1235" y="712">Інтернет · HTTPS</text>')
 
-# boundaries: everything is local except the bottom-right corner (internet)
-parts.append('<path class="zone" d="M15 15 H1590 V700 H1190 V880 H15 Z"/>')
-parts.append('<text class="zl" x="30" y="904">Комп’ютер користувача (Windows) · розрахунки, дані, SQL, RAG і звіти — локально</text>')
-parts.append('<text class="zlo" x="1215" y="722">Інтернет · HTTPS</text>')
+box(30, 45, 240, 130, "Користувач у браузері", ["Chrome / Edge · Vue + Quasar", "формули MathJax", "усі ресурси локальні"], "b user")
+box(30, 420, 240, 100, "Quarto 1.10", ["окремий процес, офлайн", ".qmd + SVG → HTML-звіт"], "b rep")
 
-box(30, 70, 210, 190, "Користувач\nу браузері", ["Chrome / Edge", "інтерфейс Vue + Quasar", "формули MathJax", "(усі ресурси локальні)"], "b user", "bt")
-box(30, 380, 240, 120, "Звіти · Quarto 1.10", ["окремий процес (CLI), офлайн", "Markdown (.qmd) + SVG → HTML"], "b rep")
+# server: UI → one service that contains two groups of modules
+parts.append('<rect class="srv" x="300" y="35" width="880" height="605"/>')
+parts.append('<text class="srvl" x="318" y="60">Сервер Data Story · один процес Python 3.13 · 127.0.0.1:8765</text>')
+box(325, 75, 830, 70, "Інтерфейс і API", ["NiceGUI 3 (сторінки) + FastAPI (HTTP /api, JSON) на uvicorn"], "b core")
+box(325, 185, 830, 435, "Сервіс-оркестратор (ProjectService)", ["перевіряє дані й поточний проєкт, викликає модулі, пише журнал; спільний для сторінок, чату й API"], "b core")
 
-# server container
-parts.append('<rect class="srv" x="320" y="35" width="820" height="617"/>')
-parts.append('<text class="srvl" x="338" y="62">Сервер Data Story · один процес Python 3.13 · 127.0.0.1:8765</text>')
-box(345, 80, 762, 90, "Інтерфейс і API", ["NiceGUI 3 (сторінки, WebSocket) + FastAPI (HTTP /api, JSON) на uvicorn — спільний ProjectService"], "b core")
-box(345, 220, 762, 90, "Сервіс-оркестратор (ProjectService)", ["перевіряє вхідні дані (pydantic) і поточний проєкт, викликає модулі, пише журнал подій;", "той самий для сторінок, кнопок, чату й HTTP API; AI — лише явною дією користувача"], "b core")
-mods = [
- ("Звіти", ["знімок", "результатів", "→ Markdown", "(.qmd)"], False),
- ("Дані й\nстатистика", ["pandas,", "NumPy, CSV,", "пропуски"], False),
- ("Графіки", ["SVG сервісу,", "спільна тема,", "MathJax"], False),
- ("Підготовка\nй зведення", ["вибірки,", "з’єднання,", "зведення"], False),
- ("Модель", ["scikit-learn,", "SciPy,", "p-value"], False),
- ("Чат-\nпомічник", ["Порадь,", "Виконай,", "Поясни;", "SQL від LLM"], True),
- ("Вбудовані\nAI-функції", ["пояснення,", "висновки,", "чернетки", "звітів"], True),
-]
-for i, (t, ls, ai) in enumerate(mods):
-    x = 345 + i * 110
-    box(x, 360, 102, 125, t, ls, "b mod" + (" modai" if ai else ""), "btm", "blm", 9)
-    cx = x + 51
-    parts.append(f'<path class="ln" d="M{cx} 310 V360" marker-start="url(#as)" marker-end="url(#ae)"/>')
-    if not ai:
-        parts.append(f'<path class="bus" d="M{cx} 485 V520"/>')
-badge("3", 396, 335)
-parts.append('<path class="bus" d="M396 520 H836"/>')
-parts.append('<text class="busl" x="480" y="540">спільні збережені результати</text>')
+box(345, 260, 415, 340, "Аналітичні модулі", [], "b grp", "bt")
+chips = [("Дані й статистика", "pandas, NumPy, CSV"), ("Графіки", "SVG, спільна тема"),
+         ("Підготовка й зведення", "вибірки, з’єднання"), ("Модель", "scikit-learn, SciPy"),
+         ("Звіти", "знімок → Markdown")]
+for i, (t, l) in enumerate(chips):
+    box(360 + (i % 2) * 198, 300 + (i // 2) * 95, 188, 80, t, [l], "b mod", "btm", "bl", 12)
 
-# analytical queries: SQL written by the LLM, checked and executed by the service
-box(880, 545, 245, 95, "Аналітичні запити", ["SQL від LLM → перевірка сервісом", "1 SELECT · лише таблиці проєкту", "5 с · 512 МБ · до 10 000 рядків"], "b core")
+box(780, 260, 355, 340, "AI — лише явною дією", [], "b grp ai", "bt")
+box(795, 300, 325, 80, "Чат-помічник", ["Порадь · Виконай · Поясни"], "b mod modai", "btm", "bl", 12)
+box(795, 395, 325, 80, "Вбудовані AI-функції", ["пояснення, висновки, чернетки звітів"], "b mod modai", "btm", "bl", 12)
+box(795, 490, 325, 95, "Аналітичні запити", ["SQL від LLM → перевірка сервісом:", "1 SELECT, таблиці проєкту, 5 с, 512 МБ"], "b mod", "btm", "bl", 12)
 
 # storage
-box(320, 690, 260, 140, "Файли runtime/", ["CSV-оригінали з SHA-256,", "матриці .npz, HTML звітів,", "уривки книжок, вектори .npy"], "b store")
-box(600, 690, 260, 140, "SQLite (схема v16)", ["проєкти, метадані, налаштування,", "журнали подій і викликів AI,", "тексти висновків і звітів,", "правила бази знань"], "b store")
-box(880, 690, 260, 140, "Постійна DuckDB", ["runtime/analytics.duckdb", "набори й нормалізовані таблиці,", "статистика, дані графіків,", "метрики, коефіцієнти, прогнози,", "залишки · версії й походження"], "b store")
-
-line("M240 125 H345", "ln", "1", 292, 125)
-line("M720 170 V220", "ln", "2", 720, 195)
-line("M836 520 V670 H900 V690", "ln", "4", 868, 670)
-line("M760 520 V690", "ln", "5", 760, 605)
-line("M450 520 V690", "ln", "6", 450, 605)
-line("M946 485 V545", "ln", "7", 946, 515)
-line("M1000 640 V690", "ln", "8", 1000, 665)
-line("M345 440 H270", "ln", "12", 296, 440)
+box(300, 680, 880, 165, "Сховища · runtime/", [], "b store grp2", "bt")
+box(320, 720, 270, 110, "Файли", ["CSV-оригінали з SHA-256,", "матриці .npz, HTML звітів,", "уривки книжок, вектори"], "b", "btm", "bl", 12)
+box(605, 720, 270, 110, "SQLite (схема v16)", ["проєкти, метадані, налаштування,", "журнали подій і AI,", "тексти висновків і звітів"], "b", "btm", "bl", 12)
+box(890, 720, 270, 110, "Постійна DuckDB", ["набори й результати з версіями:", "статистика, дані графіків,", "метрики, прогнози, залишки"], "b", "btm", "bl", 12)
 
 # right column
-box(1210, 35, 360, 175, "RAG · база знань", ["пошук за словами (TF-IDF) і за змістом", "правила: 5 документів, 32 розділи (SQLite)", "книжки: 106 перевірених уривків", "результат: 3–5 фрагментів + джерело"], "b rag")
-box(1210, 250, 360, 110, "Модель embeddings BAAI/bge-m3", ["ONNX Runtime, локально (~2,3 ГБ)", "текст → вектор 1024 чисел"], "b rag")
-box(1210, 735, 360, 140, "LLM · OpenAI Responses API", ["gpt-6-luna / gpt-6.1-sol — за задачею", "httpx, ключ лише в .env", "єдиний компонент через інтернет"], "b llm")
-line("M1107 265 H1175 V122 H1210", "ln", "9", 1175, 190)
-line("M1390 210 V250", "ln", "10", 1390, 230)
-# both AI ways share one OpenAI client
-parts.append('<path class="ln ai" d="M1056 485 V503" marker-start="url(#aso)"/>')
-line("M980 485 V503 H1175 V805 H1210", "ln ai", "11", 1175, 650)
+box(1230, 260, 340, 140, "RAG · база знань", ["правила (SQLite) + 106 уривків книжок", "пошук: TF-IDF + bge-m3 (ONNX)", "→ 3–5 фрагментів із джерелами"], "b rag")
+box(1230, 735, 340, 110, "LLM · OpenAI Responses API", ["gpt-6-luna / gpt-6.1-sol", "ключ лише в .env · через інтернет"], "b llm")
+
+line("M270 110 H325", "1", 297, 110)
+line("M740 145 V185", "2", 740, 165)
+line("M552 600 V680", "3", 552, 650)
+line("M345 470 H270", "4", 300, 470)
+line("M1135 330 H1230", "5", 1190, 330)
+line("M957 585 V720", "6", 957, 650, label="SQL від LLM", lx=972, ly=705)
+line("M1135 540 H1195 V790 H1230", "7", 1195, 660, ai=True)
 
 svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="http://www.w3.org/2000/svg">
 <title id="t">Архітектура Data Story</title>
-<desc id="d">Браузер; сервер Data Story з модулями, чат-помічником, вбудованими AI-функціями й аналітичними запитами; постійна DuckDB, SQLite і файли; RAG з моделлю bge-m3; Quarto; OpenAI через інтернет. Стрілки 1–12 — потоки даних.</desc>
+<desc id="d">Браузер → інтерфейс → сервіс, у якому дві групи: аналітичні модулі та AI. Аналітика працює зі сховищами й Quarto; AI — з RAG, OpenAI і через перевірений SQL з DuckDB. Стрілки 1–7 — потоки даних.</desc>
 <defs>
 <marker id="ae" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="mh"/></marker>
 <marker id="as" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 z" class="mh"/></marker>
@@ -101,36 +82,29 @@ svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="htt
 
 flows = [
  ("1", "Браузер ⇄ Інтерфейс і API", "дія користувача: клік, форма, файл CSV, питання помічнику", "сторінка, таблиці, SVG-графіки, результат дії", "NiceGUI (WebSocket), FastAPI (HTTP, JSON)"),
- ("2", "Інтерфейс ⇄ Сервіс", "виклик сервісу з даними форми або HTTP-запиту", "результат або зрозуміла помилка", "pydantic-контракти, Success / Failure"),
- ("3", "Сервіс ⇄ модулі", "набір, параметри розрахунку, обрані поля, явна AI-дія", "статистика, SVG, вибірки, модель, текст AI, чернетка звіту", "pandas, NumPy, scikit-learn, SciPy"),
- ("4", "Модулі ⇄ DuckDB", "нова незмінна версія таблиці або результату з ключем джерела, метаданих і параметрів", "збережені таблиці й результати — без повторного розрахунку після перезапуску", "DuckDB 1.5, runtime/analytics.duckdb"),
- ("5", "Модулі ⇄ SQLite", "службовий стан, подія журналу", "проєкти, метадані, налаштування, тексти висновків і звітів", "SQLite (sqlite3), схема v16"),
- ("6", "Модулі ⇄ файли", "CSV-оригінали, матриці вибірок, HTML звітів", "файли з перевіркою SHA-256", "файлова система runtime/"),
- ("7", "Чат ⇄ Аналітичні запити", "SQL, який склала LLM (інструменти query_analytics, propose_sql_summary)", "таблиця результату або помилка; новий набір — лише після «Застосувати»", "перевірка сервісом: один SELECT, лише таблиці поточного проєкту"),
- ("8", "Аналітичні запити ⇄ DuckDB", "згадані таблиці проєкту в окрему тимчасову DuckDB і сам SELECT", "до 10 000 рядків і 2 МБ результату", "без зовнішнього доступу; 512 МБ, 5 с"),
- ("9", "Сервіс ⇄ RAG", "питання користувача або факти моделі", "3–5 фрагментів правил і книжок із джерелом і сторінками", "TF-IDF (scikit-learn) + вектори"),
- ("10", "RAG ⇄ bge-m3", "текст запиту (фрагменти — заздалегідь)", "вектор 1024 чисел для пошуку за змістом", "ONNX Runtime, BAAI/bge-m3"),
- ("11", "Чат і вбудовані AI-функції ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти RAG; чату — ще схема таблиць і список інструментів", "текст / JSON або виклик інструмента; інструмент і SQL виконує сервіс локально", "OpenAI Responses API, httpx"),
- ("12", "Звіти ⇄ Quarto", "Markdown звіту (.qmd): знімок моделі, статистика, SVG-графіки, затверджені висновки", "HTML-звіт, що відкривається без інтернету", "Quarto CLI 1.10, MathJax, шрифти сервісу"),
+ ("2", "Інтерфейс ⇄ Сервіс", "виклик сервісу з даними форми або HTTP-запиту", "результат або зрозуміла помилка", "pydantic-контракти; один ProjectService для сторінок, чату й API"),
+ ("3", "Аналітичні модулі ⇄ сховища", "нові версії таблиць і результатів; службовий стан; оригінали файлів", "збережені таблиці й результати без повторного розрахунку; проєкти, метадані, журнали", "DuckDB 1.5 (аналітика), SQLite v16 (стан), файли з SHA-256"),
+ ("4", "Звіти ⇄ Quarto", "Markdown звіту (.qmd): знімок моделі, статистика, SVG-графіки, затверджені висновки", "HTML-звіт, що відкривається без інтернету", "Quarto CLI 1.10, MathJax, шрифти сервісу"),
+ ("5", "AI ⇄ RAG", "питання користувача або факти моделі", "3–5 фрагментів правил і книжок із джерелом і сторінками", "TF-IDF + bge-m3 (ONNX Runtime), локально"),
+ ("6", "Аналітичні запити ⇄ DuckDB", "SQL, який склала LLM; згадані таблиці проєкту копіюються в окрему тимчасову DuckDB", "до 10 000 рядків і 2 МБ результату; новий набір — лише після «Застосувати»", "перевірка: один SELECT, лише таблиці поточного проєкту; 512 МБ, 5 с"),
+ ("7", "AI ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти RAG; чату — ще схема таблиць і список інструментів", "текст / JSON або виклик інструмента; інструмент і SQL виконує сервіс локально", "OpenAI Responses API, httpx"),
 ]
-rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="11" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td></tr>' for n,a,b,c,d in flows)
+rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="7" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td></tr>' for n,a,b,c,d in flows)
 
 sql_steps = [
- ("1", "Користувач питає помічника, наприклад: «О котрій годині найбільше прокатів?»."),
- ("11", "Сервіс надсилає питання, схему таблиць поточного проєкту й дозволені інструменти. LLM повертає виклик query_analytics із текстом SQL."),
- ("7", "Сервіс перевіряє SQL: один SELECT, лише таблиці поточного проєкту, ліміт рядків."),
- ("8", "Згадані таблиці копіюються в ізольовану DuckDB, запит виконується з обмеженням часу й пам’яті."),
- ("11", "Таблиця результату повертається LLM, яка формулює відповідь. Для Seoul: пік о 18:00, середнє ≈ 1554 прокатів."),
+ ("1, 2", "Користувач питає помічника, наприклад: «О котрій годині найбільше прокатів?»."),
+ ("7", "Сервіс надсилає питання, схему таблиць проєкту й дозволені інструменти. LLM повертає виклик query_analytics із текстом SQL."),
+ ("6", "Сервіс перевіряє SQL (один SELECT, лише таблиці проєкту) і виконує його в ізольованій DuckDB з обмеженням часу й пам’яті."),
+ ("7", "Таблиця результату повертається LLM, яка формулює відповідь. Для Seoul: пік о 18:00, середнє ≈ 1554 прокатів."),
  ("1", "Щоб зберегти результат як набір, користувач переглядає таблицю й натискає «Застосувати»."),
 ]
 steps = [
- ("1", "Користувач натискає «Підготувати висновки AI» на сторінці «Висновки»."),
- ("2, 4, 5", "Сервіс перевіряє запит і бере збережену модель: опис із SQLite, метрики й коефіцієнти з DuckDB."),
- ("3, 4", "Модулі формують факти: R², MAE, коефіцієнти з p-value, обмеження; за потреби — до 3 зведень із DuckDB."),
- ("9, 10", "З фактів складаються запитання до бази знань; RAG повертає 3–5 фрагментів правил і книжок."),
- ("11", "Один запит до OpenAI: інструкції + факти + фрагменти з номерами [1]…[5]. Відповідь перевіряється: посилання лише на наявні джерела."),
- ("5", "Чернетка зберігається в SQLite з фактами, джерелами й токенами; виклик записується в журнал AI."),
- ("1, 12", "Автор редагує й затверджує текст. «Звіти» збирають знімок, Quarto формує HTML."),
+ ("1, 2", "Користувач натискає «Підготувати висновки AI» на сторінці «Висновки»."),
+ ("3", "Сервіс бере збережену модель і факти: R², MAE, коефіцієнти з p-value; за потреби — до 3 зведень із DuckDB."),
+ ("5", "З фактів складаються запитання до бази знань; RAG повертає 3–5 фрагментів правил і книжок."),
+ ("7", "Один запит до OpenAI: інструкції + факти + фрагменти [1]…[5]. Відповідь перевіряється: посилання лише на наявні джерела."),
+ ("3", "Чернетка зберігається в SQLite з фактами, джерелами й токенами; виклик записується в журнал AI."),
+ ("1, 4", "Автор редагує й затверджує текст. «Звіти» збирають знімок, Quarto формує HTML."),
 ]
 lis = lambda s: "".join(f'<li><span class="sn">{e(n)}</span><span>{e(t)}</span></li>' for n,t in s)
 
@@ -176,6 +150,7 @@ svg text {{ font-family:var(--sans); fill:var(--ink); }}
 .b.user {{ fill:var(--band); }} .b.core {{ fill:var(--band); }} .b.mod {{ fill:#fff; }} .b.modai {{ fill:var(--aiband); stroke:var(--ai); }}
 .b.store {{ fill:var(--store); stroke:#8a96a8; }} .b.rag {{ fill:#e9eef7; stroke-dasharray:6 4; }} .b.rep {{ fill:#fff; stroke-dasharray:6 4; }}
 .b.llm {{ fill:var(--aiband); stroke:var(--ai); stroke-width:2; }}
+.b.grp {{ fill:#fff; stroke-dasharray:none; }} .b.grp.ai {{ fill:#fffaf3; stroke:var(--ai); }} .b.grp2 {{ fill:var(--store); }}
 .bt {{ font-size:16px; font-weight:700; }} .btm {{ font-size:14.5px; font-weight:700; }} .blm {{ font-size:12px; fill:var(--ink2) !important; }} .bl {{ font-size:13px; fill:var(--ink2) !important; }}
 .srv {{ fill:none; stroke:var(--primary); stroke-width:2.5; }}
 .srvl {{ font-size:14px; font-weight:600; fill:var(--primary) !important; }}
@@ -216,7 +191,7 @@ ol.path li {{ display:grid; grid-template-columns:56px minmax(0,1fr); gap:10px; 
 </header>
 <section>
   <h2>Складові та потоки даних</h2>
-  <p class="lead">Схема відповідає реалізованому коду. Аналітичні таблиці й результати зберігаються в постійній DuckDB, службовий стан — у SQLite. AI використовується двома способами: чат-помічник і вбудовані AI-функції на робочих етапах. Обидва користуються спільним клієнтом OpenAI, RAG і результатами сервісу; SQL від LLM виконує лише сервіс після перевірки.</p>
+  <p class="lead">Схема відповідає реалізованому коду; читати зверху вниз: користувач → інтерфейс → сервіс → дві групи модулів → сховища та зовнішні складові. Аналітичні таблиці й результати зберігаються в постійній DuckDB, службовий стан — у SQLite. AI використовується двома способами: чат-помічник і вбудовані AI-функції на робочих етапах. Обидва користуються спільним клієнтом OpenAI, RAG і результатами сервісу; SQL від LLM виконує лише сервіс після перевірки.</p>
 </section>
 <div class="figure">{svg}</div>
 <div class="legend">
