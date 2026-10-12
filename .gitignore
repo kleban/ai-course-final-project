@@ -8,3 +8,4 @@ runtime/
 *.log
 Claude outputs/
 sources/
+.chart-data*/
