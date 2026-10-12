@@ -83,6 +83,11 @@ class Embedder:
         self.version = CONFIG["revision"][:12]
 
     def encode(self, texts: list[str], kind: str) -> np.ndarray:
+        # Multiple UI clients must not allocate large inference batches simultaneously.
+        with _encode_lock:
+            return self._encode(texts, kind)
+
+    def _encode(self, texts: list[str], kind: str) -> np.ndarray:
         prefix = CONFIG["query_prefix"] if kind == "query" else CONFIG["passage_prefix"]
         parts = []
         for start in range(0, len(texts), BATCH):
@@ -119,7 +124,17 @@ def failure_reason(error: Exception) -> str:
 
 
 _lock = threading.Lock()
+_encode_lock = threading.Lock()
 _state: dict = {}
+
+
+def failed(error: Exception) -> str:
+    """Release a failed session and keep its visible reason during the retry cooldown."""
+    reason = failure_reason(error)
+    with _lock:
+        _state.update(embedder=None, reason=reason, at=time.monotonic())
+    LOG.error("Embeddings inference failed: %s", reason)
+    return reason
 
 
 def embedder() -> Embedder | None:

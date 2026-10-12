@@ -303,16 +303,25 @@ class KnowledgeStore:
         started = perf_counter()
         fingerprint, vectorizer, matrix, fragments = self._ensure_index()
         lexical = (matrix @ vectorizer.transform([query.lower()]).T).toarray().ravel()
-        model, vectors = self._semantic(fingerprint, fragments)
         query_vector = None
+        semantic_reason = None
+        try:
+            model, vectors = self._semantic(fingerprint, fragments)
+            if model is not None and vectors is not None:
+                query_vector = model.encode([query], "query")[0]
+                semantic = vectors @ query_vector
+                if not np.isfinite(semantic).all():
+                    raise ValueError("Embeddings повернула нескінченні або порожні значення.")
+        except Exception as error:
+            semantic_reason = embeddings.failed(error)
+            self._vectors = None
+            model, vectors, query_vector = None, None, None
         if model is None or vectors is None:
             method, semantic = METHOD, None
             scores = lexical
             accepted = lexical >= MIN_SCORE
         else:
             method = HYBRID
-            query_vector = model.encode([query], "query")[0]
-            semantic = vectors @ query_vector
             stretched = np.clip((semantic - SEMANTIC_FLOOR) / (1 - SEMANTIC_FLOOR), 0, None)
             scores = stretched + LEXICAL_WEIGHT * lexical
             accepted = (semantic >= SEMANTIC_MIN) | (lexical >= LEXICAL_MIN)
@@ -335,7 +344,9 @@ class KnowledgeStore:
         result = {
             "query": query,
             "method": method,
-            "semantic_reason": embeddings.status() if semantic is None else None,
+            "semantic_reason": (semantic_reason or embeddings.status())
+            if semantic is None
+            else None,
             "index": fingerprint[:12],
             "fragment_count": len(fragments),
             "hits": hits,

@@ -14,6 +14,7 @@ from .combine import Recipe
 from .config import Settings
 from .contracts import (
     HTTP_STATUS,
+    AnalyticalQuery,
     AssistantQuery,
     ConclusionCreate,
     ConclusionSave,
@@ -72,6 +73,27 @@ def router(service: ProjectService) -> APIRouter:
     def response(result):
         status = HTTP_STATUS[result.error.code] if isinstance(result, Failure) else 200
         return JSONResponse(result.model_dump(mode="json"), status_code=status)
+
+    @api.get("/projects/{project_id}/analytics", response_model=Success[list[dict]] | Failure)
+    def analytics_catalog(project_id: str):
+        return response(service.analytics_catalog(project_id))
+
+    @api.get(
+        "/projects/{project_id}/analytics/schema", response_model=Success[list[dict]] | Failure
+    )
+    def analytics_schema(project_id: str):
+        return response(service.analytics_schema(project_id))
+
+    @api.post("/projects/{project_id}/analytics/query", response_model=Success[dict] | Failure)
+    def analytics_query(project_id: str, query: AnalyticalQuery):
+        return response(service.analytics_query(project_id, query.model_dump()))
+
+    @api.post(
+        "/projects/{project_id}/analytics/datasets/{dataset_id}",
+        response_model=Success[dict] | Failure,
+    )
+    def analytics_sync(project_id: str, dataset_id: str):
+        return response(service.analytics_sync(project_id, dataset_id))
 
     @api.get("/projects/{project_id}/conclusions", response_model=Success[list[dict]] | Failure)
     def conclusion_list(project_id: str):
@@ -528,6 +550,12 @@ def configure(settings: Settings) -> None:
     @ui.page("/icons")
     def icons_page():
         icons_screen(service)
+
+    @ui.page("/about")
+    def about_page():
+        from .about_screen import about_screen
+
+        about_screen(service)
 
 
 def run(settings: Settings) -> None:

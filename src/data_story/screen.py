@@ -41,6 +41,7 @@ NAV = [
         [
             ("projects", "/", "Проєкти", "overview"),
             ("guides", "/instructions", "Інструкції", "doc"),
+            ("about", "/about", "Про проєкт", "doc"),
         ],
     ),
     (
@@ -78,6 +79,8 @@ EVENT_TITLES = {
     "preparation.applied": ("Створено підготовлений набір", "methods"),
     "summary.previewed": ("Перегляд зведення DuckDB", "table"),
     "summary.created": ("Створено набір-зведення DuckDB", "table"),
+    "analytics.synced": ("Збережено аналітичну таблицю DuckDB", "table"),
+    "analytics.queried": ("Виконано аналітичний SQL-запит", "table"),
     "training.prepared": ("Підготовлено вибірки для регресії", "methods"),
     "model.trained": ("Навчено лінійну регресію", "regression"),
     "model.checked": ("Побудовано графік перевірки моделі", "check"),

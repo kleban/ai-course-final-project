@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from .combine import _json_rows
+from .model import format_p_value
 from .preparation import PreparationError
 from .prepared_datasets import snapshot
 from .projects import ProjectStore
@@ -96,7 +97,7 @@ def facts(model: dict) -> dict:
     significant = [r["name"] for r in rows if r["p_value"] is not None and r["p_value"] < 0.05]
     for r in rows:
         p = r["p_value"]
-        r["p_value"] = None if p is None else "< 0,001" if p < 0.001 else round(p, 3)
+        r["p_value"] = None if p is None else format_p_value(p)
     return rounded(
         {
             "target": choices["target"],

@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "note": "Selected chapters for the knowledge base (history 093). Texts are copyrighted: PDFs, extracted fragments and vectors stay in runtime/knowledge-sources (outside Git).",
+  "version": 2,
+  "note": "Extraction ranges are candidates, not approval of whole chapters. Only exact passages in reviewed.json enter the corpus (review 099). PDFs, extracted text and vectors stay local outside Git.",
   "books": [
     {
       "id": "ziller-introstats",
@@ -8,7 +8,7 @@
       "title": "Introduction to Statistics and Data Analysis – A Case-Based Approach",
       "authors": "Conrad Ziller",
       "year": 2024,
-      "why": "Описова статистика, кореляція, інференція й регресія з діагностикою — основа пояснень і висновків.",
+      "why": "p-value, припущення OLS, незалежність і мінливість помилок.",
       "ranges": [
         [
           7,
@@ -23,7 +23,7 @@
       "title": "Introduction to Machine Learning with Python",
       "authors": "Andreas C. Müller, Sarah Guido",
       "year": 2016,
-      "why": "Узагальнення й перенавчання, лінійна регресія з регуляризацією, масштабування, кодування категорій, ознаки, крос-валідація, метрики регресії.",
+      "why": "Лінійна регресія та однакова підготовка навчальної/тестової частин.",
       "ranges": [
         [
           40,
@@ -63,7 +63,7 @@
       "title": "Data Mining and Analysis: Fundamental Concepts and Algorithms",
       "authors": "Mohammed J. Zaki, Wagner Meira Jr.",
       "year": 2014,
-      "why": "Матриця даних і типи ознак, числові ознаки: центр, розкид, коваріація, кореляція, нормалізація.",
+      "why": "Типи числових і категоріальних ознак.",
       "ranges": [
         [
           12,
@@ -108,7 +108,7 @@
       "title": "The Data Analyst's Handbook",
       "authors": "Saïd Boularouk",
       "year": 2024,
-      "why": "Від даних до рішення, збір і очищення даних, агрегація, кореляція й причинність, візуалізація і подання результатів.",
+      "why": "Контекст, кореляція й причинність, прозорість висновків, підписи графіків і подання результатів.",
       "ranges": [
         [
           39,
@@ -138,7 +138,7 @@
       "title": "Research Methods for Business Students",
       "authors": "Mark N. K. Saunders, Philip Lewis, Adrian Thornhill",
       "year": 2023,
-      "why": "Кількісний аналіз (підготовка, опис, тести, регресія) і написання звіту та висновків.",
+      "why": "Описові показники, практична значущість, прозорість методу, структура й ясність звіту, посилання.",
       "ranges": [
         [
           599,
@@ -158,7 +158,7 @@
       ]
     }
   ],
-  "skipped": "Класифікація, кластеризація, нейромережі, графи, частотні шаблони, якісний аналіз, філософія досліджень, етика й збір первинних даних — поза обсягом MVP (D-91).",
+  "skipped": "Класифікація, кластеризація, нейромережі, графи, частотні шаблони, якісний аналіз, філософія досліджень, етика й збір первинних даних — поза обсягом MVP (D-91). Ревю 099: сюжетні приклади, новини, вправи, сторонні алгоритми й пошкоджений PDF-текст виключено; неперевірені уривки не індексуються.",
   "chunk_words": 220,
   "overlap_words": 30
 }

@@ -91,6 +91,27 @@ class MonitoringTests(unittest.TestCase):
         self.assertEqual(row["state"], "warning")
         self.assertIn("pandas", row["detail"])
 
+    def test_duckdb_checks_actual_storage_and_missing_tables(self):
+        monitor = Monitor(self.service)
+        row = monitor.duckdb()
+        self.assertEqual(row["state"], "ok")
+        self.assertIn("таблиць", row["detail"])
+        table = self.service.analytics.catalog(self.project.id)[0]
+        with self.service.analytics._connection() as connection:
+            schema, name = table["table"].split(".")
+            connection.execute(f'DROP TABLE "{schema}"."{name}"')
+        self.assertEqual(monitor.duckdb()["state"], "error")
+
+    def test_duckdb_empty_and_unreadable_do_not_hide_other_services(self):
+        database = Path(self.temporary.name) / "unreadable.duckdb"
+        self.service.analytics.database = database
+        monitor = Monitor(self.service)
+        self.assertEqual(monitor.duckdb()["state"], "ok")
+        self.assertFalse(database.exists())
+        database.write_bytes(b"invalid database")
+        self.assertEqual(monitor.duckdb()["state"], "error")
+        self.assertEqual(self.rows()["database"]["state"], "ok")
+
     def test_one_failing_check_does_not_hide_others(self):
         monitor = Monitor(self.service)
         monitor.knowledge = lambda: 1 / 0  # type: ignore[method-assign]

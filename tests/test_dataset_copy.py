@@ -81,6 +81,9 @@ class DatasetCopyTests(unittest.TestCase):
         self.assertEqual(event.payload["metadata"], "підтверджено")
         self.assertEqual(event.payload["descriptions"], "2")
         self.assertEqual(self.datasets.page(copied.id).total, 2)
+        self.assertEqual(
+            {r["object_id"] for r in self.datasets.analytics.catalog(self.target.id)}, {copied.id}
+        )
 
     def test_copy_without_saved_metadata_stays_without_metadata(self):
         plain = self.datasets.add(self.source_project.id, "інший.csv", CSV)
@@ -116,6 +119,7 @@ class DatasetCopyTests(unittest.TestCase):
                 self.copier.copy(self.source.id, self.target.id)
         self.assertEqual(self.datasets.list_datasets(self.target.id), [])
         self.assertEqual(self.files(self.target.id), [])
+        self.assertEqual(self.datasets.analytics.catalog(self.target.id), [])
 
 
 class MigrationTests(unittest.TestCase):

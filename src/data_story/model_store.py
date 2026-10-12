@@ -1,13 +1,24 @@
 """Train, persist and audit linear regression results linked to saved train/test matrices."""
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from time import perf_counter
+from typing import cast
 from uuid import uuid4
 
+import numpy as np
+import pandas as pd
 import sklearn
 
-from .model import ModelError, ModelNotFound, check_matrices, train_linear_regression
+from .analytics import Kind
+from .model import (
+    INFERENCE_VERSION,
+    ModelError,
+    ModelNotFound,
+    check_matrices,
+    train_linear_regression,
+)
 from .model_check import diagnostics
 from .preparation import PreparationError
 from .projects import ProjectStore
@@ -16,11 +27,21 @@ from .training_store import TrainingStore
 
 
 def _row(row) -> dict:
+    document = json.loads(row["document"])
+    if document["inference"].get("version", 1) < INFERENCE_VERSION:
+        reason = (
+            "Статистику значущості збережено попереднім методом; її не показуємо. "
+            "Для актуальних p-value підготуйте нові вибірки з іншим зерном поділу й навчіть модель."
+        )
+        for coefficient in [document["intercept_inference"], *document["coefficients"]]:
+            coefficient.update(std_error=None, t=None, p_value=None, stars="", reason=reason)
+        document["inference"]["reason"] = reason
+        document["warnings"] = list(dict.fromkeys([*document["warnings"], reason]))
     return {
         "id": row["id"],
         "training_run_id": row["training_run_id"],
         "created_at": row["created_at"],
-        "document": json.loads(row["document"]),
+        "document": document,
     }
 
 
@@ -28,11 +49,80 @@ class ModelStore:
     def __init__(self, training: TrainingStore):
         self.training = training
         self.database = training.datasets.database
+        self.analytics = training.datasets.analytics
+
+    @staticmethod
+    def _source(document: dict) -> str:
+        return json.dumps(document, sort_keys=True, ensure_ascii=False, allow_nan=False)
+
+    def _persist(self, project_id: str, model_id: str, document: dict, arrays: dict) -> list[dict]:
+        source = self._source(document)
+        if self.analytics.result(project_id, "model_metrics", model_id, source) is not None:
+            return []
+        coefficients = pd.DataFrame(
+            [
+                {
+                    "name": "(intercept)",
+                    "value": document["intercept"],
+                    **document["intercept_inference"],
+                    "term_type": "intercept",
+                },
+                *[{**c, "term_type": "feature"} for c in document["coefficients"]],
+            ]
+        )
+        metrics = pd.DataFrame(
+            [
+                {"split": split, "metric": metric, "value": value}
+                for split, values in document["metrics"].items()
+                for metric, value in (
+                    values.items() if isinstance(values, dict) else [(split, values)]
+                )
+                if metric != "r2_reason"
+            ]
+        )
+        run = self.training.get(project_id, document["training_run_id"])["document"]
+        parts = []
+        weights = np.array([c["value"] for c in document["coefficients"]])
+        for split in ("train", "test"):
+            predicted = document["intercept"] + arrays["x_" + split] @ weights
+            parts.append(
+                pd.DataFrame(
+                    {
+                        "split": split,
+                        "source_row": run[split + "_positions"],
+                        "actual": arrays["y_" + split],
+                        "predicted": predicted,
+                        "residual": arrays["y_" + split] - predicted,
+                    }
+                )
+            )
+        predictions = pd.concat(parts, ignore_index=True)
+        references = []
+        try:
+            for kind, frame in (
+                ("coefficients", coefficients),
+                ("model_metrics", metrics),
+                ("predictions", predictions.drop(columns="residual")),
+                ("residuals", predictions[["split", "source_row", "predicted", "residual"]]),
+            ):
+                references.append(
+                    self.analytics.put(project_id, cast(Kind, kind), model_id, frame, source=source)
+                )
+            self.analytics.save_result(project_id, "model_metrics", model_id, source, document, [])
+        except BaseException:
+            for reference in reversed(references):
+                self.analytics.discard(reference)
+            raise
+        return references
 
     def train(self, project_id: str, training_run_id: str) -> dict:
         ProjectStore(self.database).get(project_id)
         started = perf_counter()
         audit: dict = {"training_run_id": training_run_id, "estimator": "LinearRegression"}
+        references = []
+        committed = False
+        model_id = None
+        document = None
         try:
             with connect(self.database) as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -73,6 +163,7 @@ class ModelStore:
                     "transforms": report["transforms"],
                     "preparation_warnings": report["warnings"],
                 }
+                references = self._persist(project_id, model_id, document, arrays)
                 connection.execute(
                     "INSERT INTO model_runs VALUES (?, ?, ?, ?, ?)",
                     (
@@ -96,6 +187,7 @@ class ModelStore:
                     duration_ms=(perf_counter() - started) * 1000,
                 )
                 ProjectStore._event(connection, project_id, "model.trained", audit)
+            committed = True
             return {
                 "id": model_id,
                 "training_run_id": training_run_id,
@@ -116,6 +208,14 @@ class ModelStore:
             with connect(self.database) as connection:
                 ProjectStore._event(connection, project_id, "model.trained", audit)
             raise ModelError(message) from error
+        finally:
+            if not committed and references:
+                for reference in reversed(references):
+                    self.analytics.discard(reference)
+                if model_id is not None and document is not None:
+                    self.analytics.discard_result(
+                        project_id, "model_metrics", model_id, self._source(document)
+                    )
 
     def check(
         self, project_id: str, model_id: str, chart: str, feature: str | None, audit_extra: dict
@@ -135,7 +235,24 @@ class ModelStore:
         }
         try:
             arrays = self.training.matrices(project_id, model["training_run_id"])
-            view = diagnostics(document, arrays, chart, feature)
+            source = self._source(document) + json.dumps(
+                {"diagnostics_version": 1, "chart": chart, "feature": feature}, sort_keys=True
+            )
+            object_id = model_id + "." + chart + "." + str(feature)
+            # Field names may be long; keep catalog identifiers bounded.
+            object_id = model_id + "." + hashlib.sha256(object_id.encode()).hexdigest()
+            view = self.analytics.result(project_id, "chart_data", object_id, source)
+            audit["reused"] = view is not None
+            if view is None:
+                view = diagnostics(document, arrays, chart, feature)
+                self.analytics.save_result(
+                    project_id,
+                    "chart_data",
+                    object_id,
+                    source,
+                    view,
+                    [("points", pd.DataFrame(view["points"], columns=["x", "y"]))],
+                )
         except (ModelError, PreparationError, KeyError, TypeError) as error:
             message = (
                 str(error)
@@ -175,4 +292,13 @@ class ModelStore:
             ).fetchone()
         if row is None:
             raise ModelNotFound("Модель не знайдено в цьому проєкті.")
-        return _row(row)
+        model = _row(row)
+        document = model["document"]
+        source = self._source(document)
+        stored = self.analytics.result(project_id, "model_metrics", model_id, source)
+        if stored is None:
+            arrays = self.training.matrices(project_id, model["training_run_id"])
+            self._persist(project_id, model_id, document, arrays)
+        else:
+            model["document"] = stored
+        return model

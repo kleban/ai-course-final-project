@@ -20,6 +20,7 @@ from uuid import uuid4
 import pandas as pd
 from pandas.api import types as ptypes
 
+from .analytics import AnalyticsStore
 from .projects import ProjectStore
 from .storage import connect, ensure_schema
 
@@ -295,8 +296,45 @@ class DatasetStore:
     def __init__(self, database: Path, files_root: Path | None = None):
         self.database = ensure_schema(database)
         self.files_root = Path(files_root or self.database.parent / "projects").resolve()
+        self.analytics = AnalyticsStore(self.database.parent / "analytics.duckdb")
 
-    def add(self, project_id: str, filename: object, content: bytes) -> Dataset:
+    @staticmethod
+    def source(dataset: Dataset) -> str:
+        return json.dumps(
+            {"parser_version": 1, "sha256": dataset.sha256, "profile": dataset.profile},
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+
+    def persist(self, dataset: Dataset, frame: pd.DataFrame) -> dict:
+        return self.analytics.put(
+            dataset.project_id, "dataset", dataset.id, frame, source=self.source(dataset)
+        )
+
+    def verified_content(self, dataset: Dataset) -> bytes:
+        path = (self.files_root / dataset.stored_path).resolve()
+        if not path.is_relative_to(self.files_root) or not path.is_file():
+            raise DatasetNotFound("Файл набору даних відсутній у сховищі.")
+        content = path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != dataset.sha256:
+            raise DatasetError("Файл набору змінився або пошкоджений. Завантажте його заново.")
+        return content
+
+    def frame(self, dataset_id: str) -> pd.DataFrame:
+        """Read the persistent raw table, checking the original even on a cache hit."""
+        dataset = self.get(dataset_id)
+        content = self.verified_content(dataset)
+        fingerprint = self.analytics.find(
+            dataset.project_id, "dataset", dataset.id, self.source(dataset)
+        )
+        if fingerprint is None:
+            frame, _ = read_table(content, dataset.file_format, meta=dataset.profile)
+            fingerprint = self.persist(dataset, frame)["fingerprint"]
+        return self.analytics.read(dataset.project_id, "dataset", dataset.id, fingerprint)
+
+    def add(
+        self, project_id: str, filename: object, content: bytes, *, parser: dict | None = None
+    ) -> Dataset:
         name = clean_name(filename)
         fmt = file_format(name)
         if not content:
@@ -305,7 +343,9 @@ class DatasetStore:
             raise DatasetError(f"Розмір: максимум {MAX_BYTES // (1024 * 1024)} МБ.")
         with connect(self.database) as connection:  # fail fast for an unknown project
             ProjectStore._get(connection, project_id)
-        frame, meta = read_table(content, fmt)
+        frame, meta = read_table(content, fmt, meta=parser)
+        if parser is not None:
+            meta = {**parser, **meta}
 
         dataset_id = str(uuid4())
         relative = Path(project_id) / "datasets" / dataset_id / f"original.{fmt}"
@@ -328,7 +368,9 @@ class DatasetStore:
             profile={**meta, "columns": profile(frame)},
             created_at=_now(),
         )
+        reference = None
         try:
+            reference = self.persist(dataset, frame)
             with connect(self.database) as connection:
                 ProjectStore._get(connection, project_id)
                 connection.execute(
@@ -360,6 +402,7 @@ class DatasetStore:
                     },
                 )
         except BaseException:
+            self.analytics.discard(reference)
             shutil.rmtree(target.parent, ignore_errors=True)
             raise
         return dataset
@@ -397,26 +440,19 @@ class DatasetStore:
 
     def preview(self, dataset_id: str, rows: int = PREVIEW_ROWS) -> Preview:
         dataset = self.get(dataset_id)
-        path = (self.files_root / dataset.stored_path).resolve()
-        if not path.is_relative_to(self.files_root) or not path.is_file():
-            raise DatasetNotFound("Файл набору даних відсутній у сховищі.")
-        frame, _ = read_table(
-            path.read_bytes(), dataset.file_format, meta=dataset.profile, nrows=rows
-        )
+        frame = self.frame(dataset_id).head(rows)
         values = [[_cell(v) for v in record] for record in frame.itertuples(index=False)]
         return Preview(list(frame.columns), values, dataset.row_count)
 
     def _typed(self, dataset_id: str) -> tuple[pd.DataFrame, list[str], list[str | None]]:
         """The whole file parsed once with types from the profile; reused for every page."""
         dataset = self.get(dataset_id)
-        key = f"{dataset.id}:{dataset.sha256}"
+        self.verified_content(dataset)
+        key = f"{self.database.resolve()}:{dataset.id}:{dataset.sha256}"
         if key in _typed_cache:
             _typed_cache.move_to_end(key)
             return _typed_cache[key]
-        path = (self.files_root / dataset.stored_path).resolve()
-        if not path.is_relative_to(self.files_root) or not path.is_file():
-            raise DatasetNotFound("Файл набору даних відсутній у сховищі.")
-        frame, _ = read_table(path.read_bytes(), dataset.file_format, meta=dataset.profile)
+        frame = self.frame(dataset_id)
         described = {c["name"]: c for c in dataset.profile.get("columns", [])}
         typed: dict[str, pd.Series] = {}
         kinds: list[str] = []

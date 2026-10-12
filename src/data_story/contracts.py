@@ -119,6 +119,8 @@ class EventView(StrictModel):
         "report.rendered",
         "summary.previewed",
         "summary.created",
+        "analytics.synced",
+        "analytics.queried",
         "conclusions.prepared",
         "conclusions.saved",
         "conclusions.approved",
@@ -552,8 +554,18 @@ class ChartDraftQuery(StrictModel):
         return self
 
 
+class AnalyticalQuery(StrictModel):
+    sql: Annotated[str, Field(strict=True, min_length=1, max_length=10000)]
+    limit: Annotated[int, Field(strict=True, ge=1, le=10000)] = 100
+
+
+class SqlSummaryDraft(AnalyticalQuery):
+    name: Annotated[str, Field(strict=True, min_length=1, max_length=160)]
+    explanation: Annotated[str, Field(strict=True, min_length=1, max_length=1000)]
+
+
 class DraftApply(StrictModel):
-    kind: Literal["project_description", "metadata", "chart"]
+    kind: Literal["project_description", "metadata", "chart", "sql_summary"]
     project_id: UUID
     base_token: str = Field(pattern=r"^[a-f0-9]{64}$")
     text: Annotated[str, Field(strict=True, min_length=1, max_length=DESCRIPTION_LIMIT)] | None = (
@@ -561,6 +573,7 @@ class DraftApply(StrictModel):
     )
     metadata: MetadataDraftQuery | None = None
     chart: ChartDraftQuery | None = None
+    sql_summary: SqlSummaryDraft | None = None
 
 
 class KnowledgeDocument(StrictModel):

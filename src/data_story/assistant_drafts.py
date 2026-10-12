@@ -4,7 +4,14 @@ import hashlib
 import json
 from uuid import UUID
 
-from .contracts import ChartDraftQuery, DraftApply, Failure, MetadataDraftQuery, ProjectDraftQuery
+from .contracts import (
+    ChartDraftQuery,
+    DraftApply,
+    Failure,
+    MetadataDraftQuery,
+    ProjectDraftQuery,
+    SqlSummaryDraft,
+)
 from .openai_client import AiError
 
 
@@ -111,9 +118,36 @@ def propose_chart(service, project_id: str, raw: dict) -> dict:
     ).model_dump(mode="json")
 
 
+def sql_token(service, project_id: str) -> str:
+    return _token(service.analytical_queries.schema(project_id))
+
+
+def propose_sql_summary(service, project_id: str, raw: dict) -> dict:
+    query = SqlSummaryDraft.model_validate(raw)
+    token = sql_token(service, project_id)
+    service.analytical_queries.query(project_id, query.sql, query.limit)
+    return DraftApply(
+        kind="sql_summary", project_id=UUID(project_id), base_token=token, sql_summary=query
+    ).model_dump(mode="json")
+
+
 def apply(service, project_id: str, proposal: DraftApply) -> dict:
     if str(proposal.project_id) != project_id:
         raise DraftError("Чернетка належить іншому проєкту.")
+    if proposal.kind == "sql_summary":
+        if proposal.sql_summary is None or any(
+            v is not None for v in (proposal.chart, proposal.metadata, proposal.text)
+        ):
+            raise DraftError("Пропозиція зведення має містити лише параметри SQL.")
+        if sql_token(service, project_id) != proposal.base_token:
+            raise DraftError("Дані або метадані змінилися. Створіть нову пропозицію зведення.")
+        query = proposal.sql_summary
+        dataset = service.analytical_queries.save_summary(
+            project_id, query.sql, query.limit, query.name
+        )
+        return {"kind": "sql_summary", "dataset_id": dataset.id, "name": dataset.name}
+    if proposal.sql_summary is not None:
+        raise DraftError("Чернетка містить зайві параметри зведення.")
     if proposal.kind == "chart":
         if proposal.chart is None or proposal.metadata is not None or proposal.text is not None:
             raise DraftError("Пропозиція графіка містить зайві або відсутні параметри.")

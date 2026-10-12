@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 
 from .config import ROOT
 from .contracts import Failure
-from .model import explain, stars
+from .model import explain, format_p_value, stars
 from .projects import ProjectStore
 from .quarto_runtime import executable, version
 from .storage import connect
@@ -59,17 +59,12 @@ def number(value) -> str:
 
 
 def p_value(value) -> str:
-    """Rounded p-value (author feedback 12): < 0,001; three decimals below 0,01; else two."""
-    if value is None:
-        return "не визначено"
-    if value < 0.001:
-        return "< 0,001"
-    return (f"{value:.3f}" if value < 0.01 else f"{value:.2f}").replace(".", ",")
+    return format_p_value(value)
 
 
 CHOICE_LABELS: dict[str, tuple[str, Callable[[object], str]]] = {
     "test_percent": ("Тестова частка", lambda v: f"{v}%"),
-    "seed": ("Seed випадкового поділу", str),
+    "seed": ("Зерно випадкового поділу", str),
     "encoding": (
         "Кодування категорій",
         lambda v: "One-hot з базовою категорією" if v == "onehot" else str(v),
@@ -247,10 +242,10 @@ def compose(snapshot: dict, narrative: dict | None = None) -> str:
     text += table(
         ["Показник", "Значення", "Пояснення"],
         [
-            ("R² train", metrics["train"]["r2"], "Якість на навчальній частині"),
-            ("R² test", metrics["test"]["r2"], "Якість на незалежній тестовій частині"),
-            ("MAE test", metrics["test"]["mae"], "Середня абсолютна помилка в одиницях цілі"),
-            ("RMSE test", metrics["test"]["rmse"], "Сильніше враховує великі помилки"),
+            ("R² навчання", metrics["train"]["r2"], "Якість на навчальній частині"),
+            ("R² тест", metrics["test"]["r2"], "Якість на тестовій частині"),
+            ("MAE тест", metrics["test"]["mae"], "Середня абсолютна помилка в одиницях цілі"),
+            ("RMSE тест", metrics["test"]["rmse"], "Сильніше враховує великі помилки"),
             ("MAE простого прогнозу", metrics["baseline_mae"], "Прогноз середнім навчальної цілі"),
         ],
     )
@@ -517,18 +512,32 @@ class ReportStore:
 
         try:
             target = model["choices"]["target"]
+            options = service.chart_config.get().effective()
+            chart_options = options.model_dump()
             figure(
-                service.histogram(project_id, {"dataset_id": dataset.id, "field": target}),
+                service.histogram(
+                    project_id,
+                    {"dataset_id": dataset.id, "field": target, "options": chart_options},
+                ),
                 "distribution",
                 "Розподіл цільової змінної",
-                "Гістограма показує форму розподілу; лінія — медіана.",
+                "Гістограма показує форму розподілу."
+                + (" Лінія — медіана." if options.histogram_median else ""),
                 "eda",
             )
             figure(
-                service.missing_chart(project_id, {"dataset_id": dataset.id}),
+                service.missing_chart(
+                    project_id, {"dataset_id": dataset.id, "options": chart_options}
+                ),
                 "missing",
                 "Пропуски у даних",
-                "Частки пропусків; показано перші 10 полів за спаданням, решта враховані у статистиці.",
+                "Частки пропусків; показано до 10 полів "
+                + (
+                    "за спаданням частки"
+                    if options.missing_order == "desc"
+                    else "у порядку стовпців"
+                )
+                + ". Решта враховані у статистиці.",
                 "eda",
             )
             for chart, caption, explanation in [
@@ -822,9 +831,9 @@ class ReportStore:
         offline_html(html)
         bundle = directory / "source.zip"
         with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as z:
-            for path in directory.iterdir():
+            for path in directory.rglob("*"):
                 if path.name not in ("source.zip", "report.html", "render.log") and path.is_file():
-                    z.write(path, path.name)
+                    z.write(path, path.relative_to(directory).as_posix())
         artifact = {
             "id": artifact_id,
             "revision": revision,

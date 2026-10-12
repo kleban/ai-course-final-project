@@ -1,0 +1,194 @@
+{
+  "source": "https://archive.ics.uci.edu/static/public/560/seoul%2Bbike%2Bsharing%2Bdemand.zip",
+  "archive_sha256": "139e9908f0a3544bb222386855c9ce107e96467306bb8e4ce936aab59e7baac4",
+  "original_csv_sha256": "373339b71a8935d69e9af0abf26a70744632119862eeb3919efb389a7b749c60",
+  "utf8_csv_sha256": "d2f7a0f0ba95e82678ead794429a18a7f696aa3b82c9b9ec34ec47806ff0767b",
+  "bytes": 604168,
+  "shape": [
+    8760,
+    14
+  ],
+  "missing": 0,
+  "duplicates": 0,
+  "parser": {
+    "encoding": "utf-8-sig",
+    "delimiter": ","
+  },
+  "date_min": "2017-12-01",
+  "date_max": "2018-11-30",
+  "inactive_hours": 295,
+  "columns": [
+    "Date",
+    "Rented Bike Count",
+    "Hour",
+    "Temperature(°C)",
+    "Humidity(%)",
+    "Wind speed (m/s)",
+    "Visibility (10m)",
+    "Dew point temperature(°C)",
+    "Solar Radiation (MJ/m2)",
+    "Rainfall(mm)",
+    "Snowfall (cm)",
+    "Seasons",
+    "Holiday",
+    "Functioning Day"
+  ],
+  "profiles": [
+    {
+      "name": "Date",
+      "kind": "date",
+      "missing": 0,
+      "unique": 365,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "date_format": "%d/%m/%Y",
+      "first": "2017-12-01",
+      "last": "2018-11-30"
+    },
+    {
+      "name": "Rented Bike Count",
+      "kind": "number",
+      "missing": 0,
+      "unique": 2166,
+      "min": 0.0,
+      "max": 3556.0,
+      "mean": 704.602055
+    },
+    {
+      "name": "Hour",
+      "kind": "number",
+      "missing": 0,
+      "unique": 24,
+      "min": 0.0,
+      "max": 23.0,
+      "mean": 11.5
+    },
+    {
+      "name": "Temperature(°C)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 546,
+      "min": -17.8,
+      "max": 39.4,
+      "mean": 12.882922
+    },
+    {
+      "name": "Humidity(%)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 90,
+      "min": 0.0,
+      "max": 98.0,
+      "mean": 58.226256
+    },
+    {
+      "name": "Wind speed (m/s)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 65,
+      "min": 0.0,
+      "max": 7.4,
+      "mean": 1.724909
+    },
+    {
+      "name": "Visibility (10m)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 1789,
+      "min": 27.0,
+      "max": 2000.0,
+      "mean": 1436.825799
+    },
+    {
+      "name": "Dew point temperature(°C)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 556,
+      "min": -30.6,
+      "max": 27.2,
+      "mean": 4.073813
+    },
+    {
+      "name": "Solar Radiation (MJ/m2)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 345,
+      "min": 0.0,
+      "max": 3.52,
+      "mean": 0.569111
+    },
+    {
+      "name": "Rainfall(mm)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 61,
+      "min": 0.0,
+      "max": 35.0,
+      "mean": 0.148687
+    },
+    {
+      "name": "Snowfall (cm)",
+      "kind": "number",
+      "missing": 0,
+      "unique": 51,
+      "min": 0.0,
+      "max": 8.8,
+      "mean": 0.075068
+    },
+    {
+      "name": "Seasons",
+      "kind": "text",
+      "missing": 0,
+      "unique": 4,
+      "min": null,
+      "max": null,
+      "mean": null
+    },
+    {
+      "name": "Holiday",
+      "kind": "text",
+      "missing": 0,
+      "unique": 2,
+      "min": null,
+      "max": null,
+      "mean": null
+    },
+    {
+      "name": "Functioning Day",
+      "kind": "text",
+      "missing": 0,
+      "unique": 2,
+      "min": null,
+      "max": null,
+      "mean": null
+    }
+  ],
+  "hourly_mean_active": {
+    "18": 1554.0169971671387,
+    "19": 1235.7762039660056,
+    "17": 1177.2124645892352,
+    "20": 1105.3031161473089,
+    "21": 1066.512747875354,
+    "8": 1050.229461756374,
+    "16": 962.2577903682719,
+    "22": 954.1671388101983,
+    "15": 857.3739376770538,
+    "14": 784.6203966005666,
+    "13": 758.1728045325779,
+    "12": 723.2181303116147,
+    "23": 693.9405099150142,
+    "9": 667.943342776204,
+    "7": 626.6062322946176,
+    "11": 621.2776203966006,
+    "0": 561.4573863636364,
+    "10": 545.7648725212465,
+    "1": 441.92329545454544,
+    "2": 312.7698863636364,
+    "6": 298.18465909090907,
+    "3": 210.8409090909091,
+    "5": 144.21875,
+    "4": 137.48863636363637
+  },
+  "max_rented": 3556
+}

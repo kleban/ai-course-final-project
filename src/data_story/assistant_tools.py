@@ -13,6 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from .contracts import (
+    AnalyticalQuery,
     ChartDraftQuery,
     ErrorInfo,
     Failure,
@@ -21,6 +22,7 @@ from .contracts import (
     ModelCheckQuery,
     ModelTrainQuery,
     ProjectDraftQuery,
+    SqlSummaryDraft,
     Success,
 )
 from .model import explain
@@ -166,6 +168,30 @@ def _chart_draft(service: ProjectService, project_id: str, args: dict) -> Succes
     )
 
 
+def _analytics_schema(service: ProjectService, project_id: str, _args: dict) -> Success | Failure:
+    return service.analytics_schema(project_id)
+
+
+def _analytics_query(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
+    result = service.analytics_query(project_id, args)
+    if isinstance(result, Success):
+        result.data["preview_only"] = len(result.data["rows"]) > 20
+        result.data["rows"] = result.data["rows"][:20]
+    return result
+
+
+def _sql_draft(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
+    from .assistant_drafts import propose_sql_summary
+
+    return execute(
+        lambda: {
+            "proposal": propose_sql_summary(
+                service, project_id, validate_input(SqlSummaryDraft, args).model_dump()
+            )
+        }
+    )
+
+
 TOOLS: dict[str, AssistantTool] = {
     tool.name: tool
     for tool in (
@@ -246,6 +272,37 @@ TOOLS: dict[str, AssistantTool] = {
             ModelCheckQuery,
             False,
             _check,
+        ),
+        AssistantTool(
+            "analytics_schema",
+            "advise",
+            "Отримати каталог SQL-таблиць поточного проєкту: alias, поля, кількість рядків. "
+            "Використовуй alias у SQL. Коди пропусків стають NULL; ignore-поля виключені. "
+            "d_ — набори, c_ — коефіцієнти, m_ — метрики, p_ — прогнози, r_ — залишки.",
+            NoArguments,
+            False,
+            _analytics_schema,
+        ),
+        AssistantTool(
+            "query_analytics",
+            "advise",
+            "Виконати один SELECT у DuckDB для поточного проєкту. Спочатку отримай analytics_schema. "
+            "Можна JOIN, GROUP BY, CTE, агрегати; жодного запису чи доступу до файлів. "
+            "Повертає числа й до 20 рядків для пояснення; row_count і truncated показують обмеження.",
+            AnalyticalQuery,
+            False,
+            _analytics_query,
+        ),
+        AssistantTool(
+            "propose_sql_summary",
+            "execute",
+            "Запропонувати незалежне зведення за SQL SELECT для графіків/аналізу. "
+            "Отримай analytics_schema, склади SQL, вкажи назву й пояснення. "
+            "Сервіс перевірить запит. Користувач перегляне й застосує чернетку; до цього набору не додаємо. "
+            "Не використовуй обрізаний результат; limit до 10000.",
+            SqlSummaryDraft,
+            False,
+            _sql_draft,
         ),
     )
 }

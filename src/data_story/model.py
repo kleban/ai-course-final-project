@@ -9,6 +9,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
 
 ESTIMATOR = "sklearn.linear_model.LinearRegression"
+INFERENCE_VERSION = 2
 MATRIX_KEYS = ("x_train", "x_test", "y_train", "y_test")
 
 
@@ -27,7 +28,8 @@ SIGNIFICANCE_NOTE = (
 )
 INFERENCE_NOTES = [
     "p-value перевіряє гіпотезу, що коефіцієнт дорівнює нулю за незмінних інших ознак. "
-    "Мале p-value означає, що такий коефіцієнт малоймовірний за відсутності зв'язку; "
+    "Мале p-value означає, що за гіпотези нульового коефіцієнта та припущень моделі "
+    "такий або більш крайній результат малоймовірний; "
     "воно не вимірює силу чи важливість ознаки і не доводить причинність.",
     "Стандартні помилки, t і p-value розраховано класичним методом найменших квадратів "
     "на навчальній частині (як lm у R). Вони коректні, якщо помилки незалежні, мають однакову "
@@ -41,6 +43,18 @@ def stars(p_value: float | None) -> str:
     if p_value is None:
         return ""
     return next((mark for limit, mark in SIGNIFICANCE if p_value < limit), "")
+
+
+def format_p_value(value: float | None) -> str:
+    """Short display whose rounding never crosses a significance threshold."""
+    if value is None:
+        return "не визначено"
+    if value < 0.001:
+        return "< 0,001"
+    digits = 3 if value < 0.01 else 2
+    while digits < 16 and stars(float(f"{value:.{digits}f}")) != stars(value):
+        digits += 1
+    return f"{value:.{digits}f}".replace(".", ",")
 
 
 def inference(
@@ -69,12 +83,20 @@ def inference(
         return {"df": df, "sigma": 0.0, "reason": reason, "rows": [empty] * len(estimate)}
     sigma2 = rss / df
     with np.errstate(all="ignore"):
-        pseudo = np.linalg.pinv(design.T @ design)
-        estimable = np.isclose(np.linalg.pinv(design) @ design, np.eye(design.shape[1]), atol=1e-8)
+        # Forming X.T @ X squares the condition number and can erase intercept variance.
+        # Use the same retained SVD rank for covariance and the estimable subspace.
+        _, singular, right = np.linalg.svd(design, full_matrices=False)
+        scaled = right[:rank].T / singular[:rank]
+        covariance = scaled @ scaled.T
+        estimable = (
+            np.ones(design.shape[1], dtype=bool)
+            if rank == design.shape[1]
+            else (1 - np.sum(right[:rank] ** 2, axis=0) < 1e-10)
+        )
     rows: list[dict[str, object]] = []
     for j, value in enumerate(estimate):
-        variance = sigma2 * pseudo[j, j]
-        if not estimable[:, j].all() or not math.isfinite(variance) or variance <= 0:
+        variance = sigma2 * covariance[j, j]
+        if not estimable[j] or not math.isfinite(variance) or variance <= 0:
             rows.append({**empty, "reason": "Не визначено через лінійну залежність ознак."})
             continue
         error = math.sqrt(variance)
@@ -223,6 +245,7 @@ def _fit_and_score(
         "intercept": intercept,
         "intercept_inference": tests["rows"][0],
         "inference": {
+            "version": INFERENCE_VERSION,
             "method": "OLS на навчальній частині; t-розподіл; двосторонні p-value",
             "df_residual": tests["df"],
             "sigma": tests["sigma"],

@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import unittest
+import zipfile
 from unittest.mock import patch
 
 import test_model as fixtures
@@ -165,6 +166,12 @@ class ReportTests(unittest.TestCase):
         self.assertIsInstance(first, Success)
         self.assertEqual(len(second.data["artifacts"]), 2)
         artifact = second.data["artifacts"][-1]
+        bundle = self.service.reports.download(
+            self.project.id, report["id"], artifact["id"], "source"
+        )
+        with zipfile.ZipFile(bundle) as package:
+            self.assertIn("fonts/plex/ibm-plex-sans-regular.woff2", package.namelist())
+            self.assertIn("fonts/plex/OFL.txt", package.namelist())
         app = FastAPI()
         install_error_handlers(app)
         app.include_router(router(self.service))

@@ -1,6 +1,7 @@
 """Book library: fragments next to the database, indexing with progress, search by meaning."""
 
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -12,11 +13,13 @@ import numpy as np
 from data_story import embeddings
 from data_story.knowledge import KnowledgeStore
 from data_story.knowledge_sources import BOOK_MIN, SourceLibrary, index
+from data_story.knowledge_sources.curation import reviewed_chunks, text_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from build_sources import heading, useful  # noqa: E402
+from curate_sources import curate  # noqa: E402
 
 CHUNKS = [
     {"id": "b-0000", "book": "b", "chapter": "Regression", "section": "Multiple Regression",
@@ -93,3 +96,41 @@ class SourceTests(unittest.TestCase):
         self.assertTrue(useful("The coefficient of determination shows the explained variance."))
         self.assertTrue(heading("12.11 Assessing the strength of relationships", "x " * 10))
         self.assertFalse(heading("Figure 2-13. Learning curves", "x " * 10))
+
+    def test_reviewed_passages_reject_unknown_changed_and_wrong_book(self):
+        accepted = CHUNKS[0]
+        manifest = {
+            "fragments": [
+                {"id": accepted["id"], "book": accepted["book"], "text_sha256": text_hash(accepted)}
+            ]
+        }
+        changed = {**accepted, "text": "An unrelated example about German politics."}
+        other_book = {**accepted, "book": "other"}
+        self.assertEqual(
+            reviewed_chunks([CHUNKS[1], changed, other_book, accepted], manifest), [accepted]
+        )
+
+    def test_curation_keeps_vectors_aligned_and_backup_is_reversible(self):
+        self.write()
+        library = SourceLibrary(self.library)
+        old_path = library.vector_path(library.fingerprint())
+        original = np.array([[0.9, 0.1], [0.1, 0.9]], dtype=np.float32)
+        np.save(old_path, original)
+        manifest = self.root / "reviewed.json"
+        manifest.write_text(json.dumps({"topics": {"b": "Reviewed methods"}}), encoding="utf-8")
+        with (
+            patch("curate_sources.reviewed_chunks", return_value=[CHUNKS[1]]),
+            patch("curate_sources.MANIFEST", manifest),
+        ):
+            result = curate(self.library)
+            again = curate(self.library)
+        self.addCleanup(shutil.rmtree, result["backup"])
+        self.assertFalse(again["changed"])
+        rows, books, vectors = library.load()  # same instance reloads when fingerprint changes
+        self.assertEqual(rows, [CHUNKS[1]])
+        self.assertEqual(books["b"]["chunks"], 1)
+        np.testing.assert_array_equal(vectors, original[1:])
+        backup = Path(result["backup"])
+        self.assertEqual(len((backup / "chunks.jsonl").read_text().splitlines()), 2)
+        np.testing.assert_array_equal(np.load(backup / old_path.name), original)
+        self.assertFalse(old_path.exists())

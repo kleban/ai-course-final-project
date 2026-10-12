@@ -1,6 +1,7 @@
 """Stage 03 calculation core. No AI, UI, rounding or changes to source data."""
 
 import hashlib
+import json
 import math
 from collections.abc import Callable
 from time import perf_counter
@@ -9,7 +10,7 @@ from typing import Any, Literal
 import pandas as pd
 from pandas.api import types as ptypes
 
-from .datasets import DatasetError, DatasetStore, _date_text, read_table
+from .datasets import DatasetError, DatasetStore, _date_text
 from .metadata import Metadata, MetadataStore, issues
 from .missing_values import missing_masks
 from .projects import ProjectStore
@@ -21,6 +22,69 @@ METHODS = {
     "missing": "parser NA + explicit codes; union of rows",
     "correlations": "Pearson; pairwise finite observations; n>=3",
 }
+
+CACHE_VERSION = 1
+
+
+def result_tables(result: dict) -> list[tuple[str, pd.DataFrame]]:
+    """Plain numeric tables for SQL; the JSON cache also preserves explanations and labels."""
+    rows = []
+    for column in result["columns"]:
+        row = {
+            k: column[k]
+            for k in (
+                "name",
+                "label",
+                "kind",
+                "role",
+                "base_missing",
+                "additional_missing",
+                "missing",
+                "missing_percent",
+                "invalid_infinite",
+            )
+        }
+        row.update(
+            {
+                k: v
+                for k, v in (column.get("statistics") or {}).items()
+                if v is None or isinstance(v, int | float | bool)
+            }
+        )
+        rows.append(row)
+    tables = [("fields", pd.DataFrame(rows))]
+    if result.get("r"):
+        pairs = [
+            {
+                "left": left,
+                "right": right,
+                "r": result["r"][i][j],
+                "n": result["n"][i][j],
+                "reason": result["reasons"][i][j],
+            }
+            for i, left in enumerate(result["fields"])
+            for j, right in enumerate(result["fields"])
+        ]
+        tables.append(("correlations", pd.DataFrame(pairs)))
+    if "pairs" in result:
+        tables.append(("pairs", pd.DataFrame(result["pairs"], columns=["x", "y"])))
+    if "values" in result:
+        tables.append(("values", pd.DataFrame({"value": result["values"]})))
+    if "histogram" in result:
+        histogram = result["histogram"]
+        tables.append(
+            (
+                "bins",
+                pd.DataFrame(
+                    {
+                        "left": histogram["edges"][:-1],
+                        "right": histogram["edges"][1:],
+                        "count": histogram["counts"],
+                    }
+                ),
+            )
+        )
+    return tables
 
 
 class StatisticsError(ValueError):
@@ -265,7 +329,7 @@ class StatisticsStore:
                 raise StatisticsError(
                     "Файл набору змінився або пошкоджений. Завантажте його заново."
                 )
-            frame, _ = read_table(content, dataset.file_format, meta=dataset.profile)
+            frame = self.datasets.frame(dataset_id)
             metadata = self.metadata.get(dataset_id)
             audit.update(
                 row_count=len(frame),
@@ -276,10 +340,34 @@ class StatisticsStore:
                 else "none",
                 metadata_updated_at=metadata.updated_at,
             )
-            result = calculate(
-                frame, dataset.profile, metadata, view, fields, values_for, with_pairs
-            )
-            result.update(project_id=project_id, dataset_id=dataset_id, sha256=audit["sha256"])
+            identity = {
+                "version": CACHE_VERSION,
+                "pandas": pd.__version__,
+                "method": METHODS.get(view),
+                "sha256": dataset.sha256,
+                "profile": dataset.profile,
+                "metadata": metadata.document.model_dump(mode="json"),
+                "saved": metadata.saved,
+                "updated_at": metadata.updated_at,
+                "confirmed_at": metadata.confirmed_at,
+                "view": view,
+                "fields": fields,
+                "values_for": values_for,
+                "with_pairs": with_pairs,
+            }
+            source = json.dumps(identity, sort_keys=True, ensure_ascii=False, allow_nan=False)
+            object_id = dataset_id + "." + hashlib.sha256(source.encode()).hexdigest()
+            analytics = self.datasets.analytics
+            result = analytics.result(project_id, "statistics", object_id, source)
+            audit["reused"] = result is not None
+            if result is None:
+                result = calculate(
+                    frame, dataset.profile, metadata, view, fields, values_for, with_pairs
+                )
+                result.update(project_id=project_id, dataset_id=dataset_id, sha256=audit["sha256"])
+                analytics.save_result(
+                    project_id, "statistics", object_id, source, result, result_tables(result)
+                )
             audit.update(
                 {key: result[key] for key in ("metadata_state", "metadata_updated_at", "row_count")}
             )
@@ -293,7 +381,26 @@ class StatisticsStore:
             if "values" in result:
                 audit["value_count"] = len(result["values"])
             if finish is not None:
-                audit.update(finish(result))
+                # Style/title never change the numeric cache. Only bin parameters do.
+                chart_source = source + json.dumps(
+                    {k: audit.get(k) for k in ("chart", "bins", "bin_width")}, sort_keys=True
+                )
+                chart_id = dataset_id + "." + hashlib.sha256(chart_source.encode()).hexdigest()
+                cached_chart = analytics.result(project_id, "chart_data", chart_id, chart_source)
+                if cached_chart is None:
+                    details = finish(result)
+                    analytics.save_result(
+                        project_id,
+                        "chart_data",
+                        chart_id,
+                        chart_source,
+                        {"result": result, "audit": details},
+                        result_tables(result),
+                    )
+                else:
+                    result = cached_chart["result"]
+                    details = cached_chart["audit"]
+                audit.update(details)
             audit["status"] = "success"
             return result
         except (StatisticsError, DatasetError, LookupError, OSError, ValueError) as error:

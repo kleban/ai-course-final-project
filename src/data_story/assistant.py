@@ -60,6 +60,12 @@ RULES = """Ти — AI-помічник аналітика в сервісі Dat
 інструментів; не вигадуй чисел. Посилайся на правила бази знань у форматі
 [Джерело: назва розділу]. Розрахунки виконує сервіс, не ти.
 
+Для нового числового питання отримай analytics_schema й склади SELECT для query_analytics.
+Використовуй лише alias та поля з цього каталогу, назви полів бери у подвійні лапки.
+Не трактуй NULL як нуль. truncated або preview_only означають неповний перелік рядків.
+Якщо користувач замовляє зведення для графіка, запропонуй propose_sql_summary;
+після його застосування звичайні графіки працюють із новим набором.
+
 Враховуй сторінку, на якій зараз користувач (розділ «Поточна сторінка» в контексті), і
 будуй відповідь від неї. Ти ведеш діалог, а не лише виконуєш накази: якщо завдання
 неоднозначне, бракує даних (наприклад, не зрозуміло, який набір, ціль чи модель), або дія
@@ -420,7 +426,7 @@ class Assistant:
         instruction = self.service.instructions.get(self.service.store.get(project_id).project_type)
         instructions = (
             f"{RULES}\n\nДія: {MODES[mode]}. Блок: {BLOCKS[block]}.\n\n"
-            f"Інструкція типу проєкту:\n{instruction.text[:1500]}\n\n"
+            f"Інструкція типу проєкту:\n{instruction.text}\n\n"
             f"Правила бази знань:\n{rules}\n\n"
             f"Фрагменти книжок (англійською; переказуй своїми словами українською й називай "
             f"книгу та сторінки, не цитуй довгими уривками):\n{book_text}\n\n"
@@ -428,7 +434,10 @@ class Assistant:
         )
         client = self.service.openai
         config = self.service.ai_settings.get()
-        tools = [ASK_USER]
+        tools = [ASK_USER] + [
+            TOOLS[name].schema() | {"strict": False}
+            for name in ("analytics_schema", "query_analytics")
+        ]
         if mode == "execute":
             available = [
                 t
@@ -441,7 +450,13 @@ class Assistant:
                 or (block == "eda" and t.name in ("propose_eda_chart", "search_knowledge"))
                 or (block not in ("data", "eda") and t.name != "propose_eda_chart")
             ]
-            tools += [t.schema() | {"strict": False} for t in available]
+            tools += [
+                t.schema() | {"strict": False}
+                for t in available
+                if t.name not in ("analytics_schema", "query_analytics")
+            ]
+            if block in ("data", "eda"):
+                tools.append(TOOLS["propose_sql_summary"].schema() | {"strict": False})
         items: list = [
             {"role": "assistant" if turn.get("role") == "assistant" else "user",
              "content": str(turn.get("text", ""))[:2000]}

@@ -86,7 +86,9 @@ class DatasetCopier:
             copied_from=source.id,
         )
         target_dir.mkdir(parents=True, exist_ok=False)  # a fresh UUID folder, never reused
+        reference = None
         try:
+            frame = self.datasets.frame(source.id)
             shutil.copyfile(source_file, root / copied.stored_path)
             new_sources = []
             for row in sources:
@@ -110,6 +112,7 @@ class DatasetCopier:
                         row["created_at"],
                     )
                 )
+            reference = self.datasets.persist(copied, frame)
             with connect(self.database) as connection:
                 ProjectStore._get(connection, project_id)
                 connection.execute(
@@ -155,6 +158,7 @@ class DatasetCopier:
                     },
                 )
         except BaseException:
+            self.datasets.analytics.discard(reference)
             shutil.rmtree(target_dir, ignore_errors=True)
             raise
         return copied

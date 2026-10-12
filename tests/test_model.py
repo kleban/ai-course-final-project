@@ -331,6 +331,13 @@ class ModelStoreTests(unittest.TestCase):
         event = self.store.events(self.project.id)[-1]
         self.assertEqual((event.operation, event.payload["status"]), ("model.trained", "error"))
         self.assertEqual(self.service.model_runs(self.project.id).data, [])
+        self.assertFalse(
+            [
+                t
+                for t in self.service.analytics.catalog(self.project.id)
+                if t["kind"] in {"coefficients", "model_metrics", "predictions", "residuals"}
+            ]
+        )
 
     def test_matrix_shape_mismatch_with_valid_hash_refused(self):
         run_id = self._run()
@@ -390,6 +397,9 @@ class ModelStoreTests(unittest.TestCase):
                 "explain_model_result",
                 "search_knowledge",
                 "build_model_chart",
+                "analytics_schema",
+                "query_analytics",
+                "propose_sql_summary",
             ],
         )
         self.assertEqual({t.mode for t in TOOLS.values()}, {"advise", "execute", "explain"})

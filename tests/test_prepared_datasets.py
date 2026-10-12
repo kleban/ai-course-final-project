@@ -32,6 +32,10 @@ class PreparedDatasetTests(unittest.TestCase):
         output = self.service.datasets.get(str(result.data.id))
         self.assertEqual(output.profile["prepared_from"], self.dataset.id)
         self.assertEqual(output.profile["preparation_plan_id"], plan)
+        self.assertEqual(
+            {r["object_id"] for r in self.service.analytics.catalog(self.project.id)},
+            {self.dataset.id, output.id},
+        )
         self.assertIsNone(self.service.metadata_store.get(output.id).confirmed_at)
         self.assertEqual(
             (self.service.datasets.files_root / self.dataset.stored_path).read_bytes(), before
@@ -58,10 +62,12 @@ class PreparedDatasetTests(unittest.TestCase):
         plan = self._plan()
         root = self.service.datasets.files_root / self.project.id / "datasets"
         before = set(root.iterdir())
+        before_catalog = self.service.analytics.catalog(self.project.id)
         with patch.object(ProjectStore, "_event", side_effect=sqlite3.OperationalError("test")):
             self.assertIsInstance(self.service.preparation_apply(self.project.id, plan), Failure)
         self.assertEqual(set(root.iterdir()), before)
         self.assertEqual(len(self.service.datasets.list_datasets(self.project.id)), 1)
+        self.assertEqual(self.service.analytics.catalog(self.project.id), before_catalog)
 
     def test_csv_preserves_na_text_empty_text_numeric_strings_bool_and_precision(self):
         frame = pd.DataFrame(

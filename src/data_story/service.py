@@ -8,6 +8,8 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from .ai_settings import MODELS, STAGES, TASKS, AiConfiguration, AiSettingsStore
+from .analytical_queries import AnalyticalQueries
+from .analytics import AnalyticsError
 from .chart_configuration import ChartConfiguration, ChartConfigurationStore
 from .charts import (
     MISSING_PAGE,
@@ -26,6 +28,7 @@ from .combine import Recipe, SummaryError, SummaryStore
 from .conclusions import ConclusionError, ConclusionStore
 from .configuration import InstructionStore
 from .contracts import (
+    AnalyticalQuery,
     AssistantQuery,
     ConclusionCreate,
     ConclusionSave,
@@ -145,6 +148,7 @@ def execute(action: Callable[[], T]) -> Success[T] | Failure:
         ReportError,
         ConclusionError,
         SummaryError,
+        AnalyticsError,
     ) as error:
         return Failure(
             error=ErrorInfo(
@@ -183,6 +187,8 @@ class ProjectService:
         self.store = store
         self.instructions = instructions or InstructionStore(store.database)
         self.datasets = datasets or DatasetStore(store.database)
+        self.analytics = self.datasets.analytics
+        self.analytical_queries = AnalyticalQueries(self)
         self.metadata_store = MetadataStore(store.database, self.datasets)
         self.copier = DatasetCopier(self.datasets)
         self.statistics_store = StatisticsStore(self.datasets)
@@ -197,6 +203,58 @@ class ProjectService:
         self.openai = OpenAIClient(store.database, self.ai_settings)
         self.reports = ReportStore(self)
         self.conclusions = ConclusionStore(self)
+
+    def analytics_catalog(self, project_id: str) -> Success[list[dict]] | Failure:
+        def action() -> list[dict]:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            self.store.get(validated)
+            return self.analytics.catalog(validated)
+
+        return execute(action)
+
+    def analytics_schema(self, project_id: str) -> Success[list[dict]] | Failure:
+        return execute(
+            lambda: self.analytical_queries.schema(
+                str(validate_input(ProjectId, {"id": project_id}).id)
+            )
+        )
+
+    def analytics_query(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        def action() -> dict:
+            project = str(validate_input(ProjectId, {"id": project_id}).id)
+            query = validate_input(AnalyticalQuery, raw)
+            return self.analytical_queries.query(project, query.sql, query.limit)
+
+        return execute(action)
+
+    def analytics_sync(self, project_id: str, dataset_id: str) -> Success[dict] | Failure:
+        """Explicit first-stage import; verified CSV/metadata and old analytical flows remain intact."""
+        from .prepared_datasets import snapshot
+        from .storage import connect
+
+        def action() -> dict:
+            project = str(validate_input(ProjectId, {"id": project_id}).id)
+            dataset_key = str(validate_input(ProjectId, {"id": dataset_id}).id)
+            self.store.get(project)
+            audit: dict = {"dataset_id": dataset_key, "status": "error"}
+            try:
+                dataset, frame, _metadata = snapshot(self.datasets, project, dataset_key)
+                result = self.datasets.persist(dataset, frame)
+                audit.update(
+                    status="success",
+                    fingerprint=result["fingerprint"],
+                    row_count=result["row_count"],
+                    reused=result["reused"],
+                )
+                return result
+            except (AnalyticsError, PreparationError, DatasetError, LookupError) as error:
+                audit["error"] = str(error)
+                raise
+            finally:
+                with connect(self.store.database) as connection:
+                    ProjectStore._event(connection, project, "analytics.synced", audit)
+
+        return execute(action)
 
     def conclusion_list(self, project_id: str) -> Success[list[dict]] | Failure:
         return execute(

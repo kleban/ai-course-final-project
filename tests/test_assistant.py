@@ -80,7 +80,10 @@ class AssistantTests(unittest.TestCase):
         self.assertEqual(body["model"], "gpt-6-luna")
         self.assertIn("R² (R-квадрат)", body["instructions"])
         self.assertIn("latest_model", body["instructions"])
-        self.assertEqual([t["name"] for t in body["tools"]], ["ask_user"])
+        self.assertEqual(
+            [t["name"] for t in body["tools"]],
+            ["ask_user", "analytics_schema", "query_analytics"],
+        )
         event = self.store.events(self.project.id)[-1]
         self.assertEqual((event.operation, event.payload["status"]), ("assistant.asked", "success"))
         self.assertEqual(event.payload["usage_total"], 120)

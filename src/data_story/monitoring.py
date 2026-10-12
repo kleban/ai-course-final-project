@@ -201,9 +201,30 @@ class Monitor:
             return _row("duckdb", "DuckDB", ERROR,
                         "Не встановлено: зведення й з'єднання наборів недоступні. "
                         "Запустіть Setup.cmd.")  # fmt: skip
-        return _row("duckdb", "DuckDB", OK,
-                    f"Пакет {version}: зведення й з'єднання наборів у пам'яті, "
-                    "SQL складає сервіс (D-92).")  # fmt: skip
+        analytics = self.service.analytics
+        if not analytics.database.exists():
+            return _row("duckdb", "DuckDB", OK,
+                        f"Пакет {version}; база створиться після завантаження даних. "
+                        "SQL від AI виконує сервіс у межах поточного проєкту.")  # fmt: skip
+        try:
+            with analytics._connection() as connection:
+                tables = connection.execute("SELECT count(*) FROM _analytics_catalog").fetchone()[0]
+                results = connection.execute("SELECT count(*) FROM _analytics_results").fetchone()[
+                    0
+                ]
+                missing = connection.execute(
+                    "SELECT count(*) FROM _analytics_catalog c LEFT JOIN information_schema.tables t "
+                    "ON c.schema_name=t.table_schema AND c.table_name=t.table_name "
+                    "WHERE t.table_name IS NULL"
+                ).fetchone()[0]
+        except Exception:
+            return _row("duckdb", "DuckDB", ERROR,
+                        "Аналітичну базу не вдалося прочитати. Перевірте файл і доступ до нього.")  # fmt: skip
+        size = analytics.database.stat().st_size / 1024 / 1024
+        return _row("duckdb", "DuckDB", ERROR if missing else OK,
+                    f"Пакет {version}; таблиць {tables}, результатів {results}, "
+                    f"відсутніх таблиць {missing}; {size:.1f} МБ. "
+                    "SQL від AI виконує сервіс у межах поточного проєкту.")  # fmt: skip
 
     def matrices(self) -> dict:
         """Saved train/test matrices exist and match their SHA-256; models link to them."""
@@ -230,11 +251,13 @@ class Monitor:
         data_n, data_mb = size(root.glob("*/datasets/**/*")) if root.exists() else (0, 0.0)
         npz_n, npz_mb = size(root.glob("*/training/*/*.npz")) if root.exists() else (0, 0.0)
         db_mb = self.database.stat().st_size / 1024 / 1024
+        analytical = self.service.analytics.database
+        analytics_mb = analytical.stat().st_size / 1024 / 1024 if analytical.exists() else 0.0
         with connect(self.database) as connection:
             calls = connection.execute("SELECT COUNT(*) FROM ai_calls").fetchone()[0]
             events = connection.execute("SELECT COUNT(*) FROM project_events").fetchone()[0]
         detail = (
-            f"База {db_mb:.1f} МБ · файли наборів {data_n} ({data_mb:.1f} МБ) · матриці {npz_n} "
+            f"SQLite {db_mb:.1f} МБ · DuckDB {analytics_mb:.1f} МБ · файли наборів {data_n} ({data_mb:.1f} МБ) · матриці {npz_n} "
             f"({npz_mb:.1f} МБ) · подій журналу {events} · викликів AI {calls}. "
             f"Усе в {self.database.parent.name}/ всередині проєкту."
         )

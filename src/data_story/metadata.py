@@ -16,7 +16,7 @@ from uuid import uuid4
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .datasets import DatasetStore, clean_name, read_table
+from .datasets import DatasetStore, clean_name
 from .projects import ProjectStore
 from .storage import connect, ensure_schema
 
@@ -251,8 +251,7 @@ class MetadataStore:
 
     def _frame(self, dataset_id: str):
         dataset = self.datasets.get(dataset_id)
-        path = (self.datasets.files_root / dataset.stored_path).resolve()
-        frame, _ = read_table(path.read_bytes(), dataset.file_format, meta=dataset.profile)
+        frame = self.datasets.frame(dataset_id)
         return dataset, frame
 
     def _fresh(self, dataset_id: str) -> MetadataDocument:

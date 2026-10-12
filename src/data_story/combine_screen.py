@@ -64,6 +64,13 @@ def combine_screen(service: ProjectService, active: ProjectView, dataset_id: str
         "advise",
         "Яке зведення чи з'єднання наборів допоможе відповісти на питання проєкту?",
     )
+    ai_shortcut(
+        "Підготуй зведення",
+        "execute",
+        "Підготуй пропозицію зведення за питанням і метою проєкту. "
+        "Покажи таблицю результатів для перегляду перед збереженням. "
+        "Якщо мети недостатньо — постав одне коротке уточнення.",
+    )
     listing = service.list_datasets(project_id)
     if isinstance(listing, Failure):
         error_line(listing)

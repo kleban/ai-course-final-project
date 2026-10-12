@@ -252,8 +252,11 @@ def draft_preview(service: ProjectService, project_id: str, proposal: dict) -> N
     with ui.column().classes("w-full assistant-draft").style("gap: 4px"):
         is_project = proposal["kind"] == "project_description"
         is_chart = proposal["kind"] == "chart"
+        is_sql = proposal["kind"] == "sql_summary"
         ui.label(
-            "Пропозиція графіка"
+            "Пропозиція зведення"
+            if is_sql
+            else "Пропозиція графіка"
             if is_chart
             else "Чернетка опису проєкту"
             if is_project
@@ -292,6 +295,21 @@ def draft_preview(service: ProjectService, project_id: str, proposal: dict) -> N
                     ui.label(GROUPS[group]).classes("font-bold")
                     for key, _, label, _ in FIELDS[group]:
                         ui.label(f"{label}: {options[key]}").classes("model-note")
+        elif is_sql:
+            summary = proposal["sql_summary"]
+            ui.label(summary["name"]).classes("font-bold")
+            ui.label(summary["explanation"]).classes("model-note")
+            preview = service.analytics_query(project_id, {k: summary[k] for k in ("sql", "limit")})
+            if not isinstance(preview, Failure):
+                from .combine_screen import _table
+
+                ui.html(_table(preview.data["columns"], preview.data["rows"][:10]), sanitize=False)
+                ui.label(
+                    f"Рядків: {preview.data['row_count']}. "
+                    "Після застосування набір буде доступний для графіків."
+                ).classes("model-note")
+            with ui.expansion("Запит до даних"):
+                ui.code(summary["sql"], language="sql").classes("w-full")
         else:
             metadata = proposal["metadata"]
             if metadata.get("description") is not None:

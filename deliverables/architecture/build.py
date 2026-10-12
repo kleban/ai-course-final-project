@@ -1,4 +1,8 @@
 from html import escape as e
+from pathlib import Path
+from shutil import copyfile
+
+target_svg = (Path(__file__).resolve().parent / "target.svg").read_text(encoding="utf-8")
 
 W, H = 1600, 900
 parts = []
@@ -99,10 +103,17 @@ steps = [
 ]
 steplis = "".join(f'<li><span class="sn">{e(n)}</span><span>{e(t)}</span></li>' for n,t in steps)
 
-page = f'''<title>Архітектура Data Story</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,600;0,700;1,400&family=STIX+Two+Text:wght@600;700&display=swap">
+page = f'''<!doctype html>
+<html lang="uk">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мотивація та архітектура Data Story</title>
 <style>
+@font-face {{ font-family:'IBM Plex Sans'; src:url('../../src/data_story/assets/fonts/plex/ibm-plex-sans-regular.woff2') format('woff2'); font-weight:400; }}
+@font-face {{ font-family:'IBM Plex Sans'; src:url('../../src/data_story/assets/fonts/plex/ibm-plex-sans-600.woff2') format('woff2'); font-weight:600; }}
+@font-face {{ font-family:'IBM Plex Sans'; src:url('../../src/data_story/assets/fonts/plex/ibm-plex-sans-700.woff2') format('woff2'); font-weight:700; }}
+@font-face {{ font-family:'STIX Two Text'; src:url('../../src/data_story/assets/fonts/stix/stix-two-text-600.woff2') format('woff2'); font-weight:600; }}
+@font-face {{ font-family:'STIX Two Text'; src:url('../../src/data_story/assets/fonts/stix/stix-two-text-700.woff2') format('woff2'); font-weight:700; }}
 /* Layout: one 16:9 diagram (slide-ready), then the flow table and one worked request. Single light look by choice (a printed slide), colours set explicitly. */
 :root {{
   --paper:#ffffff; --ink:#262626; --ink2:#5f5f5f; --rule:#d5dbe5; --shade:#f3f4f6;
@@ -118,6 +129,8 @@ header {{ display:flex; flex-direction:column; gap:6px; border-bottom:2px solid 
 h1 {{ font-family:var(--serif); font-size:clamp(1.7rem,3.2vw,2.4rem); line-height:1.15; margin:0; text-wrap:balance; }}
 h2 {{ font-family:var(--serif); font-size:1.35rem; margin:0 0 10px; }}
 .lead {{ color:var(--ink2); max-width:70ch; margin:0; }}
+.motivation p {{ max-width:85ch; margin:0 0 18px; }}
+.motivation img {{ display:block; width:100%; max-width:1040px; height:auto; }}
 .figure {{ overflow-x:auto; border:1px solid var(--rule); background:var(--paper); }}
 .figure svg {{ display:block; width:100%; min-width:900px; height:auto; }}
 .legend {{ display:flex; flex-wrap:wrap; gap:8px 22px; font-size:.86rem; color:var(--ink2); }}
@@ -160,11 +173,22 @@ ol.path li {{ display:grid; grid-template-columns:64px minmax(0,1fr); gap:10px; 
 @media (max-width:820px) {{ .cols {{ grid-template-columns:1fr; }} }}
 </style>
 <main>
+<section class="motivation" aria-labelledby="motivation-title">
+  <h1 id="motivation-title">Мотивація</h1>
+  <p>«Storytelling with Data» Коул Нуссбаумер Кнафлік — чудова книжка про те, як перетворювати дані на зрозумілу історію. Її принципи дизайну стали одним із орієнтирів для побудови й візуалізації даних у Data Story: обирати доречний графік, прибирати зайве та спрямовувати увагу на головне, щоб аналітик міг ясно пояснити результати. Інструмент планується використовувати як демонстрацію на заняттях з аналітики даних — для пояснення її загальних принципів і понять, а також основ математичного моделювання.</p>
+  <img src="../presentation-assets/storytelling-two-editions.png" width="1672" height="941" alt="Старе та ювілейне видання Storytelling with Data стоять поруч на дерев’яному столі в сонячному світлі">
+</section>
 <header>
   <span class="kicker">Data Story · фінальний проєкт курсу</span>
   <h1>Як влаштований сервіс і хто кому що передає</h1>
   <p class="lead">Окремі складові, пронумеровані потоки даних і технологія на кожному рівні. Дані, розрахунки, пошук у базі знань і звіти працюють на комп’ютері користувача. LLM — обов’язкова частина сервісу: це OpenAI, до якого сервіс звертається через інтернет за дією користувача.</p>
 </header>
+<section>
+  <h2>Цільова архітектура — перебудова в роботі</h2>
+  <p class="lead">Погоджений напрям: аналітичні таблиці й результати в постійній DuckDB; чат-помічник та вбудовані AI-функції використовують спільний доступ до аналітики, RAG і OpenAI. Усі AI-дії запускає користувач. Реалізовано основу версійного сховища й явний імпорт набору; решта зв’язків нижче — цільовий стан.</p>
+  <div class="figure">{target_svg}</div>
+</section>
+<h2>Поточні складові та потоки до завершення перебудови</h2>
 <div class="figure">{svg}</div>
 <div class="legend">
   <span><i class="sw"></i>інтерфейс і ядро сервісу</span>
@@ -196,6 +220,14 @@ ol.path li {{ display:grid; grid-template-columns:64px minmax(0,1fr); gap:10px; 
   </div>
 </section>
 </main>'''
-open("architecture.html", "w", encoding="utf-8").write(page)
-open("architecture.svg", "w", encoding="utf-8").write(svg)
+output = Path(__file__).resolve().parent
+(output / "architecture.html").write_text(page, encoding="utf-8")
+(output / "architecture.svg").write_text(svg, encoding="utf-8")
+about = output.parents[1] / "src/data_story/assets/about"
+about.mkdir(parents=True, exist_ok=True)
+about_page = page.replace("../../src/data_story/assets/fonts/", "../fonts/").replace(
+    "../presentation-assets/storytelling-two-editions.png", "storytelling-two-editions.png"
+)
+(about / "index.html").write_text(about_page, encoding="utf-8")
+copyfile(output.parent / "presentation-assets/storytelling-two-editions.png", about / "storytelling-two-editions.png")
 print("ok", len(page))

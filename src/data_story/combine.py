@@ -435,6 +435,7 @@ class SummaryStore:
         started = perf_counter()
         audit: dict = {"recipe": recipe.model_dump(mode="json")}
         folder: Path | None = None
+        reference = None
         try:
             plan = self.plan(project_id, recipe)
             if self.token(plan) != preview_token:
@@ -512,6 +513,7 @@ class SummaryStore:
                 + ", ".join(s[0].name for s in plan.sources)
                 + "."
             )
+            reference = self.datasets.persist(dataset, frame.reset_index(drop=True))
             with connect(self.datasets.database) as connection:
                 connection.execute(
                     "INSERT INTO datasets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -533,6 +535,7 @@ class SummaryStore:
                 ProjectStore._event(connection, project_id, "summary.created", audit)
             return dataset
         except BaseException as error:
+            self.datasets.analytics.discard(reference)
             if folder is not None:
                 shutil.rmtree(folder, ignore_errors=True)  # only this operation's fresh folder
             if isinstance(error, (SummaryError, DatasetError, OSError)):

@@ -29,7 +29,7 @@ def snapshot(datasets: DatasetStore, project_id: str, dataset_id: str):
     content = path.read_bytes()
     if hashlib.sha256(content).hexdigest() != dataset.sha256:
         raise PreparationError("Файл набору змінився або пошкоджений. Завантажте його заново.")
-    frame, _ = read_table(content, dataset.file_format, meta=dataset.profile)
+    frame = datasets.frame(dataset_id)
     metadata = MetadataStore(datasets.database, datasets).get(dataset_id)
     return dataset, frame, metadata
 
@@ -70,6 +70,7 @@ class PreparedDatasets:
         started = perf_counter()
         audit: dict = {"plan_id": plan_id}
         folder: Path | None = None
+        reference = None
         try:
             with connect(self.datasets.database) as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -154,6 +155,7 @@ class PreparedDatasets:
                     ):
                         setattr(target, key, getattr(original, key))
                 fresh.dataset = metadata.document.dataset.model_copy(deep=True)
+                reference = self.datasets.persist(dataset, prepared.frame.reset_index(drop=True))
                 connection.execute(
                     "INSERT INTO datasets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
@@ -189,6 +191,7 @@ class PreparedDatasets:
                 ProjectStore._event(connection, project_id, "preparation.applied", audit)
             return dataset
         except BaseException as error:
+            self.datasets.analytics.discard(reference)
             if folder is not None:
                 shutil.rmtree(folder, ignore_errors=True)  # only this operation's fresh UUID folder
             if isinstance(error, (PreparationError, DatasetError, LookupError, OSError)):

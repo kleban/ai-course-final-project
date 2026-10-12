@@ -16,6 +16,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from data_story.knowledge_sources.curation import reviewed_chunks  # noqa: E402
+
 SELECTION = ROOT / "src" / "data_story" / "knowledge_sources" / "selection.json"
 CODE = re.compile(
     r"^(In|Out)\[\d*\]|^\s*(>>>|\.\.\.|#|from \w+ import|import \w+|print\()"
@@ -149,11 +153,16 @@ def main() -> int:
             continue
         pages = page_texts(pdf)
         made = chunks_for(book, pages, selection["chunk_words"], selection["overlap_words"])
+        extracted = len(made)
+        made = reviewed_chunks(made)
+        if not made:
+            print(f"skip {book['id']}: no reviewed passages in {extracted} fragments", flush=True)
+            continue
         digest = hashlib.sha256(pdf.read_bytes()).hexdigest()
         meta = {k: book[k] for k in ("id", "title", "authors", "year", "why", "ranges")}
         books.append({**meta, "pdf_sha256": digest, "chunks": len(made)})
         chunks.extend(made)
-        print(f"{book['id']}: {len(made)} fragments", flush=True)
+        print(f"{book['id']}: {len(made)}/{extracted} reviewed fragments", flush=True)
     with (output / "chunks.jsonl").open("w", encoding="utf-8") as handle:
         for chunk in chunks:
             handle.write(json.dumps(chunk, ensure_ascii=False) + "\n")

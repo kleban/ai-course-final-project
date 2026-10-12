@@ -1,0 +1,148 @@
+{
+  "status": "ok",
+  "data": {
+    "text": "Для `seoul_bike.csv` найвищий середній попит був о **18:00**: **1 554,016997 прокату** за 353 рядками з `Functioning Day = Yes`.\n\nЗбережена модель має **MAE 289,3186**, а прогноз середнім навчальної цілі — **MAE 516,1259**; ці метрики належать до моделі на `Відкритий прокат.csv`, а не до SQL-зрізу `seoul_bike.csv`.\n\nВипадковий поділ перемішує часові спостереження, тож тестова частина не обов’язково є майбутнім після навчальних даних. Для перевірки прогнозу в часі навчаються на минулому, а тестують на пізніших спостереженнях [Джерело: Поділ на навчальну й тестову частини; *Introduction to Machine Learning with Python*, с. 257–258].",
+    "sources": [
+      {
+        "id": "02-data-preparation#4",
+        "document_id": "02-data-preparation",
+        "title": "Підготовка даних до регресії",
+        "section": "Поділ на навчальну й тестову частини",
+        "source": "базові правила Data Story; scikit-learn «Common pitfalls: data leakage»; редагуються в системі",
+        "priority": 2,
+        "text": "Типовий поділ — 70% навчання і 30% тест. Тестова частина імітує нові дані, тому модель не бачить її під час навчання. Випадковий поділ придатний для незалежних рядків; для часових рядів чи повторних спостережень однієї групи потрібен часовий або груповий поділ.",
+        "score": 0.4126,
+        "lexical": 0.223,
+        "semantic": 0.5498
+      },
+      {
+        "id": "03-regression-metrics#5",
+        "document_id": "03-regression-metrics",
+        "title": "Показники якості регресії",
+        "section": "Порівняння з простим прогнозом",
+        "source": "базові правила Data Story; документація scikit-learn metrics; редагуються в системі",
+        "priority": 2,
+        "text": "Корисно порівняти MAE моделі з MAE прогнозу середнім значенням цілі. Якщо модель не краща за середнє, її ознаки майже не допомагають.",
+        "score": 0.3529,
+        "lexical": 0.2272,
+        "semantic": 0.5073
+      },
+      {
+        "id": "05-model-check#5",
+        "document_id": "05-model-check",
+        "title": "Перевірка моделі графіками",
+        "section": "Екстраполяція",
+        "source": "базові правила Data Story; редагуються в системі",
+        "priority": 2,
+        "text": "Модель надійна лише в межах значень, на яких вона навчалася. Прогноз для значень поза цим діапазоном може бути дуже неточним.",
+        "score": 0.323,
+        "lexical": 0.1285,
+        "semantic": 0.5036
+      },
+      {
+        "id": "muller-guido-ml-python-0070",
+        "kind": "book",
+        "document_id": "muller-guido-ml-python",
+        "title": "Introduction to Machine Learning with Python",
+        "section": "Iterative Feature Selection",
+        "source": "Andreas C. Müller, Sarah Guido, 2016; с. 257–258 (PDF)",
+        "priority": 5,
+        "text": "also seem to be quite different. When evaluating a prediction task on a time series like this, we usually want to learn from the past and predict for the future. This means when doing a split into a training and a test set, we want to use all the data up to a certain date as the training set and all the data past that date as the test set. This is how we would usually use time series predic‐ tion: given everything that we know about rentals in the past, what do we think will happen tomorrow? We will use the first 184 data points, corresponding to the first 23 days, as our training set, and the remaining 64 data points, corresponding to the remaining 8 days, as our test set. The only feature that we are using in our prediction task is the date and time when a particular number of rentals occurred. So, the input feature is the date and time—say, 2015-08-01 00:00:00—and the output is the number of rentals in the following three hours (three in this case, according to our DataFrame). A (surprisingly) common way that dates are stored on computers is using POSIX time, which is the number of seconds since January 1970 00:00:00 (aka the beginning of Unix time).",
+        "score": 0.5397,
+        "semantic": 0.5397,
+        "lexical": null
+      },
+      {
+        "id": "saunders-research-methods-0173",
+        "kind": "book",
+        "document_id": "saunders-research-methods",
+        "title": "Research Methods for Business Students",
+        "section": "Findings/results",
+        "source": "Mark N. K. Saunders, Philip Lewis, Adrian Thornhill, 2023; с. 757–758 (PDF)",
+        "priority": 5,
+        "text": ". . what udgements can I ma e about the results in relation to the specific research questions What are the operational differences between different shifts in the production plant? The night shift indiscipline Cases of indiscipline in the problems may be due to the last six months have been reluctance of operators to twice as frequent on the night shift as on the day shift work on this shift Drawing up this table will lead you to the way in which you present your findings. The purpose of your project report is to clearly communicate the answer to your research question. You should structure your findings in a clear, logical and easily understood manner. There are many ways of doing this. One of the simplest is to return to your research objectives and let these dictate the order in which you present your findings. Alternatively, you may prefer to report your findings thematically. You could present the themes in descending order of importance. Whichever method you choose should be obvious to the reader. As with the literature review, the chapter(s) devoted to results should be titled in an interesting way that reflects the content of findings. The clarity of your findings should be such that they could be part of a news report (Box 14.8).",
+        "score": 0.4993,
+        "semantic": 0.4993,
+        "lexical": null
+      }
+    ],
+    "tools": [
+      {
+        "name": "analytics_schema",
+        "ok": true
+      },
+      {
+        "name": "query_analytics",
+        "ok": true
+      }
+    ],
+    "model": "gpt-6-luna",
+    "level": 1,
+    "steps": 3,
+    "attempts": [
+      {
+        "level": 1,
+        "model": "gpt-6-luna",
+        "attempt": 1,
+        "status": "success",
+        "error": null,
+        "next_step": "done",
+        "pause_s": null,
+        "total_tokens": 5258
+      },
+      {
+        "level": 1,
+        "model": "gpt-6-luna",
+        "attempt": 1,
+        "status": "success",
+        "error": null,
+        "next_step": "done",
+        "pause_s": null,
+        "total_tokens": 7631
+      },
+      {
+        "level": 1,
+        "model": "gpt-6-luna",
+        "attempt": 1,
+        "status": "success",
+        "error": null,
+        "next_step": "done",
+        "pause_s": null,
+        "total_tokens": 8414
+      }
+    ],
+    "usage_total": 21303,
+    "question": null,
+    "proposals": [],
+    "cited": [
+      {
+        "id": "02-data-preparation#4",
+        "document_id": "02-data-preparation",
+        "title": "Підготовка даних до регресії",
+        "section": "Поділ на навчальну й тестову частини",
+        "source": "базові правила Data Story; scikit-learn «Common pitfalls: data leakage»; редагуються в системі",
+        "priority": 2,
+        "text": "Типовий поділ — 70% навчання і 30% тест. Тестова частина імітує нові дані, тому модель не бачить її під час навчання. Випадковий поділ придатний для незалежних рядків; для часових рядів чи повторних спостережень однієї групи потрібен часовий або груповий поділ.",
+        "score": 0.4126,
+        "lexical": 0.223,
+        "semantic": 0.5498
+      },
+      {
+        "id": "muller-guido-ml-python-0070",
+        "kind": "book",
+        "document_id": "muller-guido-ml-python",
+        "title": "Introduction to Machine Learning with Python",
+        "section": "Iterative Feature Selection",
+        "source": "Andreas C. Müller, Sarah Guido, 2016; с. 257–258 (PDF)",
+        "priority": 5,
+        "text": "also seem to be quite different. When evaluating a prediction task on a time series like this, we usually want to learn from the past and predict for the future. This means when doing a split into a training and a test set, we want to use all the data up to a certain date as the training set and all the data past that date as the test set. This is how we would usually use time series predic‐ tion: given everything that we know about rentals in the past, what do we think will happen tomorrow? We will use the first 184 data points, corresponding to the first 23 days, as our training set, and the remaining 64 data points, corresponding to the remaining 8 days, as our test set. The only feature that we are using in our prediction task is the date and time when a particular number of rentals occurred. So, the input feature is the date and time—say, 2015-08-01 00:00:00—and the output is the number of rentals in the following three hours (three in this case, according to our DataFrame). A (surprisingly) common way that dates are stored on computers is using POSIX time, which is the number of seconds since January 1970 00:00:00 (aka the beginning of Unix time).",
+        "score": 0.5397,
+        "semantic": 0.5397,
+        "lexical": null
+      }
+    ],
+    "task": "validation_explain",
+    "mode": "explain",
+    "block": "validation"
+  }
+}

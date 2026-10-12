@@ -49,13 +49,12 @@ def run_title(item: dict) -> str:
 
 
 def p_text(value: float | None) -> str:
-    """p-value like R's summary: < 2e-16, scientific below 0.001, else three digits."""
+    """Use the same threshold-preserving format as reports and conclusion facts."""
     if value is None:
         return "—"
-    if value < 2.2e-16:
-        return "< 2,2e-16"
-    text = f"{value:.2e}" if value < 0.001 else f"{value:.3g}"
-    return text.replace(".", ",")
+    from .model import format_p_value
+
+    return format_p_value(value)
 
 
 def panel(title: str, extra: str = ""):

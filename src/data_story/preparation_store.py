@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from uuid import uuid4
 
-from .datasets import DatasetError, DatasetStore, _cell, read_table
+from .datasets import DatasetError, DatasetStore, _cell
 from .metadata import MetadataStore
 from .preparation import MissingRule, PreparationError, preview_missing
 from .projects import ProjectStore
@@ -56,7 +56,7 @@ class PreparationStore:
                 raise PreparationError(
                     "Файл набору змінився або пошкоджений. Завантажте його заново."
                 )
-            frame, _ = read_table(content, dataset.file_format, meta=dataset.profile)
+            frame = self.datasets.frame(dataset_id)
             metadata = self.metadata.get(dataset_id)
             audit.update(
                 metadata_updated_at=metadata.updated_at,

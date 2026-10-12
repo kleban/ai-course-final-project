@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from data_story import embeddings
+from data_story.analytics import AnalyticsStore
 from data_story.assistant_tools import run_tool
 from data_story.contracts import Failure, Success
 from data_story.knowledge import HYBRID, METHOD, KnowledgeError, KnowledgeStore, parse
@@ -149,6 +150,25 @@ class KnowledgeTests(unittest.TestCase):
         tool = run_tool(self.service, self.project.id, "search_knowledge", {"query": "витік даних"})
         self.assertIsInstance(tool, Success)
         json.dumps(tool.data)
+
+    def test_rag_reads_sqlite_rules_without_analytical_store(self):
+        text = "# Локальні правила\nДжерело: тест\nПріоритет: 1\n\n## Зимові велосипеди\nЗимові велосипеди потребують зимових шин.\n"
+        self.service.knowledge.create(text)
+        reopened = KnowledgeStore(self.database)
+        with (
+            patch.object(
+                AnalyticsStore, "_connection", side_effect=AssertionError("RAG used DuckDB")
+            ),
+            patch.object(embeddings, "embedder", return_value=None),
+        ):
+            result = reopened.search("зимові велосипеди зимові шини")
+        self.assertEqual(result["hits"][0]["section"], "Зимові велосипеди")
+        with connect(self.database) as connection:
+            row = connection.execute(
+                "SELECT text FROM knowledge_documents WHERE id=?",
+                (result["hits"][0]["document_id"],),
+            ).fetchone()
+        self.assertEqual(row["text"], text)
 
 
 class KnowledgeEditorTests(unittest.TestCase):

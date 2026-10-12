@@ -157,6 +157,10 @@ class CombineExecutionTests(unittest.TestCase):
         self.assertEqual(dataset.name, "Ціни за типом.csv")
         self.assertEqual(dataset.row_count, 2)
         self.assertEqual(dataset.profile["engine"], "duckdb")
+        self.assertIn(
+            dataset.id,
+            {r["object_id"] for r in self.service.analytics.catalog(str(self.project.id))},
+        )
         self.assertIn("MEDIAN", dataset.profile["summary_sql"])
         self.assertEqual(dataset.profile["summary_sources"][0]["id"], str(self.sales.id))
         metadata = self.service.metadata(str(dataset.id)).data.document
