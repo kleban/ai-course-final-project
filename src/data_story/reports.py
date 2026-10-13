@@ -158,7 +158,7 @@ def conclusion_section(conclusion: dict) -> str:
         )
     if conclusion.get("summaries"):
         names = ", ".join(cell(s["name"]) for s in conclusion["summaries"])
-        lines += ["", f"Враховані зведення DuckDB: {names}."]
+        lines += ["", f"Враховані агрегації DuckDB: {names}."]
     when = (conclusion.get("approved_at") or "")[:10]
     lines += ["", f"_Висновки підготовлено з допомогою AI та затверджено автором {when}._"]
     return "\n".join(lines)

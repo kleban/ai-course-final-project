@@ -199,7 +199,7 @@ class Monitor:
             version = importlib.metadata.version("duckdb")
         except importlib.metadata.PackageNotFoundError:
             return _row("duckdb", "DuckDB", ERROR,
-                        "Не встановлено: зведення й з'єднання наборів недоступні. "
+                        "Не встановлено: агрегація й з'єднання наборів недоступні. "
                         "Запустіть Setup.cmd.")  # fmt: skip
         analytics = self.service.analytics
         if not analytics.database.exists():

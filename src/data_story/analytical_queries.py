@@ -268,7 +268,7 @@ class AnalyticalQueries:
 
         result = self.query(project_id, sql, limit)
         if result["truncated"]:
-            raise AnalyticsError("Зведення обрізане лімітом. Збільште ліміт або звузьте SQL-запит.")
+            raise AnalyticsError("Агрегацію обрізано лімітом. Збільште ліміт або звузьте запит.")
         reference = result["reference"]
         frame = self.analytics.read(
             project_id, "chart_data", reference["object_id"], reference["fingerprint"]

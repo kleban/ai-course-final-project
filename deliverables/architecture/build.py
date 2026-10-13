@@ -131,7 +131,7 @@ flows = [
  ("3", "Сервіс ⇄ SQLite і Файли", "службовий стан: проєкти, метадані, налаштування, журнали, тексти висновків і звітів; оригінали CSV, HTML звітів", "стан проєкту, журнали, збережені файли", "SQLite v16; файли з SHA-256",
   "SQLite — вбудована база в одному файлі: без сервера й налаштувань, з надійними транзакціями. Для локального MVP на одному комп’ютері цього достатньо."),
  ("4", "Аналітичні модулі ⇄ DuckDB", "нові версії таблиць і результатів: статистика, дані графіків, метрики, прогнози, залишки", "збережені таблиці й результати без повторного розрахунку", "DuckDB 1.5; ключі джерела, метаданих і параметрів",
-  "DuckDB — вбудована аналітична (колонкова) база: швидкі групування, зведення й з’єднання на SQL без окремого сервера. Результати зберігаються з версіями, тому після перезапуску їх не треба перераховувати."),
+  "DuckDB — вбудована аналітична (колонкова) база: швидкі групування, агрегації й з’єднання на SQL без окремого сервера. Результати зберігаються з версіями, тому після перезапуску їх не треба перераховувати."),
  ("5", "Звіти ⇄ Вбудовані AI-функції", "знімок звіту: факти моделі, статистика, затверджені висновки", "чернетка тексту звіту; автор редагує й затверджує", "ReportStore.ai_draft — один виклик OpenAI (завдання report_draft)",
   "AI допомагає сформулювати текст, але числа бере лише з фактів сервісу. Остаточне рішення — за людиною: чернетку редагують і затверджують."),
  ("6", "Звіти → Quarto", "після затвердження: Markdown звіту (.qmd), знімок моделі, статистика, SVG-графіки", "HTML-звіт, що відкривається без інтернету", "ReportStore.render; Quarto CLI 1.10, MathJax, шрифти сервісу; без OpenAI",
@@ -173,9 +173,9 @@ header {{ display:flex; flex-direction:column; gap:6px; border-bottom:2px solid 
 .kicker {{ font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:var(--primary); font-weight:600; }}
 h1 {{ font-family:var(--serif); font-size:clamp(1.7rem,3.2vw,2.4rem); line-height:1.15; margin:0; text-wrap:balance; }}
 h2 {{ font-family:var(--serif); font-size:1.35rem; margin:0 0 10px; }}
-.lead {{ color:var(--ink2); max-width:70ch; margin:0; }}
-.motivation p {{ max-width:85ch; margin:0 0 18px; }}
-.motivation img {{ display:block; width:100%; max-width:1040px; height:auto; }}
+.lead {{ color:var(--ink2); margin:0; }}
+.motivation p {{ margin:0 0 18px; }}
+.motivation img {{ display:block; width:100%; height:auto; }}
 .figure {{ overflow-x:auto; border:1px solid var(--rule); background:var(--paper); }}
 .figure svg {{ display:block; width:100%; min-width:900px; height:auto; }}
 .legend {{ display:flex; flex-wrap:wrap; gap:8px 22px; font-size:.86rem; color:var(--ink2); }}
@@ -223,13 +223,13 @@ ol.path li {{ display:grid; grid-template-columns:56px minmax(0,1fr); gap:10px; 
 .hero {{ display:grid; grid-template-columns:minmax(200px,300px) 1fr; gap:28px; align-items:center; border-bottom:2px solid var(--primary); padding-bottom:22px; }}
 .hero img {{ width:100%; height:auto; }}
 .hero h1 {{ font-size:clamp(2rem,4vw,2.8rem); }}
-.hero p {{ margin:0 0 10px; max-width:75ch; }}
+.hero p {{ margin:0 0 10px; }}
 .hero ul {{ margin:0 0 12px; padding-left:20px; }}
 .meta {{ font-size:.92rem; color:var(--ink2); }}
 .btn {{ display:inline-block; margin-top:6px; padding:9px 16px; background:var(--primary); color:#fff; text-decoration:none; font-weight:600; }}
 .btn:hover, .btn:focus-visible {{ background:#0f3470; }}
 a {{ color:var(--primary); }}
-.shots {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr)); gap:26px; }}
+.shots {{ display:grid; grid-template-columns:1fr; gap:32px; }}
 .shots figure {{ margin:0; display:flex; flex-direction:column; gap:8px; }}
 .shots img {{ width:100%; height:auto; border:1px solid var(--rule); }}
 .shots figcaption {{ font-size:.9rem; color:var(--ink2); }}
@@ -261,7 +261,7 @@ td.why {{ min-width:280px; }}
   <div class="shots">
     <figure><img src="screens/charts-seoul.png" width="1442" height="987" loading="lazy" alt="Демонстраційна галерея Seoul у вікні браузера: стовпчиковий графік середнього попиту за годинами з виділеним піком о 18:00"><figcaption>Візуалізація за принципами Storytelling with Data: заголовок-висновок, сірий фон і один виділений акцент (пік о 18:00).</figcaption></figure>
     <figure><img src="screens/model-check.png" width="1442" height="987" loading="lazy" alt="Сторінка перевірки моделі у вікні браузера: графік регресії кількості прокатів від температури на тестових даних із поясненням"><figcaption>Перевірка моделі: графік регресії на тестовій частині, поруч — як його читати.</figcaption></figure>
-    <figure><img src="screens/chat-sql.png" width="1442" height="987" loading="lazy" alt="AI-помічник у вікні браузера: у режимі «Виконай» готує пропозицію зведення з таблицею результату й кнопкою «Застосувати»"><figcaption>Чат з AI: помічник бачить поточну сторінку, складає SQL-зведення й показує результат; зміни застосовує користувач.</figcaption></figure>
+    <figure><img src="screens/chat-sql.png" width="1442" height="987" loading="lazy" alt="AI-помічник у вікні браузера: у режимі «Виконай» готує пропозицію агрегації з таблицею результату й кнопкою «Застосувати»"><figcaption>Чат з AI: помічник бачить поточну сторінку, складає SQL-агрегацію (групування й підсумки) й показує результат; зміни застосовує користувач.</figcaption></figure>
   </div>
 </section>
 <section aria-labelledby="arch-title">

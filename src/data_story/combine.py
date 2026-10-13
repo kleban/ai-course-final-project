@@ -324,7 +324,7 @@ def run(plan: Plan, limit: int | None = None) -> tuple[pd.DataFrame, int]:
         frame = connection.execute(query, plan.params).df()
     except duckdb.Error as error:
         raise SummaryError(
-            "DuckDB не виконав зведення: " + str(error).splitlines()[0][:300]
+            "DuckDB не виконав агрегацію: " + str(error).splitlines()[0][:300]
         ) from error
     finally:
         connection.close()
@@ -456,7 +456,7 @@ class SummaryStore:
             (folder / "original.csv").write_bytes(content)
             now = datetime.now(timezone.utc).isoformat()
             base = plan.sources[0][0]
-            title = (name or "").strip()[:160] or (Path(base.name).stem[:150] + " · зведення")
+            title = (name or "").strip()[:160] or (Path(base.name).stem[:150] + " · агрегація")
             details = {
                 **parser,
                 "columns": profile(frame),
@@ -509,7 +509,7 @@ class SummaryStore:
                         target.unit = original.unit
             fresh.dataset.title = title
             fresh.dataset.description = (
-                "Зведення DuckDB за кроками без SQL користувача. Джерела: "
+                "Агрегація DuckDB за кроками без SQL користувача. Джерела: "
                 + ", ".join(s[0].name for s in plan.sources)
                 + "."
             )
@@ -542,7 +542,7 @@ class SummaryStore:
                 message = (
                     str(error)
                     if not isinstance(error, OSError)
-                    else "Не вдалося зберегти зведення."
+                    else "Не вдалося зберегти агрегацію."
                 )
                 audit.update(
                     status="error", error=message, duration_ms=(perf_counter() - started) * 1000

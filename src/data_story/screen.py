@@ -77,8 +77,8 @@ EVENT_TITLES = {
     "preparation.previewed": ("Перегляд підготовки", "methods"),
     "preparation.saved": ("Збережено план підготовки", "check"),
     "preparation.applied": ("Створено підготовлений набір", "methods"),
-    "summary.previewed": ("Перегляд зведення DuckDB", "table"),
-    "summary.created": ("Створено набір-зведення DuckDB", "table"),
+    "summary.previewed": ("Перегляд агрегації DuckDB", "table"),
+    "summary.created": ("Створено набір-агрегацію DuckDB", "table"),
     "analytics.synced": ("Збережено аналітичну таблицю DuckDB", "table"),
     "analytics.queried": ("Виконано аналітичний SQL-запит", "table"),
     "training.prepared": ("Підготовлено вибірки для регресії", "methods"),
@@ -936,7 +936,7 @@ def dataset_view(service: ProjectService, active: ProjectView, dataset_id: str) 
         f"роздільник: {delimiter.get(source.get('delimiter', ''), source.get('delimiter', '?'))}",
     ]
     if source.get("summary_recipe"):
-        details.append("зведення DuckDB · джерела збережено")
+        details.append("агрегація DuckDB · джерела збережено")
     if source.get("prepared_from"):
         details.append("підготовлений набір · оригінал збережено")
         ui.label(

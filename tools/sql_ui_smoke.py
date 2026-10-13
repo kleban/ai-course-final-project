@@ -32,11 +32,11 @@ with sync_playwright() as pw:
     page = context.new_page()
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(f"{BASE}/?project={project}&view=combine")
-    page.get_by_role("button", name="Підготуй зведення", exact=True).wait_for()
+    page.get_by_role("button", name="Підготуй агрегацію", exact=True).wait_for()
     with httpx.Client(base_url=BASE) as api:
         before = len(api.get(f"/api/projects/{project}/datasets").json()["data"])
-    page.get_by_role("button", name="Підготуй зведення", exact=True).click()
-    page.get_by_text("Пропозиція зведення", exact=True).wait_for(timeout=60000)
+    page.get_by_role("button", name="Підготуй агрегацію", exact=True).click()
+    page.get_by_text("Пропозиція агрегації", exact=True).wait_for(timeout=60000)
     draft = page.locator(".assistant-draft")
     assert draft.locator("table").count() == 1
     assert "3" in draft.inner_text()

@@ -254,7 +254,7 @@ def draft_preview(service: ProjectService, project_id: str, proposal: dict) -> N
         is_chart = proposal["kind"] == "chart"
         is_sql = proposal["kind"] == "sql_summary"
         ui.label(
-            "Пропозиція зведення"
+            "Пропозиція агрегації"
             if is_sql
             else "Пропозиція графіка"
             if is_chart

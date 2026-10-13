@@ -55,7 +55,7 @@ def preparation_screen(
         "next",
     )
     button(
-        "Зведення та з'єднання (DuckDB)",
+        "Агрегація та з'єднання (DuckDB)",
         partial(ui.navigate.to, f"/?project={project_id}&dataset={selected}&view=combine"),
         "table",
     )

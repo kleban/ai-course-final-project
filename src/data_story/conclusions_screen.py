@@ -22,7 +22,7 @@ def conclusions_screen(service, active, conclusion_id=None):
         "Етап 6 · " + active.name,
         "spark",
         "Висновки",
-        "Факти збереженої моделі та зведень DuckDB → чернетка AI з посиланнями на правила й "
+        "Факти збереженої моделі та агрегацій DuckDB → чернетка AI з посиланнями на правила й "
         "книжки → ваше редагування й затвердження → висновки у звіті. AI — лише за вашою дією.",
     )
     models = service.model_runs(project_id)
@@ -106,18 +106,18 @@ def conclusions_screen(service, active, conclusion_id=None):
             )
             options = {s["id"]: f"{s['name']} · {s['rows']} рядків" for s in summaries.data}
             chosen = (
-                ui.select(options, value=[], multiple=True, label="Зведення DuckDB (до 3)")
+                ui.select(options, value=[], multiple=True, label="Агрегації DuckDB (до 3)")
                 .props("outlined square use-chips")
                 .classes("w-full")
             )
             if not options:
                 chosen.set_enabled(False)
                 ui.link(
-                    "Зведень ще немає — створити в «Підготовка даних → Зведення та з'єднання»",
+                    "Агрегацій ще немає — створити в «Підготовка даних → Агрегація та з'єднання»",
                     f"/?project={project_id}&view=combine",
                 ).classes("model-note")
             ui.label(
-                "Один виклик AI: числа моделі й зведень (до 20 рядків кожного) та 3–5 фрагментів "
+                "Один виклик AI: числа моделі й агрегацій (до 20 рядків кожного) та 3–5 фрагментів "
                 "правил і книжок, знайдених за цими фактами. Аналіз не повторюється."
             ).classes("model-note")
             controls.extend([model, chosen])
@@ -131,7 +131,7 @@ def conclusions_screen(service, active, conclusion_id=None):
             return
         if len(chosen.value or []) > 3:
             with status:
-                ui.label("Оберіть не більше трьох зведень.").classes("error-message")
+                ui.label("Оберіть не більше трьох агрегацій.").classes("error-message")
             return
         busy(True)
         status.clear()
@@ -276,7 +276,7 @@ def conclusions_screen(service, active, conclusion_id=None):
                     ui.label(label).classes("model-note")
                     ui.label(str(value))
             for summary in item["summaries"]:
-                with ui.expansion(f"Зведення: {summary['name']}").classes("w-full"):
+                with ui.expansion(f"Агрегація: {summary['name']}").classes("w-full"):
                     ui.label(summary["sql"]).classes("model-note mono")
                     ui.table(
                         columns=[

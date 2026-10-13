@@ -199,17 +199,17 @@ class ConclusionStore:
     # ---- facts and sources ---------------------------------------------------------------
     def _summary_facts(self, project_id: str, summary_ids: list[str]) -> list[dict]:
         if len(set(summary_ids)) != len(summary_ids):
-            raise ConclusionError("Зведення вибрано двічі.")
+            raise ConclusionError("Агрегацію вибрано двічі.")
         if len(summary_ids) > MAX_SUMMARIES:
-            raise ConclusionError(f"Можна додати до {MAX_SUMMARIES} зведень DuckDB.")
+            raise ConclusionError(f"Можна додати до {MAX_SUMMARIES} агрегацій DuckDB.")
         result = []
         for summary_id in summary_ids:
             try:
                 dataset, frame, _ = snapshot(self.service.datasets, project_id, summary_id)
             except (PreparationError, LookupError, ValueError) as error:
-                raise ConclusionError(f"Зведення недоступне: {error}") from error
+                raise ConclusionError(f"Агрегація недоступна: {error}") from error
             if dataset.profile.get("engine") != "duckdb":
-                raise ConclusionError("Додавати можна лише набори-зведення DuckDB.")
+                raise ConclusionError("Додавати можна лише набори-агрегації DuckDB.")
             shown = frame.iloc[:SUMMARY_ROWS, :SUMMARY_COLUMNS]
             result.append(
                 {

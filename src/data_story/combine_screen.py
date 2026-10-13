@@ -55,19 +55,19 @@ def combine_screen(service: ProjectService, active: ProjectView, dataset_id: str
     page_header(
         "Підготовка даних",
         "methods",
-        "Зведення та з'єднання",
+        "Агрегація та з'єднання",
         "Оберіть кроки — сервіс сам складе SQL і виконає його в DuckDB. Оригінали не змінюються; "
         "результат можна зберегти як новий набір.",
     )
     ai_shortcut(
-        "Порадь зведення",
+        "Порадь агрегацію",
         "advise",
-        "Яке зведення чи з'єднання наборів допоможе відповісти на питання проєкту?",
+        "Яка агрегація чи з'єднання наборів допоможе відповісти на питання проєкту?",
     )
     ai_shortcut(
-        "Підготуй зведення",
+        "Підготуй агрегацію",
         "execute",
-        "Підготуй пропозицію зведення за питанням і метою проєкту. "
+        "Підготуй пропозицію агрегації за питанням і метою проєкту. "
         "Покажи таблицю результатів для перегляду перед збереженням. "
         "Якщо мети недостатньо — постав одне коротке уточнення.",
     )
@@ -77,7 +77,7 @@ def combine_screen(service: ProjectService, active: ProjectView, dataset_id: str
         return
     datasets = {str(d.id): d.name for d in listing.data}
     if not datasets:
-        ui.label("Завантажте CSV у цей проєкт, щоб робити зведення.").classes("section-lead")
+        ui.label("Завантажте CSV у цей проєкт, щоб робити агрегації.").classes("section-lead")
         return
     base = dataset_id if dataset_id in datasets else next(iter(datasets))
     fields_cache: dict[str, list[dict]] = {}
@@ -219,7 +219,7 @@ def combine_screen(service: ProjectService, active: ProjectView, dataset_id: str
                         lambda e: (state.update(join_columns=e.value or []), builder.refresh())
                     )
                 else:
-                    ui.label("Без з'єднання зведення рахується лише з основного набору.").classes(
+                    ui.label("Без з'єднання агрегація рахується лише з основного набору.").classes(
                         "model-note"
                     )
             with panel("2. Умови відбору рядків"):

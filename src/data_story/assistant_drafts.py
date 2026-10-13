@@ -138,16 +138,16 @@ def apply(service, project_id: str, proposal: DraftApply) -> dict:
         if proposal.sql_summary is None or any(
             v is not None for v in (proposal.chart, proposal.metadata, proposal.text)
         ):
-            raise DraftError("Пропозиція зведення має містити лише параметри SQL.")
+            raise DraftError("Пропозиція агрегації має містити лише параметри SQL.")
         if sql_token(service, project_id) != proposal.base_token:
-            raise DraftError("Дані або метадані змінилися. Створіть нову пропозицію зведення.")
+            raise DraftError("Дані або метадані змінилися. Створіть нову пропозицію агрегації.")
         query = proposal.sql_summary
         dataset = service.analytical_queries.save_summary(
             project_id, query.sql, query.limit, query.name
         )
         return {"kind": "sql_summary", "dataset_id": dataset.id, "name": dataset.name}
     if proposal.sql_summary is not None:
-        raise DraftError("Чернетка містить зайві параметри зведення.")
+        raise DraftError("Чернетка містить зайві параметри агрегації.")
     if proposal.kind == "chart":
         if proposal.chart is None or proposal.metadata is not None or proposal.text is not None:
             raise DraftError("Пропозиція графіка містить зайві або відсутні параметри.")
