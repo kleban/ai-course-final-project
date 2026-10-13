@@ -73,7 +73,7 @@ ol.path li { display:grid; grid-template-columns:56px minmax(0,1fr); gap:10px; a
 @media (max-width:820px) { .cols2 { grid-template-columns:1fr; } }
 .hero { display:grid; grid-template-columns:minmax(200px,300px) 1fr; gap:28px; align-items:center; border-bottom:2px solid var(--primary); padding-bottom:22px; }
 .hero img { width:100%; height:auto; }
-.hero h1 { font-size:clamp(2rem,4vw,2.8rem); }
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 .hero p { margin:0 0 10px; }
 .hero ul { margin:0 0 12px; padding-left:20px; }
 .meta { font-size:.92rem; color:var(--ink2); }
@@ -92,7 +92,7 @@ td.why { min-width:280px; }
   <img src="assets/logo-panel.svg" width="300" height="146" alt="Логотип Data Story">
   <div>
     <span class="kicker">MVP сервісу аналітики даних · фінальний проєкт курсу «AI-агенти для розробників»</span>
-    <h1 id="about-title">Data Story</h1>
+    <h1 id="about-title" class="sr-only">Data Story</h1>
     <p><b>Data Story</b> — MVP локального сервісу, який проводить шлях від набору CSV до огляду даних, візуалізації, лінійної регресії, висновків і HTML-звіту. Розрахунки виконує сервіс, а AI-помічник підказує наступні кроки, пояснює результати й готує чернетки тексту.</p>
     <p><b>Для чого:</b> демонстрація принципів аналізу даних, візуалізації даних і основ моделювання та допомога студентам у вивченні аналітики даних.</p>
     <p><b>Для кого:</b> студенти, які вивчають аналітику даних, і викладачі, яким потрібен наочний інструмент для занять.</p>
