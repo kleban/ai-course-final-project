@@ -229,11 +229,12 @@ ol.path li {{ display:grid; grid-template-columns:56px minmax(0,1fr); gap:10px; 
 .btn {{ display:inline-block; margin-top:6px; padding:9px 16px; background:var(--primary); color:#fff; text-decoration:none; font-weight:600; }}
 .btn:hover, .btn:focus-visible {{ background:#0f3470; }}
 a {{ color:var(--primary); }}
-.shots {{ display:grid; grid-template-columns:1fr; gap:32px; }}
+.shots {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }}
 .shots figure {{ margin:0; display:flex; flex-direction:column; gap:8px; }}
 .shots img {{ width:100%; height:auto; border:1px solid var(--rule); }}
 .shots figcaption {{ font-size:.9rem; color:var(--ink2); }}
 td.why {{ min-width:280px; }}
+@media (max-width:820px) {{ .shots {{ grid-template-columns:1fr; }} }}
 @media (max-width:720px) {{ .hero {{ grid-template-columns:1fr; }} .hero img {{ max-width:240px; }} }}
 </style>
 <main>
@@ -259,9 +260,10 @@ td.why {{ min-width:280px; }}
   <h2 id="shots-title">Як це виглядає</h2>
   <p class="lead">Знімки екрана MVP на демонстраційних даних (Seoul Bike Sharing Demand і тестовий набір); рамку браузера домальовано.</p>
   <div class="shots">
-    <figure><img src="screens/charts-seoul.png" width="1442" height="987" loading="lazy" alt="Демонстраційна галерея Seoul у вікні браузера: стовпчиковий графік середнього попиту за годинами з виділеним піком о 18:00"><figcaption>Візуалізація за принципами Storytelling with Data: заголовок-висновок, сірий фон і один виділений акцент (пік о 18:00).</figcaption></figure>
-    <figure><img src="screens/model-check.png" width="1442" height="987" loading="lazy" alt="Сторінка перевірки моделі у вікні браузера: графік регресії кількості прокатів від температури на тестових даних із поясненням"><figcaption>Перевірка моделі: графік регресії на тестовій частині, поруч — як його читати.</figcaption></figure>
-    <figure><img src="screens/chat-sql.png" width="1442" height="987" loading="lazy" alt="AI-помічник у вікні браузера: у режимі «Виконай» готує пропозицію агрегації з таблицею результату й кнопкою «Застосувати»"><figcaption>Чат з AI: помічник бачить поточну сторінку, складає SQL-агрегацію (групування й підсумки) й показує результат; зміни застосовує користувач.</figcaption></figure>
+    <figure><img src="screens/heatmap.png" width="1442" height="987" loading="lazy" alt="Оглядовий аналіз у вікні браузера: теплова карта кореляцій дев’яти числових полів Seoul у синьо-помаранчевій шкалі"><figcaption>Оглядовий аналіз: теплова карта кореляцій числових полів.</figcaption></figure>
+    <figure><img src="screens/prediction.png" width="1442" height="987" loading="lazy" alt="Перевірка моделі у вікні браузера: діаграма «прогноз проти факту» на тестовій частині з поясненням, як її читати"><figcaption>Перевірка моделі: прогноз проти факту на тестових даних.</figcaption></figure>
+    <figure><img src="screens/chat-sql.png" width="1442" height="987" loading="lazy" alt="AI-помічник у вікні браузера: у режимі «Виконай» готує пропозицію агрегації з таблицею результату й кнопкою «Застосувати»"><figcaption>Чат з AI: помічник бачить сторінку, складає SQL-агрегацію й показує результат; зміни застосовує користувач.</figcaption></figure>
+    <figure><img src="screens/report.png" width="1442" height="987" loading="lazy" alt="HTML-звіт Quarto у вікні браузера: гістограма розподілу кількості прокатів із медіаною"><figcaption>Звіт: HTML, зібраний Quarto з перевірених результатів.</figcaption></figure>
   </div>
 </section>
 <section aria-labelledby="arch-title">
