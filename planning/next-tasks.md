@@ -61,3 +61,5 @@ RAG фактично використовує SQLite (knowledge_documents: ре�
 4. **Правило чату про питання поза проєктом** — пропозиція агента, автор ще не погодив.
 
 Пропозиція агента для 3 (очікує рішення автора): папка `docs/` у main — `docs/index.html`, `docs/assets/` (шрифти, зображення, схема), `docs/.nojekyll`; у налаштуваннях GitHub Pages один раз вибрати «Deploy from a branch: main /docs». Альтернатива — workflow `.github/workflows/pages.yml` (GitHub Actions). Пуш — лише з дозволу автора.
+
+Уточнення автора після 122 (публікацію з docs/ увімкнено, працює): вимоги до сторінки опису сервісу розписано поетапно в [github-pages-about.md](github-pages-about.md).
