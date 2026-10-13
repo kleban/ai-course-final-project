@@ -41,7 +41,6 @@ NAV = [
         [
             ("projects", "/", "Проєкти", "overview"),
             ("guides", "/instructions", "Інструкції", "doc"),
-            ("about", "/about", "Про проєкт", "doc"),
         ],
     ),
     (

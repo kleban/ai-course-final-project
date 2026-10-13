@@ -551,12 +551,6 @@ def configure(settings: Settings) -> None:
     def icons_page():
         icons_screen(service)
 
-    @ui.page("/about")
-    def about_page():
-        from .about_screen import about_screen
-
-        about_screen(service)
-
 
 def run(settings: Settings) -> None:
     configure(settings)

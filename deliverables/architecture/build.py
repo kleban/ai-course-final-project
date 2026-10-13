@@ -5,8 +5,8 @@ import importlib.util
 
 # Architecture of Data Story as implemented (history 121): concrete blocks with icons, two buses
 # (analytic modules → DuckDB; chat and built-in AI → RAG / LLM), numbered flows 1–10.
-# Generates deliverables/architecture/{architecture.html, architecture.svg} and the in-app page
-# src/data_story/assets/about/index.html («Про проєкт»). Run: python deliverables/architecture/build.py
+# Generates deliverables/architecture/{architecture.html, architecture.svg} and docs/ (GitHub Pages,
+# main → /docs). The in-app «Про проєкт» page was removed in history 128. Run: python deliverables/architecture/build.py
 
 ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("ds_icons", ROOT / "src/data_story/icons.py")
@@ -30,7 +30,7 @@ ICONS = dict(_icons.ICONS) | {
     "quarto": '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M10 12.5l-2 2 2 2M14 12.5l2 2-2 2"/>',
 }
 
-W, H = 1600, 930
+W, H = 1600, 960
 parts = []
 def box(x, y, w, h, title, lines, cls="b", tcls="bt", lcls="bl", pad=14, icon=None, ic="ic"):
     parts.append(f'<rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}"/>')
@@ -58,24 +58,23 @@ def bus(d, dots=(), ai=False):
     for x, y in dots:
         parts.append(f'<circle class="jn" cx="{x}" cy="{y}" r="3.5"/>')
 
-# zones: everything is local except the bottom-right corner (internet)
-parts.append('<path class="zone" d="M15 15 H1590 V690 H1210 V915 H15 Z"/>')
-parts.append('<text class="zl" x="30" y="900">Комп’ютер користувача (Windows) · розрахунки, дані, SQL, RAG і звіти — локально</text>')
-parts.append('<text class="zlo" x="1235" y="714">Інтернет · HTTPS</text>')
+# zones: everything is local except the top-right corner (internet, OpenAI)
+parts.append('<path class="zone" d="M15 15 H1210 V205 H1590 V945 H15 Z"/>')
+parts.append('<text class="zl" x="30" y="932">Комп’ютер користувача (Windows) · розрахунки, дані, SQL, RAG і звіти — локально</text>')
+parts.append('<text class="zlo" x="1230" y="36">Інтернет · HTTPS</text>')
 
 box(30, 45, 240, 120, "Користувач у браузері", ["Chrome / Edge · Vue + Quasar", "формули MathJax", "усі ресурси локальні"], "b user", icon="user")
 box(325, 60, 850, 75, "Інтерфейс і API", ["NiceGUI 3 (сторінки) + FastAPI (HTTP /api, JSON) на uvicorn"], "b core", icon="api")
 box(325, 170, 850, 65, "Сервіс-оркестратор (ProjectService)", ["перевіряє дані й поточний проєкт, викликає модулі, пише журнал; спільний для сторінок, чату й API"], "b core", icon="settings")
 
-# analytic modules: two rows, a data bus between them leads to DuckDB
+# analytic modules: two rows, a data bus between them leads to DuckDB and to the files
 box(325, 275, 530, 270, "Аналітичні модулі", [], "b grp", "bt")
 chips = [(340, 315, "Дані й\nстатистика", "pandas, NumPy", "data"), (513, 315, "Графіки", "SVG, спільна тема", "compare"),
-         (686, 315, "Підготовка\nй зведення", "вибірки, з’єднання", "table"), (340, 445, "Модель", "scikit-learn, SciPy", "regression"),
+         (686, 315, "Підготовка\nй агрегація", "вибірки, з’єднання", "table"), (340, 445, "Модель", "scikit-learn, SciPy", "regression"),
          (686, 445, "Звіти", "знімок → .qmd", "doc")]
 for x, y, t, l, i in chips:
-    box(x, y, 155, 80, t, [l] if "\n" in t else ["", l][1:], "b mod", "btm", "bl", 12, icon=i)
-bus("M417 395 V445 M590 395 V420 M763 395 V445 M417 420 H763", [(417, 420), (590, 420), (763, 420)])
-parts.append('<text class="busl" x="430" y="414">шина даних</text>')
+    box(x, y, 155, 80, t, [l], "b mod", "btm", "bl", 12, icon=i)
+parts.append('<text class="busl" x="426" y="414">шина даних</text>')
 
 # AI group
 box(885, 275, 290, 345, "AI — лише явною дією", [], "b grp ai", "bt")
@@ -85,35 +84,36 @@ box(900, 540, 260, 70, "SQL від LLM", ["перевірка: 1 SELECT, 5 с, 5
 
 box(686, 570, 155, 62, "Quarto 1.10", ["офлайн → HTML"], "b rep", "btm", "bl", 12, icon="quarto")
 
-# storage
+# storage: files under the analytic modules, DuckDB in the middle, SQLite under AI
 box(325, 650, 850, 215, "Сховища · runtime/", [], "b store grp2", "bt")
-box(340, 690, 240, 110, "SQLite (схема v16)", ["проєкти, метадані, налаштування,", "журнали подій і AI,", "тексти висновків і звітів"], "b", "btm", "bl", 12, icon="sqlite")
+box(340, 690, 240, 110, "Файли", ["CSV-оригінали з SHA-256, .npz,", "HTML звітів, книжки й вектори,", "файли моделі bge-m3"], "b", "btm", "bl", 12, icon="folder")
 box(595, 690, 250, 110, "Постійна DuckDB", ["набори й результати з версіями:", "статистика, дані графіків,", "метрики, прогнози, залишки"], "b", "btm", "bl", 12, icon="duckdb")
-box(900, 690, 260, 110, "Файли", ["CSV-оригінали з SHA-256,", "матриці .npz, HTML звітів,", "уривки книжок, вектори"], "b", "btm", "bl", 12, icon="folder")
+box(900, 690, 260, 110, "SQLite (схема v16)", ["проєкти, метадані, налаштування,", "журнали подій і AI, правила RAG,", "тексти висновків і звітів"], "b", "btm", "bl", 12, icon="sqlite")
 
-# right column
+# right column: OpenAI on top (internet), RAG and bge-m3 below
+box(1230, 50, 340, 115, "LLM · OpenAI Responses API", ["gpt-6-luna / gpt-6.1-sol", "ключ лише в .env · через інтернет"], "b llm", icon="bot", ic="ic o")
 box(1230, 290, 340, 120, "RAG · база знань", ["правила (SQLite) + 106 уривків книжок", "гібридний пошук: TF-IDF + вектори", "→ 3–5 фрагментів із джерелами"], "b rag", icon="rag")
-box(1230, 460, 340, 125, "Модель embeddings BAAI/bge-m3", ["ONNX Runtime, локально, ~2,3 ГБ", "текст → вектор із 1024 чисел", "без неї пошук лише TF-IDF"], "b rag", icon="vector")
-box(1230, 745, 340, 115, "LLM · OpenAI Responses API", ["gpt-6-luna / gpt-6.1-sol", "ключ лише в .env · через інтернет"], "b llm", icon="bot", ic="ic o")
+box(1230, 460, 340, 125, "Модель embeddings BAAI/bge-m3", ["завантажена з Hugging Face (Setup, SHA-256)", "ONNX Runtime, локально, ~2,3 ГБ", "текст → вектор із 1024 чисел"], "b rag", icon="vector")
 
 line("M270 97 H325", "1", 297, 97)
-line("M620 420 V690", "4", 620, 615, start=False)
-parts.append('<circle class="jn" cx="620" cy="420" r="3.5"/>')
 line("M750 135 V170", "2", 750, 152)
-line("M325 202 H300 V745 H340", "3", 300, 470)
-line("M300 745 V835 H1030 V800", start=False)
-parts.append('<circle class="jn" cx="300" cy="745" r="3.5"/>')
+line("M325 202 H300 V840 H1030 V800", "3", 300, 470)
+bus("M417 395 V445 M590 395 V420 M763 395 V445 M417 420 H763", [(417, 420), (504, 420), (590, 420), (620, 420), (763, 420)])
+line("M504 420 V690", "4", 504, 615, start=False)
+line("M620 420 V690", "4", 620, 615, start=False)
 line("M841 485 H900", "5", 870, 485)
 line("M763 525 V570", "6", 790, 552, start=False)
 bus("M1160 350 H1195 V485 M1160 485 H1195", [(1195, 350), (1195, 380), (1195, 485)])
 line("M1195 380 H1230", "7", 1212, 362, start=False)
 line("M1400 410 V460", "8", 1400, 435)
-line("M1030 610 V641 H820 V690", "9", 935, 641)
-line("M1195 485 V802 H1230", "10", 1195, 655, ai=True, start=False)
+line("M920 610 V641 H820 V690", "9", 870, 641)
+line("M1195 350 V108 H1230", "10", 1195, 230, ai=True, start=False)
+line("M1400 585 V895 H460 V848 a8 8 0 0 1 0 -16 V800", "11", 1400, 740)
+line("M1195 485 V745 H1160", "12", 1195, 640, start=False)
 
 svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="http://www.w3.org/2000/svg">
 <title id="t">Архітектура Data Story</title>
-<desc id="d">Браузер → інтерфейс → сервіс-оркестратор. Аналітичні модулі через шину даних працюють із DuckDB; сервіс — із SQLite і файлами. Звіти отримують чернетку від вбудованих AI-функцій і після затвердження передаються в Quarto. Чат і вбудовані AI-функції звертаються до RAG (з моделлю bge-m3) і до OpenAI; SQL від LLM виконується в DuckDB після перевірки. Стрілки 1–10 — потоки даних.</desc>
+<desc id="d">Браузер → інтерфейс → сервіс-оркестратор. Аналітичні модулі через шину даних пишуть і читають DuckDB та файли; сервіс веде службовий стан у SQLite. Звіти отримують чернетку від вбудованих AI-функцій і після затвердження передаються в Quarto. Чат і вбудовані AI-функції через спільну шину звертаються до RAG (з моделлю bge-m3, файли якої лежать локально), до OpenAI через інтернет і через сервіс до SQLite (контекст, журнал AI, чернетки); SQL від LLM виконується в DuckDB після перевірки. Стрілки 1–12 — потоки даних.</desc>
 <defs>
 <marker id="ae" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="mh"/></marker>
 <marker id="as" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 z" class="mh"/></marker>
@@ -128,10 +128,12 @@ flows = [
   "NiceGUI дає повноцінний вебінтерфейс (Vue + Quasar) прямо з Python — для MVP не потрібен окремий фронтенд і окрема команда. FastAPI працює в тому ж процесі й автоматично перевіряє дані запитів, тож ті самі дії доступні сторінкам, чату й тестам."),
  ("2", "Інтерфейс ⇄ Сервіс", "виклик сервісу з даними форми або HTTP-запиту", "результат або зрозуміла помилка", "pydantic-контракти; один ProjectService для сторінок, чату й API",
   "Одна точка правил: перевірки й журнал однакові для людини, API та AI. Це спрощує тестування MVP і не дає AI обійти обмеження."),
- ("3", "Сервіс ⇄ SQLite і Файли", "службовий стан: проєкти, метадані, налаштування, журнали, тексти висновків і звітів; оригінали CSV, HTML звітів", "стан проєкту, журнали, збережені файли", "SQLite v16; файли з SHA-256",
+ ("3", "Сервіс ⇄ SQLite", "службовий стан: проєкти, метадані, налаштування, журнал подій, тексти висновків і звітів", "стан проєкту й журнали", "SQLite v16",
   "SQLite — вбудована база в одному файлі: без сервера й налаштувань, з надійними транзакціями. Для локального MVP на одному комп’ютері цього достатньо."),
- ("4", "Аналітичні модулі ⇄ DuckDB", "нові версії таблиць і результатів: статистика, дані графіків, метрики, прогнози, залишки", "збережені таблиці й результати без повторного розрахунку", "DuckDB 1.5; ключі джерела, метаданих і параметрів",
-  "DuckDB — вбудована аналітична (колонкова) база: швидкі групування, агрегації й з’єднання на SQL без окремого сервера. Результати зберігаються з версіями, тому після перезапуску їх не треба перераховувати."),
+
+ ("4", "Аналітичні модулі ⇄ DuckDB і Файли", "нові версії таблиць і результатів (статистика, дані графіків, метрики, прогнози, залишки); оригінали CSV, матриці вибірок .npz, HTML звітів", "збережені таблиці й результати без повторного розрахунку; файли з перевіркою SHA-256", "DuckDB 1.5 з ключами джерела, метаданих і параметрів; файли в runtime/",
+  "DuckDB — вбудована аналітична (колонкова) база: швидкі групування, агрегації й з’єднання на SQL без окремого сервера. Результати зберігаються з версіями, тому після перезапуску їх не треба перераховувати; великі оригінали й матриці лишаються файлами."),
+
  ("5", "Звіти ⇄ Вбудовані AI-функції", "знімок звіту: факти моделі, статистика, затверджені висновки", "чернетка тексту звіту; автор редагує й затверджує", "ReportStore.ai_draft — один виклик OpenAI (завдання report_draft)",
   "AI допомагає сформулювати текст, але числа бере лише з фактів сервісу. Остаточне рішення — за людиною: чернетку редагують і затверджують."),
  ("6", "Звіти → Quarto", "після затвердження: Markdown звіту (.qmd), знімок моделі, статистика, SVG-графіки", "HTML-звіт, що відкривається без інтернету", "ReportStore.render; Quarto CLI 1.10, MathJax, шрифти сервісу; без OpenAI",
@@ -143,7 +145,11 @@ flows = [
  ("9", "SQL від LLM ⇄ DuckDB", "SQL, який склала LLM; згадані таблиці проєкту копіюються в окрему тимчасову DuckDB", "до 10 000 рядків і 2 МБ результату; новий набір — лише після «Застосувати»", "перевірка: один SELECT, лише таблиці поточного проєкту; 512 МБ, 5 с",
   "LLM добре перекладає питання людською мовою в SQL, а виконує запит лише сервіс під обмеженнями. Користувач не пише SQL, а дані проєкту захищені від змін."),
  ("10", "Чат і вбудовані AI ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти RAG; чату — ще схема таблиць і список інструментів", "текст / JSON або виклик інструмента; інструмент і SQL виконує сервіс локально", "OpenAI Responses API, httpx",
-  "Сильні моделі з викликом інструментів і структурованими відповідями без власної інфраструктури моделей — оптимально для MVP. Модель обирається окремо для кожної задачі; кожен виклик і токени видно в журналі."),
+  "Сильні моделі з викликом інструментів і структурованими відповідями без власної інфраструктури моделей — оптимально для MVP. Модель обирається окремо для кожної задачі; кожен виклик і токени видно в журналі."), ("11", "RAG і bge-m3 ⇄ Файли", "кеш векторів уривків", "вибрані розділи книжок, кеш векторів .npy, файли моделі bge-m3 (ONNX)", "runtime/knowledge-sources, knowledge-index, dependencies/embeddings",
+  "Модель і книжки великі й не потрібні в базі даних: модель один раз завантажується з Hugging Face під час Setup з перевіркою SHA-256, а далі все працює офлайн."),
+ ("12", "Чат і вбудовані AI ⇄ SQLite (через сервіс)", "журнал AI (запити, відповіді, токени), чернетки, висновки, тексти звітів", "контекст: проєкт, метадані, знімки моделей, запуски навчання, правила бази знань", "сервіс читає й пише SQLite; прямого доступу LLM немає",
+  "AI отримує лише потрібні факти проєкту, а кожен виклик і результат зберігаються й перевіряються. SQL від LLM виконується тільки в DuckDB, тому службовий стан захищений від змін."),
+
 ]
 rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="10" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td><td class="why">{e(w)}</td></tr>' for n,a,b,c,d,w in flows)
 
@@ -318,13 +324,6 @@ td.why {{ min-width:280px; }}
 output = Path(__file__).resolve().parent
 (output / "architecture.html").write_text(page, encoding="utf-8")
 (output / "architecture.svg").write_text(svg, encoding="utf-8")
-about = output.parents[1] / "src/data_story/assets/about"
-about.mkdir(parents=True, exist_ok=True)
-about_page = page.replace("../../src/data_story/assets/fonts/", "../fonts/").replace("../../src/data_story/assets/logo/", "../logo/").replace(
-    "../presentation-assets/storytelling-two-editions.png", "storytelling-two-editions.png"
-)
-(about / "index.html").write_text(about_page, encoding="utf-8")
-copyfile(output.parent / "presentation-assets/storytelling-two-editions.png", about / "storytelling-two-editions.png")
 # Static copy for GitHub Pages (main → /docs): no build step on GitHub, everything relative and local.
 docs = output.parents[1] / "docs"
 (docs / "assets/fonts").mkdir(parents=True, exist_ok=True)
@@ -338,7 +337,7 @@ for name in ("plex/ibm-plex-sans-regular.woff2", "plex/ibm-plex-sans-600.woff2",
     (docs / "assets/fonts" / name).parent.mkdir(parents=True, exist_ok=True)
     copyfile(fonts / name, docs / "assets/fonts" / name)
 copyfile(output.parents[1] / "src/data_story/assets/logo/logo-panel.svg", docs / "assets/logo-panel.svg")
-for d in (docs / "assets/screens", about / "screens"):
+for d in (docs / "assets/screens",):
     d.mkdir(parents=True, exist_ok=True)
     for shot in (output / "screens").glob("*.png"):
         copyfile(shot, d / shot.name)
