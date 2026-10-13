@@ -167,7 +167,7 @@ def documents_list(service: ProjectService) -> None:
                         )
                     if not document["builtin"]:
                         button("Видалити", partial(remove, document), "warning", "small")
-                ui.markdown(document["text"].split("\n", 3)[-1]).classes("md")
+                ui.markdown(document["text"].split("\n", 3)[-1]).classes("md-text")
 
     def notify(result, text: str) -> bool:
         if isinstance(result, Failure):

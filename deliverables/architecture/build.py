@@ -262,7 +262,7 @@ td.why {{ min-width:280px; }}
   <div class="shots">
     <figure><img src="screens/heatmap.png" width="1442" height="987" loading="lazy" alt="Оглядовий аналіз у вікні браузера: теплова карта кореляцій дев’яти числових полів Seoul у синьо-помаранчевій шкалі"><figcaption>Оглядовий аналіз: теплова карта кореляцій числових полів.</figcaption></figure>
     <figure><img src="screens/prediction.png" width="1442" height="987" loading="lazy" alt="Перевірка моделі у вікні браузера: діаграма «прогноз проти факту» на тестовій частині з поясненням, як її читати"><figcaption>Перевірка моделі: прогноз проти факту на тестових даних.</figcaption></figure>
-    <figure><img src="screens/chat-sql.png" width="1442" height="987" loading="lazy" alt="AI-помічник у вікні браузера: у режимі «Виконай» готує пропозицію агрегації з таблицею результату й кнопкою «Застосувати»"><figcaption>Чат з AI: помічник бачить сторінку, складає SQL-агрегацію й показує результат; зміни застосовує користувач.</figcaption></figure>
+    <figure><img src="screens/chat-model.png" width="1442" height="987" loading="lazy" alt="AI-помічник у вікні браузера поруч із графіком регресії: студентське питання про якість моделі й відповідь з R², MAE, порівнянням із простим прогнозом і посиланням на джерело"><figcaption>Чат з AI поруч із графіком: помічник пояснює якість моделі простими словами й посилається на базу знань.</figcaption></figure>
     <figure><img src="screens/report.png" width="1442" height="987" loading="lazy" alt="HTML-звіт Quarto у вікні браузера: гістограма розподілу кількості прокатів із медіаною"><figcaption>Звіт: HTML, зібраний Quarto з перевірених результатів.</figcaption></figure>
   </div>
 </section>

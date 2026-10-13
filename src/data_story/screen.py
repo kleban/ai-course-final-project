@@ -609,7 +609,7 @@ def description_section(service: ProjectService, active: ProjectView) -> None:
     def body() -> None:
         if not state["editing"]:
             if active.description:
-                ui.markdown(active.description).classes("md project-description")
+                ui.markdown(active.description).classes("md-text project-description")
             else:
                 ui.label(
                     "Опису ще немає. Опишіть контекст, дані, питання й очікуваний результат "

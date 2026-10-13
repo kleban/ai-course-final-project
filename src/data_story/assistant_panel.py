@@ -95,7 +95,7 @@ def assistant_panel(
             with thread:
                 with ui.element("div").classes(f"assistant-msg {role}"):
                     if role == "assistant":
-                        ui.markdown(text).classes("md")
+                        ui.markdown(text).classes("md-text")
                     else:
                         ui.label(text)
 

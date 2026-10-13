@@ -192,10 +192,11 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 .dialog-actions.left { justify-content:flex-start; margin-top:8px; }
 
 /* інструкція на сторінці проєкту */
-.instruction .md { font-size:.95em; color:var(--ink); max-width:900px; }
-.instruction .md h1 { font-family:var(--serif); font-size:1.3em; margin:8px 0; }
-.instruction .md h2 { font-family:var(--serif); font-size:1.1em; margin:14px 0 4px; }
-.instruction .md li { margin-bottom:3px; }
+/* Markdown blocks use .md-text: Quasar's .md is a breakpoint class (display:none outside 1024–1439 px). */
+.instruction .md-text { font-size:.95em; color:var(--ink); max-width:900px; }
+.instruction .md-text h1 { font-family:var(--serif); font-size:1.3em; margin:8px 0; }
+.instruction .md-text h2 { font-family:var(--serif); font-size:1.1em; margin:14px 0 4px; }
+.instruction .md-text li { margin-bottom:3px; }
 
 /* бібліотека іконок */
 .icon-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; width:100%; }
@@ -491,8 +492,8 @@ html, body { background:#fff; color:var(--ink); font-family:var(--font); font-si
 /* Knowledge editor (081): editing happens in a wide dialog with the Markdown editor. */
 .knowledge-dialog { border-radius:0 !important; box-shadow:none; border-top:4px solid var(--primary); padding:16px 20px; }
 .knowledge-editor { width:min(960px, 96vw); max-width:96vw !important; }
-.knowledge-doc .md h2 { font-size:1.05em; margin:10px 0 4px; }
-.knowledge-doc .md h1 { font-size:1.15em; }
+.knowledge-doc .md-text h2 { font-size:1.05em; margin:10px 0 4px; }
+.knowledge-doc .md-text h1 { font-size:1.15em; }
 
 /* Local instruction tree, adapted from the lecture chart chooser. */
 .guide-tree {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;width:100%;padding:12px 0;}

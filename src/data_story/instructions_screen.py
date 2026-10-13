@@ -100,7 +100,7 @@ def instructions_screen(service) -> None:
                     with ui.expansion(title, value=name == "03-regression-metrics").classes(
                         "w-full"
                     ):
-                        ui.markdown("## " + text.split("\n## ", 1)[1]).classes("md")
+                        ui.markdown("## " + text.split("\n## ", 1)[1]).classes("md-text")
                 ui.markdown(
                     "### Приклад читання результату\n"
                     "Якщо ціль — ціна, а MAE = 100 000, середня абсолютна помилка — "
