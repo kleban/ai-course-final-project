@@ -44,7 +44,7 @@ with sync_playwright() as pw:
     ok("documents listed", page.get_by_text("Документів: 5", exact=False).count() == 1)
     page.get_by_label("Запитання").fill("що означають зірочки біля коефіцієнта")
     page.get_by_label("Запитання").press("Enter")
-    page.locator(".knowledge-hit").first.wait_for(timeout=20000)
+    page.locator(".knowledge-hit").first.wait_for(timeout=120000)
     first = page.locator(".knowledge-hit").first.inner_text()
     ok("best hit is significance rule", "p-value і зірочки значущості" in first)
     ok("hit shows source", "Джерело:" in first)

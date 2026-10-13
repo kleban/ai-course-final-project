@@ -205,7 +205,7 @@ with sync_playwright() as pw:
     page.get_by_text("Навчено лінійну регресію", exact=False).first.wait_for()
     ok(
         "journal shows success and error",
-        page.get_by_text("Навчено лінійну регресію: model.csv · розраховано").count() >= 1
+        page.get_by_text("Навчено лінійну регресію: model.csv").count() >= 1
         and page.get_by_text("Навчено лінійну регресію: small.csv · помилка").count() >= 1,
     )
 

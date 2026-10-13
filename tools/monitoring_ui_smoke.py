@@ -39,11 +39,11 @@ with sync_playwright() as pw:
     page.get_by_text("Моніторинг", exact=True).first.click()
     page.locator(".monitor-grid .model-panel").first.wait_for(timeout=20000)
     ok("menu opens monitoring", page.url.endswith("/settings/monitoring"))
-    ok("all parts listed", page.locator(".monitor-grid .model-panel").count() == 13)
+    ok("all parts listed", page.locator(".monitor-grid").first.locator(".model-panel").count() == 6)
     for title in (
         "База SQLite",
         "DuckDB",
-        "Ключ OpenAI (.env)",
+        "Доступ до OpenAI",
         "Сховище даних",
         "Вибірки й моделі",
     ):
