@@ -124,41 +124,35 @@ svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="htt
 </svg>'''
 
 flows = [
- ("1", "Браузер ⇄ Інтерфейс і API", "дія користувача: клік, форма, файл CSV, питання помічнику", "сторінка, таблиці, SVG-графіки, результат дії", "NiceGUI (WebSocket), FastAPI (HTTP, JSON)"),
- ("2", "Інтерфейс ⇄ Сервіс", "виклик сервісу з даними форми або HTTP-запиту", "результат або зрозуміла помилка", "pydantic-контракти; один ProjectService для сторінок, чату й API"),
- ("3", "Сервіс ⇄ SQLite і Файли", "службовий стан: проєкти, метадані, налаштування, журнали, тексти висновків і звітів; оригінали CSV, HTML звітів", "стан проєкту, журнали, збережені файли", "SQLite v16; файли з SHA-256"),
- ("4", "Аналітичні модулі ⇄ DuckDB", "нові версії таблиць і результатів: статистика, дані графіків, метрики, прогнози, залишки", "збережені таблиці й результати без повторного розрахунку", "DuckDB 1.5; ключі джерела, метаданих і параметрів"),
- ("5", "Звіти ⇄ Вбудовані AI-функції", "знімок звіту: факти моделі, статистика, затверджені висновки", "чернетка тексту звіту; автор редагує й затверджує", "ReportStore.ai_draft — один виклик OpenAI (завдання report_draft)"),
- ("6", "Звіти → Quarto", "після затвердження: Markdown звіту (.qmd), знімок моделі, статистика, SVG-графіки", "HTML-звіт, що відкривається без інтернету", "ReportStore.render; Quarto CLI 1.10, MathJax, шрифти сервісу; без OpenAI"),
- ("7", "Чат і вбудовані AI ⇄ RAG", "питання користувача або факти моделі", "3–5 фрагментів правил і книжок із джерелом і сторінками", "гібридний пошук TF-IDF + вектори, локально"),
- ("8", "RAG ⇄ bge-m3", "текст питання; уривки книжок під час побудови індексу", "вектор із 1024 чисел для порівняння схожості", "BAAI/bge-m3, ONNX Runtime на CPU, ~2,3 ГБ; без моделі — лише TF-IDF"),
- ("9", "SQL від LLM ⇄ DuckDB", "SQL, який склала LLM; згадані таблиці проєкту копіюються в окрему тимчасову DuckDB", "до 10 000 рядків і 2 МБ результату; новий набір — лише після «Застосувати»", "перевірка: один SELECT, лише таблиці поточного проєкту; 512 МБ, 5 с"),
- ("10", "Чат і вбудовані AI ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти RAG; чату — ще схема таблиць і список інструментів", "текст / JSON або виклик інструмента; інструмент і SQL виконує сервіс локально", "OpenAI Responses API, httpx"),
+ ("1", "Браузер ⇄ Інтерфейс і API", "дія користувача: клік, форма, файл CSV, питання помічнику", "сторінка, таблиці, SVG-графіки, результат дії", "NiceGUI (WebSocket), FastAPI (HTTP, JSON)",
+  "NiceGUI дає повноцінний вебінтерфейс (Vue + Quasar) прямо з Python — для MVP не потрібен окремий фронтенд і окрема команда. FastAPI працює в тому ж процесі й автоматично перевіряє дані запитів, тож ті самі дії доступні сторінкам, чату й тестам."),
+ ("2", "Інтерфейс ⇄ Сервіс", "виклик сервісу з даними форми або HTTP-запиту", "результат або зрозуміла помилка", "pydantic-контракти; один ProjectService для сторінок, чату й API",
+  "Одна точка правил: перевірки й журнал однакові для людини, API та AI. Це спрощує тестування MVP і не дає AI обійти обмеження."),
+ ("3", "Сервіс ⇄ SQLite і Файли", "службовий стан: проєкти, метадані, налаштування, журнали, тексти висновків і звітів; оригінали CSV, HTML звітів", "стан проєкту, журнали, збережені файли", "SQLite v16; файли з SHA-256",
+  "SQLite — вбудована база в одному файлі: без сервера й налаштувань, з надійними транзакціями. Для локального MVP на одному комп’ютері цього достатньо."),
+ ("4", "Аналітичні модулі ⇄ DuckDB", "нові версії таблиць і результатів: статистика, дані графіків, метрики, прогнози, залишки", "збережені таблиці й результати без повторного розрахунку", "DuckDB 1.5; ключі джерела, метаданих і параметрів",
+  "DuckDB — вбудована аналітична (колонкова) база: швидкі групування, зведення й з’єднання на SQL без окремого сервера. Результати зберігаються з версіями, тому після перезапуску їх не треба перераховувати."),
+ ("5", "Звіти ⇄ Вбудовані AI-функції", "знімок звіту: факти моделі, статистика, затверджені висновки", "чернетка тексту звіту; автор редагує й затверджує", "ReportStore.ai_draft — один виклик OpenAI (завдання report_draft)",
+  "AI допомагає сформулювати текст, але числа бере лише з фактів сервісу. Остаточне рішення — за людиною: чернетку редагують і затверджують."),
+ ("6", "Звіти → Quarto", "після затвердження: Markdown звіту (.qmd), знімок моделі, статистика, SVG-графіки", "HTML-звіт, що відкривається без інтернету", "ReportStore.render; Quarto CLI 1.10, MathJax, шрифти сервісу; без OpenAI",
+  "Quarto — відкритий стандарт відтворюваних звітів: Markdown + формули + графіки → самодостатній HTML. Джерело .qmd можна редагувати й перезібрати, а той самий інструмент у майбутньому дасть PDF, DOCX чи слайди."),
+ ("7", "Чат і вбудовані AI ⇄ RAG", "питання користувача або факти моделі", "3–5 фрагментів правил і книжок із джерелом і сторінками", "гібридний пошук TF-IDF + вектори, локально",
+  "LLM не знає правил курсу й змісту обраних книжок. RAG підставляє перевірені фрагменти з джерелами, тож відповіді ближчі до методики, а посилання можна перевірити."),
+ ("8", "RAG ⇄ bge-m3", "текст питання; уривки книжок під час побудови індексу", "вектор із 1024 чисел для порівняння схожості", "BAAI/bge-m3 з Hugging Face, ONNX Runtime на CPU, ~2,3 ГБ",
+  "Модель embeddings перетворює текст на вектор: близькі за змістом тексти мають близькі вектори, тому пошук іде за змістом, а не лише за словами. bge-m3 (ліцензія MIT) багатомовна, з українською; обрана порівнянням кількох моделей на контрольних питаннях. Завантажується один раз з Hugging Face під час Setup і далі працює офлайн; без неї — TF-IDF."),
+ ("9", "SQL від LLM ⇄ DuckDB", "SQL, який склала LLM; згадані таблиці проєкту копіюються в окрему тимчасову DuckDB", "до 10 000 рядків і 2 МБ результату; новий набір — лише після «Застосувати»", "перевірка: один SELECT, лише таблиці поточного проєкту; 512 МБ, 5 с",
+  "LLM добре перекладає питання людською мовою в SQL, а виконує запит лише сервіс під обмеженнями. Користувач не пише SQL, а дані проєкту захищені від змін."),
+ ("10", "Чат і вбудовані AI ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти RAG; чату — ще схема таблиць і список інструментів", "текст / JSON або виклик інструмента; інструмент і SQL виконує сервіс локально", "OpenAI Responses API, httpx",
+  "Сильні моделі з викликом інструментів і структурованими відповідями без власної інфраструктури моделей — оптимально для MVP. Модель обирається окремо для кожної задачі; кожен виклик і токени видно в журналі."),
 ]
-rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="10" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td></tr>' for n,a,b,c,d in flows)
-
-sql_steps = [
- ("1, 2", "Користувач питає помічника, наприклад: «О котрій годині найбільше прокатів?»."),
- ("10", "Сервіс надсилає питання, схему таблиць проєкту й дозволені інструменти. LLM повертає виклик query_analytics із текстом SQL."),
- ("9", "Сервіс перевіряє SQL (один SELECT, лише таблиці проєкту) і виконує його в ізольованій DuckDB з обмеженням часу й пам’яті."),
- ("10", "Таблиця результату повертається LLM, яка формулює відповідь. Для Seoul: пік о 18:00, середнє ≈ 1554 прокатів."),
- ("1", "Щоб зберегти результат як набір, користувач переглядає таблицю й натискає «Застосувати»."),
-]
-steps = [
- ("1, 2", "Користувач натискає «Підготувати висновки AI» на сторінці «Висновки»."),
- ("4", "Сервіс бере збережену модель і факти з DuckDB: R², MAE, коефіцієнти з p-value; за потреби — до 3 зведень."),
- ("7, 8", "З фактів складаються запитання до бази знань; bge-m3 перетворює їх на вектори, RAG повертає 3–5 фрагментів правил і книжок."),
- ("10", "Один запит до OpenAI: інструкції + факти + фрагменти [1]…[5]. Відповідь перевіряється: посилання лише на наявні джерела."),
- ("3", "Чернетка зберігається в SQLite з фактами, джерелами й токенами; виклик записується в журнал AI."),
- ("5, 6", "Автор затверджує висновки. «Звіти» збирають знімок, за бажанням отримують AI-чернетку тексту; після затвердження Quarto формує HTML."),
-]
-lis = lambda s: "".join(f'<li><span class="sn">{e(n)}</span><span>{e(t)}</span></li>' for n,t in s)
+rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="10" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td><td class="why">{e(w)}</td></tr>' for n,a,b,c,d,w in flows)
 
 page = f'''<!doctype html>
 <html lang="uk">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Мотивація та архітектура Data Story</title>
+<title>Data Story — про проєкт</title>
+<meta name="description" content="Data Story — MVP сервісу аналітики даних для навчання: аналіз, візуалізація, основи моделювання й AI-помічник.">
 <style>
 @font-face {{ font-family:'IBM Plex Sans'; src:url('../../src/data_story/assets/fonts/plex/ibm-plex-sans-regular.woff2') format('woff2'); font-weight:400; }}
 @font-face {{ font-family:'IBM Plex Sans'; src:url('../../src/data_story/assets/fonts/plex/ibm-plex-sans-600.woff2') format('woff2'); font-weight:600; }}
@@ -226,66 +220,86 @@ ol.path li {{ display:grid; grid-template-columns:56px minmax(0,1fr); gap:10px; 
 .facts {{ display:flex; flex-direction:column; gap:10px; background:var(--shade); padding:16px 18px; }}
 .facts p {{ margin:0; }}
 @media (max-width:820px) {{ .cols2 {{ grid-template-columns:1fr; }} }}
+.hero {{ display:grid; grid-template-columns:minmax(200px,300px) 1fr; gap:28px; align-items:center; border-bottom:2px solid var(--primary); padding-bottom:22px; }}
+.hero img {{ width:100%; height:auto; }}
+.hero h1 {{ font-size:clamp(2rem,4vw,2.8rem); }}
+.hero p {{ margin:0 0 10px; max-width:75ch; }}
+.hero ul {{ margin:0 0 12px; padding-left:20px; }}
+.meta {{ font-size:.92rem; color:var(--ink2); }}
+.btn {{ display:inline-block; margin-top:6px; padding:9px 16px; background:var(--primary); color:#fff; text-decoration:none; font-weight:600; }}
+.btn:hover, .btn:focus-visible {{ background:#0f3470; }}
+a {{ color:var(--primary); }}
+.shots {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr)); gap:26px; }}
+.shots figure {{ margin:0; display:flex; flex-direction:column; gap:8px; }}
+.shots img {{ width:100%; height:auto; border:1px solid var(--rule); }}
+.shots figcaption {{ font-size:.9rem; color:var(--ink2); }}
+td.why {{ min-width:280px; }}
+@media (max-width:720px) {{ .hero {{ grid-template-columns:1fr; }} .hero img {{ max-width:240px; }} }}
 </style>
 <main>
+<section class="hero" aria-labelledby="about-title">
+  <img src="../../src/data_story/assets/logo/logo-panel.svg" width="300" height="146" alt="Логотип Data Story">
+  <div>
+    <span class="kicker">MVP сервісу аналітики даних · фінальний проєкт курсу «AI-агенти для розробників»</span>
+    <h1 id="about-title">Data Story</h1>
+    <p><b>Data Story</b> — MVP локального сервісу, який проводить шлях від набору CSV до огляду даних, візуалізації, лінійної регресії, висновків і HTML-звіту. Розрахунки виконує сервіс, а AI-помічник підказує наступні кроки, пояснює результати й готує чернетки тексту.</p>
+    <p><b>Для чого:</b> демонстрація принципів аналізу даних, візуалізації даних і основ моделювання та допомога студентам у вивченні аналітики даних.</p>
+    <p><b>Для кого:</b> студенти, які вивчають аналітику даних, і викладачі, яким потрібен наочний інструмент для занять.</p>
+    <p class="meta">Автор: Юрій Клебан · працює локально на Windows, LLM — OpenAI через інтернет</p>
+    <a class="btn" href="https://github.com/kleban/ai-course-final-project">Репозиторій проєкту на GitHub: код, README, документація</a>
+  </div>
+</section>
 <section class="motivation" aria-labelledby="motivation-title">
-  <h1 id="motivation-title">Мотивація</h1>
-  <p>«Storytelling with Data» Коул Нуссбаумер Кнафлік — чудова книжка про те, як перетворювати дані на зрозумілу історію. Її принципи дизайну стали одним із орієнтирів для побудови й візуалізації даних у Data Story: обирати доречний графік, прибирати зайве та спрямовувати увагу на головне, щоб аналітик міг ясно пояснити результати. Інструмент планується використовувати як демонстрацію на заняттях з аналітики даних — для пояснення її загальних принципів і понять, а також основ математичного моделювання.</p>
+  <h2 id="motivation-title">Мотивація</h2>
+  <p>Автор викладає студентам аналіз і візуалізацію даних, має досвід участі в комерційних проєктах з машинного навчання й хотів частково втілити ці знання в сервісі. Data Story — MVP такого інструмента: він показує на реальних даних, як іти від питання до перевіреного результату.</p>
+  <p>«Storytelling with Data» Коул Нуссбаумер Кнафлік — книжка, яка дуже добре пояснює, як аналізувати дані й розповідати ними зрозумілу історію. Її принципи дизайну стали одним з основних орієнтирів для побудови візуалізації даних у Data Story: доречний тип графіка, нічого зайвого, увага — на головному.</p>
   <img src="../presentation-assets/storytelling-two-editions.png" width="1672" height="941" alt="Старе та ювілейне видання Storytelling with Data стоять поруч на дерев’яному столі в сонячному світлі">
 </section>
-<header>
-  <span class="kicker">Data Story · фінальний проєкт курсу</span>
-  <h1>Як влаштований сервіс і хто кому що передає</h1>
-  <p class="lead">Окремі складові, пронумеровані потоки даних і технологія на кожному рівні. Дані, розрахунки, пошук у базі знань і звіти працюють на комп’ютері користувача. LLM — обов’язкова частина сервісу: це OpenAI, до якого сервіс звертається через інтернет за дією користувача.</p>
-</header>
-<section>
-  <h2>Складові та потоки даних</h2>
-  <p class="lead">Схема відповідає реалізованому коду; читати зверху вниз: користувач → інтерфейс → сервіс → дві групи модулів → сховища та зовнішні складові. Стрілки ведуть до конкретних блоків; дві шини (сіра лінія з точками) збирають кілька блоків, що звертаються до одного адресата. Аналітичні таблиці й результати зберігаються в постійній DuckDB, службовий стан — у SQLite. AI використовується двома способами: чат-помічник і вбудовані AI-функції на робочих етапах. Обидва користуються спільним клієнтом OpenAI, RAG і результатами сервісу; SQL від LLM виконує лише сервіс після перевірки. Чернетку звіту готує AI, автор її затверджує, і лише тоді Quarto формує HTML.</p>
+<section aria-labelledby="shots-title">
+  <h2 id="shots-title">Як це виглядає</h2>
+  <p class="lead">Знімки екрана MVP на демонстраційних даних (Seoul Bike Sharing Demand і тестовий набір); рамку браузера домальовано.</p>
+  <div class="shots">
+    <figure><img src="screens/charts-seoul.png" width="1442" height="987" loading="lazy" alt="Демонстраційна галерея Seoul у вікні браузера: стовпчиковий графік середнього попиту за годинами з виділеним піком о 18:00"><figcaption>Візуалізація за принципами Storytelling with Data: заголовок-висновок, сірий фон і один виділений акцент (пік о 18:00).</figcaption></figure>
+    <figure><img src="screens/model-check.png" width="1442" height="987" loading="lazy" alt="Сторінка перевірки моделі у вікні браузера: графік регресії кількості прокатів від температури на тестових даних із поясненням"><figcaption>Перевірка моделі: графік регресії на тестовій частині, поруч — як його читати.</figcaption></figure>
+    <figure><img src="screens/chat-sql.png" width="1442" height="987" loading="lazy" alt="AI-помічник у вікні браузера: у режимі «Виконай» готує пропозицію зведення з таблицею результату й кнопкою «Застосувати»"><figcaption>Чат з AI: помічник бачить поточну сторінку, складає SQL-зведення й показує результат; зміни застосовує користувач.</figcaption></figure>
+  </div>
+</section>
+<section aria-labelledby="arch-title">
+  <h2 id="arch-title">Архітектура сервісу</h2>
+  <p class="lead">Дані, розрахунки, пошук у базі знань і звіти працюють на комп’ютері користувача; до OpenAI сервіс звертається через інтернет лише за дією користувача. Номери на стрілках відповідають рядкам таблиці нижче.</p>
 </section>
 <div class="figure">{svg}</div>
 <div class="legend">
   <span><i class="sw"></i>інтерфейс і ядро сервісу</span>
   <span><i class="sw c"></i>модулі розрахунків</span>
   <span><i class="sw l"></i>AI: чат, вбудовані функції, OpenAI</span>
-  <span><i class="sw r"></i>окремі локальні сервіси (RAG, Quarto)</span>
+  <span><i class="sw r"></i>окремі локальні сервіси (RAG, bge-m3, Quarto)</span>
   <span><i class="sw s"></i>сховище</span>
   <span><i class="ln-s"></i>локальний запит і відповідь</span>
   <span><i class="ln-a"></i>запит через інтернет</span>
   <span><i class="ln-b"></i>шина: кілька блоків користуються одним адресатом</span>
 </div>
-<section>
-  <h2>Потоки даних: що надсилається і що повертається</h2>
+<section aria-labelledby="flows-title">
+  <h2 id="flows-title">Потоки даних і вибір технологій</h2>
+  <p class="lead">Що передається між складовими, яка технологія це робить і чому для MVP обрано саме її.</p>
   <div class="tablewrap"><table>
-    <thead><tr><th>№</th><th>Хто ⇄ кому</th><th>Що надсилає</th><th>Що отримує назад</th><th>Технологія</th></tr></thead>
+    <thead><tr><th>№</th><th>Хто ⇄ кому</th><th>Що надсилає</th><th>Що отримує назад</th><th>Технологія</th><th>Чому саме ця технологія</th></tr></thead>
     <tbody>{rows}</tbody>
   </table></div>
 </section>
-<section class="cols2">
-  <div>
-    <h2>Приклад 1: SQL від LLM у чаті</h2>
-    <ol class="path">{lis(sql_steps)}</ol>
-  </div>
-  <div>
-    <h2>Приклад 2: «Підготувати висновки AI»</h2>
-    <ol class="path">{lis(steps)}</ol>
-  </div>
+<section class="facts" aria-labelledby="assistant-title">
+  <h2 id="assistant-title">Як працює AI-помічник</h2>
+  <p>Помічник відкривається кнопкою «AI» на будь-якій сторінці й має три режими: <b>Порадь</b> (наступні кроки), <b>Виконай</b> (дозволені дії сервісу) і <b>Поясни результат</b>. Він знає поточний проєкт і сторінку, а за неоднозначного завдання ставить коротке уточнювальне питання.</p>
+  <p>Відповідь будується з фактів сервісу, фрагментів бази знань (RAG) і результатів інструментів: LLM пропонує виклик, а виконує його сервіс — наприклад, перевірений SQL у DuckDB. Зміни застосовуються лише після «Застосувати»; кожен виклик і токени записуються в журнал AI.</p>
 </section>
-<section class="facts">
-  <h2>Принципи</h2>
-  <p><b>Числа рахує сервіс, не AI.</b> Модель отримує готові факти й лише формулює текст.</p>
-  <p><b>SQL складає LLM, виконує сервіс.</b> Користувач не пише SQL; LLM не має прямого доступу до бази — лише один перевірений SELECT над таблицями поточного проєкту.</p>
-  <p><b>Результати зберігаються.</b> Статистика, дані графіків і результати моделей — у DuckDB з версіями й походженням; після перезапуску не перераховуються.</p>
-  <p><b>AI — лише явною дією.</b> Кожен виклик і токени видно в журналі AI; ключ не потрапляє в журнали.</p>
-  <p><b>LLM — OpenAI, через інтернет.</b> Без нього не працюють помічник, висновки й пояснення; решта сервісу (дані, статистика, модель, графіки, HTML-звіт) працює.</p>
-  <p><b>RAG локальний.</b> Пошук правил і книжок не потребує інтернету; без моделі bge-m3 сервіс переходить на TF-IDF.</p>
-</section>
+<p class="meta">Data Story — MVP, створений у межах курсу «AI-агенти для розробників». Код і документація — у <a href="https://github.com/kleban/ai-course-final-project">репозиторії</a>.</p>
 </main>'''
 output = Path(__file__).resolve().parent
 (output / "architecture.html").write_text(page, encoding="utf-8")
 (output / "architecture.svg").write_text(svg, encoding="utf-8")
 about = output.parents[1] / "src/data_story/assets/about"
 about.mkdir(parents=True, exist_ok=True)
-about_page = page.replace("../../src/data_story/assets/fonts/", "../fonts/").replace(
+about_page = page.replace("../../src/data_story/assets/fonts/", "../fonts/").replace("../../src/data_story/assets/logo/", "../logo/").replace(
     "../presentation-assets/storytelling-two-editions.png", "storytelling-two-editions.png"
 )
 (about / "index.html").write_text(about_page, encoding="utf-8")
@@ -293,7 +307,7 @@ copyfile(output.parent / "presentation-assets/storytelling-two-editions.png", ab
 # Static copy for GitHub Pages (main → /docs): no build step on GitHub, everything relative and local.
 docs = output.parents[1] / "docs"
 (docs / "assets/fonts").mkdir(parents=True, exist_ok=True)
-(docs / "index.html").write_text(page.replace("../../src/data_story/assets/fonts/", "assets/fonts/").replace(
+(docs / "index.html").write_text(page.replace("../../src/data_story/assets/fonts/", "assets/fonts/").replace("../../src/data_story/assets/logo/", "assets/").replace('src="screens/', 'src="assets/screens/').replace(
     "../presentation-assets/storytelling-two-editions.png", "assets/storytelling-two-editions.png"), encoding="utf-8")
 (docs / ".nojekyll").write_text("", encoding="utf-8")
 copyfile(output.parent / "presentation-assets/storytelling-two-editions.png", docs / "assets/storytelling-two-editions.png")
@@ -302,6 +316,11 @@ for name in ("plex/ibm-plex-sans-regular.woff2", "plex/ibm-plex-sans-600.woff2",
              "stix/stix-two-text-600.woff2", "stix/stix-two-text-700.woff2"):
     (docs / "assets/fonts" / name).parent.mkdir(parents=True, exist_ok=True)
     copyfile(fonts / name, docs / "assets/fonts" / name)
+copyfile(output.parents[1] / "src/data_story/assets/logo/logo-panel.svg", docs / "assets/logo-panel.svg")
+for d in (docs / "assets/screens", about / "screens"):
+    d.mkdir(parents=True, exist_ok=True)
+    for shot in (output / "screens").glob("*.png"):
+        copyfile(shot, d / shot.name)
 for family in ("plex", "stix"):
     copyfile(fonts / family / "OFL.txt", docs / "assets/fonts" / family / "OFL.txt")
 print("ok", len(page))
