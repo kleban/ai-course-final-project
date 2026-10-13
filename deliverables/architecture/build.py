@@ -290,4 +290,18 @@ about_page = page.replace("../../src/data_story/assets/fonts/", "../fonts/").rep
 )
 (about / "index.html").write_text(about_page, encoding="utf-8")
 copyfile(output.parent / "presentation-assets/storytelling-two-editions.png", about / "storytelling-two-editions.png")
+# Static copy for GitHub Pages (main → /docs): no build step on GitHub, everything relative and local.
+docs = output.parents[1] / "docs"
+(docs / "assets/fonts").mkdir(parents=True, exist_ok=True)
+(docs / "index.html").write_text(page.replace("../../src/data_story/assets/fonts/", "assets/fonts/").replace(
+    "../presentation-assets/storytelling-two-editions.png", "assets/storytelling-two-editions.png"), encoding="utf-8")
+(docs / ".nojekyll").write_text("", encoding="utf-8")
+copyfile(output.parent / "presentation-assets/storytelling-two-editions.png", docs / "assets/storytelling-two-editions.png")
+fonts = output.parents[1] / "src/data_story/assets/fonts"
+for name in ("plex/ibm-plex-sans-regular.woff2", "plex/ibm-plex-sans-600.woff2", "plex/ibm-plex-sans-700.woff2",
+             "stix/stix-two-text-600.woff2", "stix/stix-two-text-700.woff2"):
+    (docs / "assets/fonts" / name).parent.mkdir(parents=True, exist_ok=True)
+    copyfile(fonts / name, docs / "assets/fonts" / name)
+for family in ("plex", "stix"):
+    copyfile(fonts / family / "OFL.txt", docs / "assets/fonts" / family / "OFL.txt")
 print("ok", len(page))
