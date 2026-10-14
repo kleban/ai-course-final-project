@@ -1,5 +1,9 @@
 """Thin NiceGUI and HTTP adapters over the same project service."""
 
+import logging
+import os
+import threading
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, Request, UploadFile
@@ -501,6 +505,7 @@ def configure(settings: Settings) -> None:
         if request.headers.get("X-Data-Story-Instance") != settings.instance:
             return JSONResponse({"message": "Це інший локальний екземпляр."}, status_code=409)
         app.shutdown()
+        _exit_later()
         return {"status": "stopping"}
 
     @ui.page("/")
@@ -550,6 +555,23 @@ def configure(settings: Settings) -> None:
     @ui.page("/icons")
     def icons_page():
         icons_screen(service)
+
+
+SHUTDOWN_GRACE = 5.0
+
+
+def _exit_later(seconds: float = SHUTDOWN_GRACE) -> None:
+    """Fallback for /shutdown (history 132): after a browser session the port was freed, but
+    the process lingered and kept the launch lock, so the next Start reported «already starting».
+    SQLite commits every operation, so a hard exit after the grace period loses nothing."""
+
+    def stop() -> None:
+        time.sleep(seconds)
+        logging.getLogger(__name__).warning("Shutdown took over %s s; process exits.", seconds)
+        logging.shutdown()
+        os._exit(0)
+
+    threading.Thread(target=stop, name="shutdown-fallback", daemon=True).start()
 
 
 def run(settings: Settings) -> None:

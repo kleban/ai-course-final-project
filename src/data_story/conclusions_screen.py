@@ -5,6 +5,7 @@ from typing import Any
 
 from nicegui import run, ui
 
+from .ai_settings import format_usd
 from .contracts import Failure
 from .markdown_editor import MarkdownEditor
 from .model_screen import panel
@@ -182,6 +183,7 @@ def conclusions_screen(service, active, conclusion_id=None):
             ai = item["ai"]
             ui.label(
                 f"Чернетка AI: {ai['model']} · токени: {ai['usage_total']} · "
+                f"{format_usd(ai.get('cost_total'))} · "
                 f"джерел: {len(item['sources'])}"
             ).classes("model-note")
 

@@ -5,6 +5,7 @@ from typing import Any
 
 from nicegui import run, ui
 
+from .ai_settings import format_usd
 from .contracts import Failure
 from .markdown_editor import MarkdownEditor
 from .model_screen import panel
@@ -143,7 +144,8 @@ def report_screen(service, active, report_id=None):
             if report.get("ai"):
                 ui.label(
                     f"Пояснення AI: {report['ai']['model']} · токени: "
-                    f"{report['ai']['usage_total']}. Перевірте текст перед поширенням."
+                    f"{report['ai']['usage_total']} · {format_usd(report['ai'].get('cost_total'))}. "
+                    "Перевірте текст перед поширенням."
                 ).classes("model-note")
             ui.label(
                 "AI замінює лише тексти розділів поясненнями зі збережених фактів; числа, таблиці "

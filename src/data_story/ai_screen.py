@@ -2,6 +2,7 @@
 
 from nicegui import run, ui
 
+from .ai_settings import PRICES_SOURCE, format_usd
 from .contracts import Failure
 from .model_screen import panel
 from .screen import Shell, button, error_line, error_text, page_header, progress_line
@@ -20,6 +21,12 @@ FAKE_KEY = """
   <div class="model-note" aria-live="polite"></div>
 </div>
 """
+PRICE_FIELDS = {
+    "input": "Вхід",
+    "cached_input": "Вхід із кешу",
+    "cache_write": "Запис у кеш",
+    "output": "Вихід (з міркуванням)",
+}
 KEY_STATES = {
     "found": "Ключ знайдено",
     "empty": "Ключ не вписано",
@@ -48,7 +55,8 @@ def ai_settings_screen(service: ProjectService) -> None:
         models = {m["id"]: m for m in data["models"]}
         selects: dict[str, ui.select] = {}
         fallback_selects: dict[str, list[ui.select]] = {}
-        with ui.element("div").classes("model-grid model-top"):
+        price_inputs: dict[str, dict[str, ui.number]] = {}
+        with ui.element("div").classes("model-grid model-grid-three model-top"):
             with panel("Ключ OpenAI"):
                 ui.label(
                     KEY_STATES[key["state"]] + (f" · {key['masked']}" if key["masked"] else "")
@@ -77,10 +85,29 @@ def ai_settings_screen(service: ProjectService) -> None:
                 steps = ui.number(
                     "Максимум кроків агента", value=config["max_agent_steps"], min=1, max=20, step=1
                 ).props("outlined square")
+                ui.label("Ліміти зупиняють відповідь або агента зі зрозумілим станом.").classes(
+                    "model-note"
+                )
+            with panel("Ціни моделей · $ за 1 млн токенів"):
+                for model_id, price in config["prices"].items():
+                    ui.label(model_id).classes("knowledge-section")
+                    with ui.element("div").classes("price-grid"):
+                        price_inputs[model_id] = {
+                            field: ui.number(
+                                title, value=price[field], min=0, max=1000, step=0.005,
+                                format="%.3f",
+                            ).props(f'outlined square dense data-price="{model_id}-{field}"')
+                            for field, title in PRICE_FIELDS.items()
+                        }  # fmt: skip
+                checked = ui.input("Тариф перевірено (дата)", value=config["prices_checked"]).props(
+                    "outlined square dense"
+                )
                 ui.label(
-                    "Ліміти зупиняють відповідь або агента зі зрозумілим станом; грошовий облік "
-                    "не ведемо, лише токени."
+                    "Кожен вхідний токен оплачується за одним тарифом: звичайним, із кешу або "
+                    "запису в кеш. Вартість рахується з фактичних токенів відповіді OpenAI; "
+                    "без токенів або тарифу — «невідомо». Стандартний рівень, контекст до 272 тис."
                 ).classes("model-note")
+                ui.link("Джерело: тарифи OpenAI", PRICES_SOURCE, new_tab=True).classes("model-note")
         with ui.element("div").classes("model-grid model-grid-main"):
             with panel("Перевірка з'єднання"):
                 ui.label(
@@ -123,7 +150,8 @@ def ai_settings_screen(service: ProjectService) -> None:
                             ui.label(
                                 f"{result.data['model']} (рівень {result.data['level']}) · "
                                 f"спроб: {len(result.data['attempts'])} · токени всіх спроб: "
-                                f"{total if total is not None else 'невідомо'}"
+                                f"{total if total is not None else 'невідомо'} · вартість: "
+                                f"{format_usd(result.data.get('cost_total'))}"
                             ).classes("model-note")
                     calls.refresh()
 
@@ -145,16 +173,28 @@ def ai_settings_screen(service: ProjectService) -> None:
                         f"(вхід {totals['input_tokens']}, вихід {totals['output_tokens']}) · "
                         f"без даних про токени: {totals['unknown_usage']}"
                     ).classes("model-note")
+                    ui.label(
+                        f"Вартість відомих викликів: {format_usd(totals['cost_usd'])}"
+                        + (
+                            f" (з них {totals['cost_estimated']} оцінено за поточним тарифом)"
+                            if totals["cost_estimated"]
+                            else ""
+                        )
+                        + (f" · без вартості: {totals['cost_unknown']}" if totals["cost_unknown"]
+                           else "")
+                    ).classes("stat-context ai-cost-total")  # fmt: skip
                     if not response.data["calls"]:
                         ui.label("Викликів ще не було.").classes("model-note")
                     for call in response.data["calls"][:8]:
                         usage = call.get("usage") or {}
                         tokens = usage.get("total_tokens")
+                        usd = (call.get("cost") or {}).get("usd")
                         line = (
                             f"{call['started_at'][:19].replace('T', ' ')} UTC · {call['task']} · "
                             f"{call['model']} · "
                             + ("успіх" if call["status"] == "success" else "помилка")
                             + (f" · {tokens} ток." if tokens is not None else "")
+                            + (f" · {format_usd(usd)}" if usd is not None else "")
                         )
                         ui.label(line).classes("model-note mono-wrap")
                         if call.get("error"):
@@ -214,6 +254,14 @@ def ai_settings_screen(service: ProjectService) -> None:
                 "retries": int(retries.value if retries.value is not None else -1),
                 "max_output_tokens": int(tokens.value or 0),
                 "max_agent_steps": int(steps.value or 0),
+                "prices": {
+                    model_id: {
+                        field: float(box.value) if box.value is not None else -1.0
+                        for field, box in boxes.items()
+                    }
+                    for model_id, boxes in price_inputs.items()
+                },
+                "prices_checked": str(checked.value or ""),
             }
             result = service.save_ai_configuration(raw)
             if isinstance(result, Failure):
@@ -222,6 +270,7 @@ def ai_settings_screen(service: ProjectService) -> None:
             else:
                 message.set_text("Налаштування збережено. Ключ не змінювався.")
                 message.classes(replace="stat-context")
+                calls.refresh()
 
         def reset() -> None:
             result = service.reset_ai_configuration()
@@ -237,6 +286,11 @@ def ai_settings_screen(service: ProjectService) -> None:
             retries.set_value(result.data["retries"])
             tokens.set_value(result.data["max_output_tokens"])
             steps.set_value(result.data["max_agent_steps"])
+            for model_id, boxes in price_inputs.items():
+                for field, box in boxes.items():
+                    box.set_value(result.data["prices"][model_id][field])
+            checked.set_value(result.data["prices_checked"])
+            calls.refresh()
             message.set_text("Повернуто типові моделі й ліміти.")
 
         with ui.row().classes("gap-2"):

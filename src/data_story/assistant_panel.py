@@ -10,6 +10,7 @@ from uuid import UUID
 
 from nicegui import run, ui
 
+from .ai_settings import format_usd
 from .assistant import BLOCKS, MAX_HISTORY, MODES, SUGGESTIONS
 from .contracts import Failure
 from .metadata import KIND_TITLES, ROLE_TITLES
@@ -181,6 +182,7 @@ def assistant_panel(
                 tokens = data["usage_total"]
                 details.append(
                     f"{data['model']} · токени: {tokens if tokens is not None else 'невідомо'}"
+                    f" · {format_usd(data.get('cost_total'))}"
                 )
                 # Only the sources the answer refers to; the full retrieval is in the journal.
                 if data.get("cited"):

@@ -15,7 +15,7 @@ from uuid import uuid4
 from .ai_settings import TASKS
 from .assistant_tools import TOOLS, run_tool
 from .contracts import Failure
-from .openai_client import AiError, function_calls, output_text
+from .openai_client import AiError, function_calls, output_text, sum_cost
 from .projects import ProjectStore
 from .statistics import StatisticsError
 from .storage import connect
@@ -128,6 +128,11 @@ class Answer:
     usage_total: int | None
     question: dict | None = None
     proposals: list[dict] = field(default_factory=list)
+
+    @property
+    def cost_total(self) -> float | None:
+        """USD over all attempts with a known price (D-106)."""
+        return sum_cost(self.attempts)
 
 
 def cited(text: str, sources: list[dict]) -> list[dict]:
@@ -398,6 +403,7 @@ class Assistant:
             tools=[t["name"] for t in answer.tools],
             sources=[s["id"] for s in answer.sources],
             usage_total=answer.usage_total,
+            cost_usd=answer.cost_total,
             proposals=answer.proposals,
             answer=answer.text[:500],
             duration_ms=(perf_counter() - started) * 1000,
@@ -406,6 +412,7 @@ class Assistant:
             ProjectStore._event(connection, project_id, "assistant.asked", audit)
         return {
             **vars(answer),
+            "cost_total": answer.cost_total,
             "cited": cited(answer.text, answer.sources),
             "task": task,
             "mode": mode,

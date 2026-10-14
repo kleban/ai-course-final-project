@@ -186,6 +186,60 @@ TASKS: dict[str, Task] = {
 
 MAX_LEVELS = 3
 
+# Prices in USD per 1M tokens, Standard tier, short context (D-106). Source and date are shown in
+# the UI; the author edits them on the settings page when OpenAI changes the rate card.
+PRICES_SOURCE = "https://developers.openai.com/api/docs/pricing"
+PRICES_CHECKED = "2026-10-14"
+LONG_CONTEXT = 272_000  # longer prompts use another rate; cost is then reported as unknown
+
+
+class Price(BaseModel):
+    """One model's rate card: every input token is billed at exactly one of three input rates."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    input: Annotated[float, Field(ge=0, le=1000)]
+    cached_input: Annotated[float, Field(ge=0, le=1000)]
+    cache_write: Annotated[float, Field(ge=0, le=1000)]
+    output: Annotated[float, Field(ge=0, le=1000)]
+
+
+def default_prices() -> dict[str, "Price"]:
+    return {
+        "gpt-6-luna": Price(input=0.10, cached_input=0.01, cache_write=0.125, output=0.50),
+        "gpt-6.1-sol": Price(input=2.00, cached_input=0.10, cache_write=2.50, output=10.00),
+    }
+
+
+def cost_of(usage: dict | None, price: "Price | None") -> dict:
+    """Cost in USD from actual usage; ``usd`` is None with a reason when it cannot be known.
+
+    Uncached input = input − cached − cache writes; reasoning tokens are already in output.
+    """
+    usage = usage or {}
+    inp, out = usage.get("input_tokens"), usage.get("output_tokens")
+    if price is None:
+        return {"usd": None, "reason": "немає тарифу моделі"}
+    if inp is None or out is None:
+        return {"usd": None, "reason": "OpenAI не повернув токени"}
+    if inp > LONG_CONTEXT:
+        return {"usd": None, "reason": "довгий контекст — інший тариф"}
+    cached = usage.get("cached_tokens") or 0
+    write = usage.get("cache_write_tokens") or 0
+    plain = max(inp - cached - write, 0)
+    usd = (
+        plain * price.input
+        + cached * price.cached_input
+        + write * price.cache_write
+        + out * price.output
+    ) / 1_000_000
+    return {"usd": usd, "reason": None}
+
+
+def format_usd(usd: float | None) -> str:
+    if usd is None:
+        return "невідомо"
+    return f"${usd:.4f}" if usd < 1 else f"${usd:.2f}"
+
 
 def default_fallbacks() -> dict[str, list[str]]:
     """Level 2 for text tasks: the other text model (escalate luna → sol, back up sol → luna)."""
@@ -206,6 +260,8 @@ class AiConfiguration(BaseModel):
     retries: Annotated[int, Field(ge=0, le=5)] = 2
     max_output_tokens: Annotated[int, Field(ge=256, le=32000)] = 2000
     max_agent_steps: Annotated[int, Field(ge=1, le=20)] = 6
+    prices: dict[str, Price] = Field(default_factory=default_prices)
+    prices_checked: Annotated[str, Field(max_length=40)] = PRICES_CHECKED
 
     @model_validator(mode="after")
     def known(self) -> "AiConfiguration":
@@ -227,10 +283,18 @@ class AiConfiguration(BaseModel):
                 check(key, model)
                 if model == "local":
                     raise ValueError("Запасний рівень має бути моделлю OpenAI.")
+        for model in self.prices:
+            if model not in MODELS or MODELS[model].kind != "text":
+                raise ValueError(f"Тариф можна задати лише текстовій моделі OpenAI: {model}.")
+        for model, price in default_prices().items():  # older saved settings get the defaults
+            self.prices.setdefault(model, price)
         for key, task in TASKS.items():  # new tasks get their default
             self.models.setdefault(key, task.default)
             self.fallbacks.setdefault(key, default_fallbacks()[key])
         return self
+
+    def cost(self, model: str, usage: dict | None) -> dict:
+        return cost_of(usage, self.prices.get(model))
 
     def chain(self, task: str) -> list[str]:
         """Distinct models in level order: level 1, then the configured fallbacks."""

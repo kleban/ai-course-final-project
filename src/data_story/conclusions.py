@@ -321,6 +321,7 @@ class ConclusionStore:
             "ai": {
                 "model": result["model"],
                 "usage_total": result["usage_total"],
+                "cost_total": result.get("cost_total"),
                 "attempts": len(result["attempts"]),
             },
             "approved_at": None,

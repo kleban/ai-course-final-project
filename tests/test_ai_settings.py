@@ -10,7 +10,16 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from data_story.ai_settings import TASKS, AiConfiguration, AiSettingsStore, key_status
+from data_story.ai_settings import (
+    LONG_CONTEXT,
+    TASKS,
+    AiConfiguration,
+    AiSettingsStore,
+    Price,
+    cost_of,
+    format_usd,
+    key_status,
+)
 from data_story.contracts import Failure, Success
 from data_story.storage import connect
 from data_story.web import install_error_handlers, router
@@ -65,6 +74,38 @@ class AiSettingsTests(unittest.TestCase):
         self.assertIsInstance(
             self.service.save_ai_configuration({"models": {"model_explain": "local"}}), Success
         )
+
+    def test_prices_defaults_persist_and_validation(self):
+        config = AiConfiguration()
+        self.assertEqual(set(config.prices), {"gpt-6-luna", "gpt-6.1-sol"})
+        self.assertEqual(config.prices["gpt-6-luna"].output, 0.50)
+        legacy = AiConfiguration.model_validate({"models": {}})  # saved before prices existed
+        self.assertEqual(legacy.prices["gpt-6.1-sol"].input, 2.00)
+        changed = config.model_dump()
+        changed["prices"]["gpt-6-luna"]["output"] = 0.6
+        changed["prices_checked"] = "2026-11-01"
+        self.assertIsInstance(self.service.save_ai_configuration(changed), Success)
+        reopened = AiSettingsStore(self.database).get()
+        self.assertEqual((reopened.prices["gpt-6-luna"].output, reopened.prices_checked),
+                         (0.6, "2026-11-01"))  # fmt: skip
+        for bad in ({"gpt-6-luna": {"input": -1, "cached_input": 0, "cache_write": 0,
+                                     "output": 0}},
+                    {"local": {"input": 1, "cached_input": 0, "cache_write": 0, "output": 0}},
+                    {"gpt-6-luna": {"input": 1}}):  # fmt: skip
+            raw = AiConfiguration().model_dump() | {"prices": bad}
+            self.assertIsInstance(self.service.save_ai_configuration(raw), Failure)
+
+    def test_cost_rules(self):
+        price = Price(input=1.0, cached_input=0.1, cache_write=1.25, output=4.0)
+        usage = {"input_tokens": 100_000, "output_tokens": 25_000}
+        self.assertAlmostEqual(cost_of(usage, price)["usd"], 0.2)
+        self.assertIsNone(cost_of(usage, None)["usd"])
+        self.assertIsNone(cost_of({"input_tokens": 5}, price)["usd"])
+        self.assertIsNone(cost_of({"input_tokens": LONG_CONTEXT + 1, "output_tokens": 1},
+                                  price)["usd"])  # fmt: skip
+        self.assertEqual(cost_of({"input_tokens": 0, "output_tokens": 0}, price)["usd"], 0.0)
+        self.assertEqual((format_usd(None), format_usd(0.00123), format_usd(2.5)),
+                         ("невідомо", "$0.0012", "$2.50"))  # fmt: skip
 
     def test_key_status_from_env_masked(self):
         folder = Path(tempfile.mkdtemp(dir=Path(self.temporary.name)))

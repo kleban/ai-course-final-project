@@ -754,7 +754,7 @@ class ReportStore:
             revision,
             compose(snap, json.loads(result["text"])),
             operation="report.ai",
-            ai={k: result[k] for k in ("model", "usage_total", "attempts")},
+            ai={k: result.get(k) for k in ("model", "usage_total", "cost_total", "attempts")},
         )
 
     def render(self, project_id: str, report_id: str, revision: int) -> dict:

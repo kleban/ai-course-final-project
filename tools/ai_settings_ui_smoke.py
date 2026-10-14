@@ -71,6 +71,18 @@ with sync_playwright() as pw:
     page.locator('[data-level="model_advice-2"]').click()
     page.get_by_role("option", name="—", exact=True).click()
     page.get_by_label("Повтори на одній моделі (тайм-аут, мережа, 429, 5xx)").fill("3")
+
+    def price(model, field):
+        sel = f'[data-price="{model}-{field}"]'
+        return page.locator(f"{sel} input, input{sel}").first
+
+    ok("price panel: 4 fields x 2 models", page.locator("[data-price]").count() == 8)
+    ok("luna output default 0.5", float(price("gpt-6-luna", "output").input_value()) == 0.5)
+    ok("sol input default 2", float(price("gpt-6.1-sol", "input").input_value()) == 2.0)
+    ok("price source link", page.get_by_text("Джерело: тарифи OpenAI").count() == 1)
+    ok("cost total in AI log", page.locator(".ai-cost-total").count() == 1)
+    price("gpt-6-luna", "output").fill("0.6")
+    page.get_by_label("Тариф перевірено (дата)").fill("2026-10-15")
     page.get_by_role("button", name="Зберегти").click()
     page.get_by_text("Налаштування збережено", exact=False).wait_for()
     with httpx.Client(base_url=BASE) as api:
@@ -79,8 +91,12 @@ with sync_playwright() as pw:
         ok("level 2 cleared", saved["configuration"]["fallbacks"]["model_advice"] == [])
         ok("retries saved", saved["configuration"]["retries"] == 3)
         ok("api has no key value", FAKE not in str(saved))
+        prices = saved["configuration"]["prices"]
+        ok("price saved", prices["gpt-6-luna"]["output"] == 0.6)
+        ok("price date saved", saved["configuration"]["prices_checked"] == "2026-10-15")
     page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "ai-settings.png"), full_page=True)
+    page.locator(".model-top").screenshot(path=str(SHOTS / "ai-prices.png"))
     page.get_by_role("button", name="Повернути типові").click()
     page.get_by_text("Повернуто типові", exact=False).wait_for()
     with httpx.Client(base_url=BASE) as api:
@@ -91,6 +107,7 @@ with sync_playwright() as pw:
             ]
             == "gpt-6.1-sol",
         )
+    ok("price reset in form", float(price("gpt-6-luna", "output").input_value()) == 0.5)
     page.set_viewport_size({"width": 390, "height": 800})
     page.reload()
     page.get_by_role("button", name="Зберегти").wait_for()

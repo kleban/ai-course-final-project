@@ -99,19 +99,17 @@ with sync_playwright() as pw:
     )
     ok("project opened", "project=" in pg.url and pg.get_by_text("Ціни на квартири").count() >= 1)
     project_url = pg.url
-    pg.get_by_role("button", name="Оглядовий аналіз", exact=True).click()
+    # Updated in history 132: EDA is a menu block link; all seven blocks are implemented.
+    pg.locator(".block-link", has_text="Оглядовий аналіз").click()
     pg.get_by_text("Для статистики потрібен набір даних.", exact=False).wait_for()
     blocks = pg.locator(".block-link")
     ok(
-        "analysis blocks: seven, two planned, exploratory current",
+        "analysis blocks: seven, none planned, exploratory current",
         blocks.count() == 7
-        and pg.locator(".block-link.planned").count() == 2
+        and pg.locator(".block-link.planned").count() == 0
         and "Оглядовий аналіз" in pg.locator(".block-link.current").inner_text()
         and "eda" in pg.url,
     )
-    pg.locator(".block-link.planned").first.click()
-    pg.wait_for_timeout(300)
-    ok("planned block has no link", "view=eda" in pg.url)
     ok("statistics empty state has upload", pg.locator(".uploader input[type=file]").count() == 1)
     pg.goto(project_url)
     pg.wait_for_timeout(1500)
