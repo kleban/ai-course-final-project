@@ -80,7 +80,7 @@ def report_screen(service, active, report_id=None):
                     controls.append(
                         button("Підготувати пояснення AI", lambda: action("ai"), "spark")
                     )
-                    controls.append(button("Переглянути як A4", lambda: sheet(), "preview"))
+                    controls.append(button("Переглянути як документ", lambda: sheet(), "preview"))
                     controls.append(
                         button("Сформувати HTML", lambda: action("render"), "doc", "primary")
                     )
@@ -168,7 +168,7 @@ def report_screen(service, active, report_id=None):
         editor()
 
     async def sheet() -> None:
-        """The current draft as one continuous A4 sheet in a dialog (author feedback 13).
+        """The current draft as one continuous document page in a dialog (feedback 13, history 140).
 
         Rendered in the app from the editor text — no Quarto run, nothing is saved.
         """

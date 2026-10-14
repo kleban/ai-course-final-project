@@ -16,8 +16,11 @@ def hit_card(hit: dict) -> None:
         ui.label(f"{hit['title']} · {hit['section']}").classes("knowledge-section")
         ui.label(hit["text"]).classes("model-explain")
         detail = f"Джерело: {hit['source']} · оцінка {hit['score']:.2f}"
-        if hit.get("semantic") is not None:
-            detail += f" (зміст {hit['semantic']:.2f}, слова {hit['lexical']:.2f})"
+        # Book fragments have no lexical score (history 138: None broke the search page).
+        parts = [f"{label} {hit[key]:.2f}" for key, label in (("semantic", "зміст"), ("lexical", "слова"))
+                 if hit.get(key) is not None]  # fmt: skip
+        if parts and hit.get("semantic") is not None:
+            detail += f" ({', '.join(parts)})"
         ui.label(detail).classes("model-note mono-wrap")
 
 

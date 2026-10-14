@@ -354,8 +354,15 @@ def connect_assistant_chart(kind, selected, state, title, read_options, controls
 
 def theme_line(configuration: ChartConfiguration) -> None:
     ui.label(
-        "Тема: " + THEMES[configuration.theme] + " · тимчасові зміни діють лише після побудови."
+        "Оформлення — загальна тема графіків: "
+        + THEMES[configuration.theme]
+        + ". Змінюється в «Налаштування → Теми»."
     )
+
+
+def theme_options(options: ChartOptions):
+    """History 139 (author): no per-chart formatting panel — every chart uses the common theme."""
+    return lambda: options
 
 
 def heatmap_body(
@@ -385,10 +392,7 @@ def heatmap_body(
         .props("outlined square maxlength=180")
         .classes("w-full")
     )
-    with ui.expansion("Тимчасове оформлення графіка").classes("w-full"):
-        read_options = options_editor(
-            configuration.effective(), lambda: None, ("common", "heatmap")
-        )
+    read_options = theme_options(configuration.effective())
     message = ui.label("").classes("error-message").props('role="alert"')
     state: dict[str, Any] = {"result": None}
 
@@ -490,8 +494,7 @@ def histogram_body(
         .props("outlined square maxlength=180")
         .classes("w-full")
     )
-    with ui.expansion("Тимчасове оформлення графіка").classes("w-full"):
-        read_options = options_editor(defaults, lambda: None, ("common", "histogram"))
+    read_options = theme_options(defaults)
     message = ui.label("").classes("error-message").props('role="alert"')
     state: dict[str, Any] = {"result": None}
 
@@ -608,10 +611,7 @@ def missing_body(
         .props("outlined square maxlength=180")
         .classes("w-full")
     )
-    with ui.expansion("Тимчасове оформлення графіка").classes("w-full"):
-        read_options = options_editor(
-            configuration.effective(), lambda: None, ("common", "missing")
-        )
+    read_options = theme_options(configuration.effective())
     message = ui.label("").classes("error-message").props('role="alert"')
     state: dict[str, Any] = {"result": None, "start": 0}
 
@@ -694,10 +694,7 @@ def scatter_body(
         .props("outlined square maxlength=180")
         .classes("w-full")
     )
-    with ui.expansion("Тимчасове оформлення графіка").classes("w-full"):
-        read_options = options_editor(
-            configuration.effective(), lambda: None, ("common", "scatter")
-        )
+    read_options = theme_options(configuration.effective())
     message = ui.label("").classes("error-message").props('role="alert"')
     state: dict[str, Any] = {"result": None}
 

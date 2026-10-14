@@ -149,16 +149,13 @@ with sync_playwright() as pw:
     page.wait_for_timeout(200)
     page.evaluate("window.scrollTo(0, 0)")  # fixed menu at top
     page.screenshot(path=str(SHOTS / "heatmap.png"), full_page=True)
-    page.get_by_text("Тимчасове оформлення графіка", exact=True).click()
-    page.get_by_role("checkbox", name="Акцент за порогом |r|", exact=True).click()
-    page.get_by_label("Поріг акценту |r|", exact=True).fill("0.9")
-    page.get_by_role("checkbox", name="Числа в клітинках", exact=True).click()
-    page.get_by_role("button", name="Побудувати", exact=True).click()
-    page.get_by_text("Акцент: |r| ≥ 0.9.", exact=False).wait_for()
+    # History 139: the per-chart formatting panel was removed; charts use the common theme.
     ok(
-        "weak pair retained accessible",
-        "0.50" in page.locator(".heatmap-cell").nth(1).get_attribute("aria-label"),
+        "no per-chart formatting panel",
+        page.get_by_text("Тимчасове оформлення графіка").count() == 0,
     )
+    page.get_by_role("button", name="Побудувати", exact=True).click()
+    page.wait_for_timeout(1500)
     with httpx.Client(base_url=B) as api:
         ok(
             "temporary changes not global",
