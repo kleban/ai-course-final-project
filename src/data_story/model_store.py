@@ -22,6 +22,7 @@ from .model import (
 from .model_check import diagnostics
 from .preparation import PreparationError
 from .projects import ProjectStore
+from .stepwise import stepwise
 from .storage import connect
 from .training_store import TrainingStore
 
@@ -43,6 +44,55 @@ def _row(row) -> dict:
         "created_at": row["created_at"],
         "document": document,
     }
+
+
+def feature_columns(source: dict) -> dict[str, list[int]]:
+    """Matrix columns of every field of a saved split, in split order.
+
+    A number is one column; a category is one column per non-baseline category (one-hot,
+    drop="first"). Each field is imputed and encoded on its own, so any subset of fields is a
+    valid model on the same split (author decision, history 143).
+    """
+    columns: dict[str, list[int]] = {}
+    start = 0
+    for name in source["choices"]["features"]:
+        categories = (source["report"]["transforms"].get(name) or {}).get("categories")
+        width = len(categories) - 1 if categories else 1
+        columns[name] = list(range(start, start + width))
+        start += width
+    if start != source["report"]["feature_count"]:
+        raise ModelError("Опис ознак не відповідає матриці вибірок. Підготуйте вибірки заново.")
+    return columns
+
+
+def selected_features(source: dict, features: list[str] | None) -> list[str]:
+    """Requested fields in split order; ``None`` means every field of the split."""
+    available = source["choices"]["features"]
+    if features is None:
+        return list(available)
+    unknown = [f for f in features if f not in available]
+    if unknown:
+        raise ModelError(f"Ознак немає у вибірках: {', '.join(unknown)}.")
+    if not features:
+        raise ModelError("Оберіть хоча б одну ознаку.")
+    return [f for f in available if f in features]
+
+
+def subset(arrays: dict[str, np.ndarray], source: dict, features: list[str]) -> tuple[dict, list]:
+    """Matrices and column labels of the chosen fields only (targets unchanged)."""
+    columns = feature_columns(source)
+    index = [i for name in features for i in columns[name]]
+    labels = [source["report"]["feature_names"][i] for i in index]
+    return {
+        **arrays,
+        "x_train": arrays["x_train"][:, index],
+        "x_test": arrays["x_test"][:, index],
+    }, labels
+
+
+def model_features(document: dict) -> list[str]:
+    """Fields of a saved model; models before v17 used every field of their split."""
+    return document["choices"]["features"]
 
 
 class ModelStore:
@@ -115,7 +165,23 @@ class ModelStore:
             raise
         return references
 
-    def train(self, project_id: str, training_run_id: str) -> dict:
+    def model_arrays(self, project_id: str, training_run_id: str, document: dict) -> dict:
+        """Saved split matrices narrowed to the fields of one model."""
+        source = self.training.get(project_id, training_run_id)["document"]
+        arrays = self.training.matrices(project_id, training_run_id)
+        return subset(arrays, source, model_features(document))[0]
+
+    def train(
+        self,
+        project_id: str,
+        training_run_id: str,
+        features: list[str] | None = None,
+        selection: dict | None = None,
+    ) -> dict:
+        """Fit one model on chosen fields of a saved split; the same fields reuse the model.
+
+        ``selection`` records how the fields were chosen (stepwise steps) in a new model.
+        """
         ProjectStore(self.database).get(project_id)
         started = perf_counter()
         audit: dict = {"training_run_id": training_run_id, "estimator": "LinearRegression"}
@@ -126,25 +192,29 @@ class ModelStore:
         try:
             with connect(self.database) as connection:
                 connection.execute("BEGIN IMMEDIATE")
-                existing = connection.execute(
-                    "SELECT * FROM model_runs WHERE project_id = ? AND training_run_id = ?",
-                    (project_id, training_run_id),
-                ).fetchone()
-                if existing is not None:
-                    return {**_row(existing), "reused": True}
                 run = self.training.get(project_id, training_run_id)
                 source = run["document"]
                 report = source["report"]
+                chosen = selected_features(source, features)
+                for existing in connection.execute(
+                    "SELECT * FROM model_runs WHERE project_id = ? AND training_run_id = ? "
+                    "ORDER BY created_at",
+                    (project_id, training_run_id),
+                ).fetchall():
+                    if model_features(json.loads(existing["document"])) == chosen:
+                        return {**_row(existing), "reused": True}
                 audit.update(
                     dataset_id=run["dataset_id"],
                     dataset_name=source["dataset_name"],
                     sha256=source["sha256"],
                     target=source["choices"]["target"],
-                    fields=source["choices"]["features"],
+                    fields=chosen,
+                    selection=(selection or {}).get("method", "manual"),
                 )
-                arrays = self.training.matrices(project_id, training_run_id)
-                check_matrices(arrays, report)
-                result = train_linear_regression(arrays, report["feature_names"])
+                full = self.training.matrices(project_id, training_run_id)
+                check_matrices(full, report)
+                arrays, labels = subset(full, source, chosen)
+                result = train_linear_regression(arrays, labels)
                 model_id = str(uuid4())
                 now = datetime.now(timezone.utc).isoformat()
                 document = {
@@ -159,8 +229,10 @@ class ModelStore:
                     "dataset_name": source["dataset_name"],
                     "source_sha256": source["sha256"],
                     "metadata_updated_at": source["metadata_updated_at"],
-                    "choices": source["choices"],
-                    "transforms": report["transforms"],
+                    "choices": {**source["choices"], "features": chosen},
+                    "split_features": source["choices"]["features"],
+                    "selection": selection or {"method": "manual"},
+                    "transforms": {k: v for k, v in report["transforms"].items() if k in chosen},
                     "preparation_warnings": report["warnings"],
                 }
                 references = self._persist(project_id, model_id, document, arrays)
@@ -217,6 +289,18 @@ class ModelStore:
                         project_id, "model_metrics", model_id, self._source(document)
                     )
 
+    def stepwise(self, project_id: str, training_run_id: str, criterion: str) -> dict:
+        """Choose fields stepwise on the train part, then fit and save that model."""
+        ProjectStore(self.database).get(project_id)
+        source = self.training.get(project_id, training_run_id)["document"]
+        arrays = self.training.matrices(project_id, training_run_id)
+        check_matrices(arrays, source["report"])
+        selection = stepwise(
+            arrays["x_train"], arrays["y_train"], feature_columns(source), criterion
+        )
+        model = self.train(project_id, training_run_id, selection["features"], selection)
+        return {**model, "selection": selection}
+
     def check(
         self, project_id: str, model_id: str, chart: str, feature: str | None, audit_extra: dict
     ) -> dict:
@@ -234,7 +318,7 @@ class ModelStore:
             **audit_extra,
         }
         try:
-            arrays = self.training.matrices(project_id, model["training_run_id"])
+            arrays = self.model_arrays(project_id, model["training_run_id"], document)
             source = self._source(document) + json.dumps(
                 {"diagnostics_version": 1, "chart": chart, "feature": feature}, sort_keys=True
             )
@@ -297,7 +381,7 @@ class ModelStore:
         source = self._source(document)
         stored = self.analytics.result(project_id, "model_metrics", model_id, source)
         if stored is None:
-            arrays = self.training.matrices(project_id, model["training_run_id"])
+            arrays = self.model_arrays(project_id, model["training_run_id"], document)
             self._persist(project_id, model_id, document, arrays)
         else:
             model["document"] = stored

@@ -94,12 +94,12 @@ with sync_playwright() as pw:
             api.get(f"/api/projects/{project}/models").json()["data"] == [],
         )
     page.get_by_role("button", name="Навчити лінійну регресію", exact=True).click()
-    page.get_by_text("Оберіть збережені вибірки.", exact=True).wait_for()
+    page.get_by_text("Оберіть збережені вибірки й хоча б одну ознаку.", exact=True).wait_for()
     ok("explicit split selection required", True)
 
     page.get_by_label("Збережені вибірки", exact=True).click()
     page.get_by_role("option", name="model.csv · ціль y", exact=False).click()
-    page.get_by_text("Навчальних рядків: 21 · Тестових: 9 · Ознак після кодування: 3").wait_for()
+    page.get_by_text("Навчальних рядків: 21 · Тестових: 9 · Стовпців після кодування: 3").wait_for()
     ok("split summary shown before training", True)
     page.get_by_role("button", name="Навчити лінійну регресію", exact=True).click()
     page.get_by_text("Модель навчено й збережено.", exact=True).wait_for(timeout=30000)
@@ -152,7 +152,7 @@ with sync_playwright() as pw:
         ok("fit on train only recorded", doc["train_count"] == 21 and doc["test_count"] == 9)
 
     page.get_by_role("button", name="Навчити лінійну регресію", exact=True).click()
-    page.get_by_text("Показано збережений результат для цих вибірок.", exact=True).wait_for()
+    page.get_by_text("Показано збережену модель з цими ознаками.", exact=True).wait_for()
     with httpx.Client(base_url=BASE) as api:
         ok(
             "repeat does not duplicate",
@@ -183,7 +183,7 @@ with sync_playwright() as pw:
     ok("unsuitable split refused with explanation", True)
 
     page.goto(f"{BASE}/?project={project}&view=model&run={good}")
-    page.get_by_text("Для цих вибірок є збережена модель", exact=False).wait_for()
+    page.get_by_text("Для цих ознак є збережена модель", exact=False).wait_for()
     ok(
         "saved result survives reload",
         page.get_by_text("Вільний член (a₀)", exact=True).count() >= 1,
@@ -211,7 +211,7 @@ with sync_playwright() as pw:
 
     page.set_viewport_size({"width": 390, "height": 800})
     page.goto(f"{BASE}/?project={project}&view=model&run={good}")
-    page.get_by_text("Для цих вибірок є збережена модель", exact=False).wait_for()
+    page.get_by_text("Для цих ознак є збережена модель", exact=False).wait_for()
     page.wait_for_timeout(300)
     mobile = [page.locator(".model-grid-main > .model-panel").nth(i).bounding_box() for i in (0, 1)]
     ok("mobile panels stacked", mobile[1]["y"] > mobile[0]["y"] + 20)

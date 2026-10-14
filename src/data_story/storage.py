@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 _V1 = """
     CREATE TABLE projects (
@@ -219,6 +219,26 @@ _V16 = """
 """
 
 
+# v17: several models per saved split (author decision, history 143): the split is built from all
+# fields once, and each model chooses its own features (by hand or stepwise). Rebuilds
+# model_runs without UNIQUE(training_run_id); rows and ids are kept, so conclusions stay valid.
+_V17 = """
+    CREATE TABLE model_runs_v17 (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        training_run_id TEXT NOT NULL REFERENCES training_runs(id),
+        created_at TEXT NOT NULL,
+        document TEXT NOT NULL
+    );
+    INSERT INTO model_runs_v17 SELECT id, project_id, training_run_id, created_at, document
+        FROM model_runs;
+    DROP TABLE model_runs;
+    ALTER TABLE model_runs_v17 RENAME TO model_runs;
+    CREATE INDEX model_runs_project ON model_runs(project_id, created_at);
+    CREATE INDEX model_runs_training ON model_runs(training_run_id);
+"""
+
+
 @contextmanager
 def connect(database: Path) -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(database, timeout=5)
@@ -237,7 +257,7 @@ def ensure_schema(database: Path) -> Path:
     database.parent.mkdir(parents=True, exist_ok=True)
     with connect(database) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, SCHEMA_VERSION):
+        if version not in (*range(SCHEMA_VERSION), SCHEMA_VERSION):
             raise RuntimeError("Непідтримувана версія бази даних; файл не змінено.")
         if version == 0:
             tables = connection.execute(
@@ -261,7 +281,8 @@ def ensure_schema(database: Path) -> Path:
             + _V13
             + _V14
             + _V15
-            + _V16,
+            + _V16
+            + _V17,
             1: _V2
             + _V3
             + _V4
@@ -276,7 +297,8 @@ def ensure_schema(database: Path) -> Path:
             + _V13
             + _V14
             + _V15
-            + _V16,
+            + _V16
+            + _V17,
             2: _V3
             + _V4
             + _V5
@@ -290,23 +312,49 @@ def ensure_schema(database: Path) -> Path:
             + _V13
             + _V14
             + _V15
-            + _V16,
-            3: _V4 + _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            4: _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            5: _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            6: _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            7: _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            8: _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            9: _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            10: _V11 + _V12 + _V13 + _V14 + _V15 + _V16,
-            11: _V12 + _V13 + _V14 + _V15 + _V16,
-            12: _V13 + _V14 + _V15 + _V16,
-            13: _V14 + _V15 + _V16,
-            14: _V15 + _V16,
-            15: _V16,
+            + _V16
+            + _V17,
+            3: _V4
+            + _V5
+            + _V6
+            + _V7
+            + _V8
+            + _V9
+            + _V10
+            + _V11
+            + _V12
+            + _V13
+            + _V14
+            + _V15
+            + _V16
+            + _V17,
+            4: _V5 + _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            5: _V6 + _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            6: _V7 + _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            7: _V8 + _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            8: _V9 + _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            9: _V10 + _V11 + _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            10: _V11 + _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            11: _V12 + _V13 + _V14 + _V15 + _V16 + _V17,
+            12: _V13 + _V14 + _V15 + _V16 + _V17,
+            13: _V14 + _V15 + _V16 + _V17,
+            14: _V15 + _V16 + _V17,
+            15: _V16 + _V17,
+            16: _V17,
         }.get(version)
         if steps:
-            connection.executescript(
-                f"BEGIN; {steps} PRAGMA user_version = {SCHEMA_VERSION}; COMMIT;"
-            )
+            # Foreign keys are off only while tables are rebuilt (v17), then checked before
+            # commit: a violation rolls the whole upgrade back and leaves the file as it was.
+            connection.commit()
+            connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                connection.executescript(f"BEGIN; {steps} PRAGMA user_version = {SCHEMA_VERSION};")
+                if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                    raise RuntimeError("Оновлення схеми порушило зв'язки таблиць; файл не змінено.")
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+            finally:
+                connection.execute("PRAGMA foreign_keys = ON")
     return database

@@ -480,6 +480,15 @@ class TrainingQuery(TrainingChoices):
 
 class ModelTrainQuery(StrictModel):
     training_run_id: UUID
+    # Fields of the saved split to use; omitted = every field (history 143).
+    features: list[Annotated[str, Field(strict=True, min_length=1, max_length=200)]] | None = Field(
+        default=None, min_length=1, max_length=30
+    )
+
+
+class StepwiseQuery(StrictModel):
+    training_run_id: UUID
+    criterion: Literal["adj_r2", "aic", "bic"] = "adj_r2"
 
 
 class ModelCheckQuery(StrictModel):

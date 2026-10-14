@@ -90,13 +90,7 @@ with sync_playwright() as pw:
     page.get_by_label("Цільова змінна", exact=True).click()
     page.get_by_role("option", name="y", exact=True).click()
     page.wait_for_timeout(500)
-    page.get_by_label("Ознаки", exact=True).click()
-    page.get_by_role("option", name="x", exact=True).click()
-    page.wait_for_timeout(200)
-    if not page.get_by_role("option", name="cat", exact=True).is_visible():
-        page.get_by_label("Ознаки", exact=True).click()
-    page.get_by_role("option", name="cat", exact=True).click()
-    page.keyboard.press("Escape")
+    # History 143: split fields default to every field except the target.
     page.get_by_label("Кодування категорій", exact=True).click()
     page.get_by_role(
         "option", name="One-hot · окрема ознака для кожної категорії", exact=True

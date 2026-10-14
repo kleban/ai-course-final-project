@@ -254,6 +254,28 @@ class OpenAIClientTests(unittest.TestCase):
         self.assertEqual((totals["cost_unknown"], totals["cost_estimated"]), (1, 1))
         self.assertAlmostEqual(totals["cost_usd"], (1000 * 0.10 + 1000 * 0.50) / 1_000_000)
 
+    def test_daily_costs(self):
+        """History 141: spending per day, newest first; unknown cost is counted, not zero."""
+        client = self.client([httpx.Response(200, json=answer())])
+        usage = {"input_tokens": 1000, "output_tokens": 1000, "total_tokens": 2000}
+        for i, (day, usage_) in enumerate(
+            [("2026-10-12", usage), ("2026-10-12", usage), ("2026-10-13", None)]
+        ):
+            entry = {"id": f"d{i}", "started_at": f"{day}T12:00:00+00:00", "task": "eda_advice",
+                     "model": "gpt-6-luna", "status": "success", "duration_ms": 1.0}  # fmt: skip
+            if usage_:
+                entry["usage"] = usage_
+            else:
+                entry |= {"usage": {"total_tokens": None}, "cost": {"usd": None, "reason": "x"}}
+            client._log(entry)
+        days = client.daily()
+        self.assertEqual([d["day"] for d in days], ["2026-10-13", "2026-10-12"])
+        newest = days[0]
+        self.assertEqual((newest["calls"], newest["cost_unknown"], newest["cost_usd"]), (1, 1, 0))
+        self.assertEqual((days[1]["calls"], days[1]["total_tokens"]), (2, 4000))
+        self.assertAlmostEqual(days[1]["cost_usd"], 2 * (1000 * 0.10 + 1000 * 0.50) / 1_000_000)
+        self.assertEqual(self.service.ai_calls().data["daily"], days)
+
     def test_service_and_http(self):
         self.client([httpx.Response(200, json=answer())])
         self.assertIsInstance(self.service.ai_test_request(), Success)

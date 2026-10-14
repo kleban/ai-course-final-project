@@ -23,6 +23,7 @@ from .contracts import (
     ModelTrainQuery,
     ProjectDraftQuery,
     SqlSummaryDraft,
+    StepwiseQuery,
     Success,
 )
 from .model import explain
@@ -65,9 +66,11 @@ def _training_runs(service: ProjectService, project_id: str, _args: dict) -> Suc
     models = service.model_runs(project_id)
     if isinstance(runs, Failure):
         return runs
-    trained = (
-        {m["training_run_id"]: m["id"] for m in models.data} if isinstance(models, Success) else {}
-    )
+    trained: dict[str, list[dict]] = {}
+    for m in models.data if isinstance(models, Success) else []:
+        trained.setdefault(m["training_run_id"], []).append(
+            {"model_id": m["id"], "features": m["document"]["choices"]["features"]}
+        )
     return Success(
         data=[
             {
@@ -79,7 +82,7 @@ def _training_runs(service: ProjectService, project_id: str, _args: dict) -> Suc
                 "test_count": r["document"]["report"]["test_count"],
                 "feature_count": r["document"]["report"]["feature_count"],
                 "created_at": r["created_at"],
-                "model_id": trained.get(r["id"]),
+                "models": trained.get(r["id"], []),
             }
             for r in runs.data
         ]
@@ -88,6 +91,10 @@ def _training_runs(service: ProjectService, project_id: str, _args: dict) -> Suc
 
 def _train(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
     return service.model_train(project_id, args)
+
+
+def _stepwise(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
+    return service.model_stepwise(project_id, args)
 
 
 def _explain(service: ProjectService, project_id: str, args: dict) -> Success | Failure:
@@ -238,10 +245,21 @@ TOOLS: dict[str, AssistantTool] = {
             "train_linear_regression",
             "execute",
             "Навчити LinearRegression (scikit-learn) на навчальній частині обраних збережених "
-            "вибірок і оцінити на тестовій. Повторний виклик повертає збережений результат.",
+            "вибірок і оцінити на тестовій. features — назви полів вибірок для моделі "
+            "(без features — усі поля). Ті самі поля повертають збережену модель.",
             ModelTrainQuery,
             True,
             _train,
+        ),
+        AssistantTool(
+            "stepwise_linear_regression",
+            "execute",
+            "Обрати поля моделі методом stepwise (в обидва боки, лише навчальна частина) за "
+            "критерієм adj_r2 (скоригований R², максимум), aic або bic (мінімум), навчити й "
+            "зберегти модель; повертає кроки відбору й метрики на тестовій частині.",
+            StepwiseQuery,
+            True,
+            _stepwise,
         ),
         AssistantTool(
             "explain_model_result",

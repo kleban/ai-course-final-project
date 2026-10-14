@@ -44,7 +44,7 @@ def run_title(item: dict) -> str:
     when = item["created_at"][:16].replace("T", " ")
     return (
         f"{doc['dataset_name']} · ціль {doc['choices']['target']} · "
-        f"{doc['report']['feature_count']} ознак · {when} UTC"
+        f"{len(doc['choices']['features'])} полів · {when} UTC"
     )
 
 
@@ -76,11 +76,22 @@ def coefficient_row(name: str, value: float, stats: dict) -> None:
         )
 
 
-def model_result(item: dict, project_id: str | None = None) -> None:
+def model_result(item: dict, project_id: str | None = None, open_steps: bool = False) -> None:
     doc = item["document"]
     test, train = doc["metrics"]["test"], doc["metrics"]["train"]
     target = doc["choices"]["target"]
     tests = doc.get("inference") or {}
+    selection = doc.get("selection") or {"method": "manual"}
+    ui.label(
+        f"Ознаки: {', '.join(doc['choices']['features'])} · "
+        + (
+            f"обрано stepwise за «{selection['criterion_title']}»"
+            if selection["method"] == "stepwise"
+            else "обрано вручну"
+        )
+    ).classes("section-lead model-features")
+    if selection["method"] == "stepwise" and selection.get("steps"):
+        stepwise_steps(selection, opened=open_steps)
     if project_id:
         button(
             "Перевірити модель: графіки",
@@ -225,11 +236,25 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
         )
     busy = False
 
-    def models_by_run() -> dict[str, dict]:
+    def models_of_run(run: str) -> list[dict]:
         listing = service.model_runs(project_id)
         if isinstance(listing, Failure):
-            return {}
-        return {m["training_run_id"]: m for m in listing.data}
+            return []
+        return [m for m in listing.data if m["training_run_id"] == run]
+
+    def matching_model() -> dict | None:
+        if not selector.value:
+            return None
+        chosen = [f for f in by_id[selector.value]["document"]["choices"]["features"]
+                  if f in (features.value or [])]  # fmt: skip
+        return next(
+            (
+                m
+                for m in models_of_run(selector.value)
+                if m["document"]["choices"]["features"] == chosen
+            ),
+            None,
+        )
 
     @ui.refreshable
     def summary() -> None:
@@ -242,26 +267,35 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
         report, choices = doc["report"], doc["choices"]
         ui.label(
             f"Навчальних рядків: {report['train_count']} · Тестових: {report['test_count']} · "
-            f"Ознак після кодування: {report['feature_count']}"
+            f"Стовпців після кодування: {report['feature_count']}"
         ).classes("stat-context")
         ui.label(
-            f"Ціль: {choices['target']} · Ознаки: {', '.join(choices['features'])} · "
+            f"Ціль: {choices['target']} · Поля вибірок: {', '.join(choices['features'])} · "
             f"Поділ {100 - choices['test_percent']}/{choices['test_percent']}, "
             f"число відтворення {choices['seed']}"
         ).classes("section-lead")
-        existing = models_by_run().get(selector.value)
-        if existing:
-            ui.label("Для цих вибірок є збережена модель; результат показано нижче.").classes(
-                "section-lead"
-            )
+        count = len(models_of_run(selector.value))
+        if count:
+            ui.label(f"Збережених моделей на цих вибірках: {count}.").classes("section-lead")
 
-    def selection_changed(_event) -> None:
+    def show_matching() -> None:
         feedback.clear()
-        summary.refresh()
-        existing = models_by_run().get(selector.value) if selector.value else None
+        existing = matching_model()
         if existing:
             with feedback:
+                ui.label("Для цих ознак є збережена модель.").classes("stat-context")
                 model_result(existing, project_id)
+
+    def selection_changed(_event) -> None:
+        if selector.value:
+            fields = by_id[selector.value]["document"]["choices"]["features"]
+            features.set_options(fields)
+            features.set_value(list(fields))
+        else:
+            features.set_options([])
+            features.set_value([])
+        summary.refresh()
+        show_matching()
 
     selector.on_value_change(selection_changed)
     with left:
@@ -272,9 +306,9 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
         if busy:
             return
         feedback.clear()
-        if not selector.value:
+        if not selector.value or not features.value:
             with feedback:
-                ui.label("Оберіть збережені вибірки.").classes("error-message")
+                ui.label("Оберіть збережені вибірки й хоча б одну ознаку.").classes("error-message")
             return
         busy = True
         train_button.props("disabled")
@@ -282,7 +316,9 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
             progress_line("Навчаємо модель…")
         try:
             response = await run.io_bound(
-                service.model_train, project_id, {"training_run_id": selector.value}
+                service.model_train,
+                project_id,
+                {"training_run_id": selector.value, "features": list(features.value)},
             )
             feedback.clear()
             with feedback:
@@ -290,7 +326,7 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
                     error_line(response)
                 else:
                     ui.label(
-                        "Показано збережений результат для цих вибірок."
+                        "Показано збережену модель з цими ознаками."
                         if response.data["reused"]
                         else "Модель навчено й збережено."
                     ).classes("stat-context")
@@ -301,16 +337,146 @@ def model_screen(service: ProjectService, active: ProjectView, run_id: str | Non
             busy = False
             train_button.props(remove="disabled")
 
+    async def run_stepwise() -> None:
+        nonlocal busy
+        if busy:
+            return
+        feedback.clear()
+        if not selector.value:
+            with feedback:
+                ui.label("Оберіть збережені вибірки.").classes("error-message")
+            return
+        busy = True
+        stepwise_button.props("disabled")
+        with feedback:
+            progress_line("Stepwise: перебираємо ознаки на навчальній частині…")
+        try:
+            response = await run.io_bound(
+                service.model_stepwise,
+                project_id,
+                {"training_run_id": selector.value, "criterion": criterion.value},
+            )
+            feedback.clear()
+            with feedback:
+                if isinstance(response, Failure):
+                    error_line(response)
+                else:
+                    selection = response.data["selection"]
+                    features.set_value(list(selection["features"]))
+                    feedback.clear()
+                    if response.data["document"].get("selection", {}).get("method") != "stepwise":
+                        stepwise_steps(selection, opened=True)
+                    ui.label(
+                        "Модель з цими ознаками вже була збережена — показано її."
+                        if response.data["reused"]
+                        else "Модель з обраними ознаками навчено й збережено."
+                    ).classes("stat-context")
+                    model_result(response.data, project_id, open_steps=True)
+            summary.refresh()
+            saved.refresh()
+        finally:
+            busy = False
+            stepwise_button.props(remove="disabled")
+
     with right:
         ui.label(
             "LinearRegression (scikit-learn): коефіцієнти знаходяться лише на навчальній "
             "частині, показники R², MAE, RMSE — на тестовій. p-value — на навчальній, як у R."
         ).classes("section-lead")
+        features = (
+            ui.select([], multiple=True, label="Ознаки моделі", value=[])
+            .props("outlined square use-chips")
+            .classes("model-select")
+        )
+        features.on_value_change(lambda _: show_matching())
         train_button = button("Навчити лінійну регресію", train, "regression", "primary")
+        ui.label(
+            "Або оберіть ознаки автоматично: stepwise в обидва боки (як step() у R) лише на "
+            "навчальній частині; тестова лишається для чесної перевірки."
+        ).classes("section-lead")
+        with ui.row().classes("gap-2 items-center"):
+            criterion = (
+                ui.select(
+                    {
+                        "adj_r2": "Скоригований R² (максимум)",
+                        "aic": "AIC (мінімум)",
+                        "bic": "BIC (мінімум)",
+                    },
+                    value="adj_r2",
+                    label="Критерій stepwise",
+                )
+                .props("outlined square")
+                .classes("model-select")
+            )
+            stepwise_button = button("Stepwise", run_stepwise, "spark")
     feedback = ui.column().classes("w-full")
     if selector.value:
         selection_changed(None)
     saved()
+
+
+MOVES = {"add": "+", "drop": "−"}
+
+
+def _move(step: dict) -> str:
+    if step["action"] == "start":
+        return "лише вільний член"
+    if step["action"] in ("stop", "none"):
+        return "зупинка" if step["action"] == "stop" else "<без змін>"
+    return f"{MOVES[step['action']]} {step['field']}"
+
+
+def stepwise_steps(selection: dict, opened: bool = False) -> None:
+    """Compact stepwise log: one row per step, every tried move folded per step (like R)."""
+    criterion = selection["criterion"]
+    title = selection["criterion_title"]
+    steps = selection["steps"]
+    moves = [s for s in steps if s["action"] in MOVES]
+    direction = "більше" if selection["better"] == "max" else "менше"
+    with (
+        ui.expansion(
+            f"Кроки stepwise · {title} ({direction} — краще) · {len(moves)} кроків · "
+            "навчальна частина",
+            value=opened,
+        )
+        .props("dense")
+        .classes("w-full stepwise-log")
+    ):
+        with ui.element("div").classes("stat-table-wrap"):
+            with ui.element("table").classes("stat-table stepwise-steps"):
+                with ui.element("thead"), ui.element("tr"):
+                    for head in ("Крок", "Хід", title, "Скор. R²", "Ознак"):
+                        with ui.element("th").props('scope="col"'):
+                            ui.label(head)
+                with ui.element("tbody"):
+                    for step in steps:
+                        with ui.element("tr"):
+                            with ui.element("th").props('scope="row"'):
+                                ui.label(str(step["step"]))
+                            for cell in (
+                                _move(step),
+                                precise(step[criterion]),
+                                precise(step["adj_r2"]),
+                                str(len(step["fields"])),
+                            ):
+                                with ui.element("td"):
+                                    ui.label(cell)
+        tried = [s for s in steps if s.get("candidates")]
+        if tried:
+            with (
+                ui.expansion("Усі спробувані ходи на кожному кроці")
+                .props("dense")
+                .classes("w-full")
+            ):
+                for step in tried:
+                    line = " · ".join(
+                        f"{_move(c)} {precise(c['value'])}" for c in step["candidates"]
+                    )
+                    ui.label(f"Крок {step['step']}: {line}").classes("model-note mono-wrap")
+                ui.label(
+                    "Ходи впорядковано від найкращого; обирається перший, якщо він кращий за "
+                    "«<без змін>»."
+                ).classes("hint")
 
 
 def saved_models(service: ProjectService, project_id: str):
@@ -329,7 +495,8 @@ def saved_models(service: ProjectService, project_id: str):
             doc = item["document"]
             r2 = doc["metrics"]["test"]["r2"]
             with ui.expansion(
-                f"{doc['dataset_name']} · {doc['choices']['target']} · R² {precise(r2)} · "
+                f"{doc['dataset_name']} · {doc['choices']['target']} · "
+                f"{len(doc['choices']['features'])} ознак · R² {precise(r2)} · "
                 f"{item['created_at'][:16].replace('T', ' ')} UTC"
             ).classes("w-full"):
                 model_result(item, project_id)

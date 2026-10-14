@@ -409,6 +409,42 @@ class OpenAIClient:
             "cost_unknown": sum(1 for c in costs + estimated if c["usd"] is None),
         }
 
+    def daily(self) -> list[dict]:
+        """Cost and tokens per local calendar day, newest first (author request, history 141).
+
+        A call without its own cost is priced at the current rate card (as in ``totals``);
+        a call whose cost stays unknown is counted, not turned into zero.
+        """
+        config = self.settings.get()
+        days: dict[str, dict] = {}
+        for call in self.calls(limit=100000):
+            day = datetime.fromisoformat(call["started_at"]).astimezone().date().isoformat()
+            row = days.setdefault(
+                day,
+                {
+                    "day": day,
+                    "calls": 0,
+                    "errors": 0,
+                    "total_tokens": 0,
+                    "cost_usd": 0.0,
+                    "cost_unknown": 0,
+                },  # fmt: skip
+            )
+            row["calls"] += 1
+            row["errors"] += call["status"] != "success"
+            row["total_tokens"] += (call.get("usage") or {}).get("total_tokens") or 0
+            if "cost" in call:
+                usd = call["cost"]["usd"]
+            elif "usage" in call:
+                usd = config.cost(call["model"], call["usage"])["usd"]
+            else:
+                continue
+            if usd is None:
+                row["cost_unknown"] += 1
+            else:
+                row["cost_usd"] += usd
+        return sorted(days.values(), key=lambda r: r["day"], reverse=True)
+
 
 def _short(entry: dict) -> dict:
     return {

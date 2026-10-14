@@ -183,6 +183,7 @@ def ai_settings_screen(service: ProjectService) -> None:
                         + (f" · без вартості: {totals['cost_unknown']}" if totals["cost_unknown"]
                            else "")
                     ).classes("stat-context ai-cost-total")  # fmt: skip
+                    daily_costs(response.data["daily"])
                     if not response.data["calls"]:
                         ui.label("Викликів ще не було.").classes("model-note")
                     for call in response.data["calls"][:8]:
@@ -303,3 +304,43 @@ def ai_settings_screen(service: ProjectService) -> None:
             "у вашому обліковому записі ще не перевірявся. Розрахунки, статистика й регресія "
             "AI не використовують."
         ).classes("footnote")
+
+
+def daily_costs(days: list[dict]) -> None:
+    """Spending per day in USD (author request, history 141): date, calls, tokens, cost."""
+    if not days:
+        return
+    with ui.element("div").classes("stat-table-wrap ai-daily-costs"):
+        with ui.element("table").classes("stat-table"):
+            with ui.element("caption"):
+                ui.label("Витрати за днями")
+            with ui.element("thead"), ui.element("tr"):
+                for title in ("Дата", "Викликів", "Токени", "Вартість"):
+                    with ui.element("th").props('scope="col"'):
+                        ui.label(title)
+            with ui.element("tbody"):
+                for day in days:
+                    with ui.element("tr") as row:
+                        row.props["data-day"] = day["day"]
+                        with ui.element("th").props('scope="row"'):
+                            ui.label(day["day"])
+                        with ui.element("td"):
+                            ui.label(str(day["calls"]))
+                        with ui.element("td"):
+                            ui.label(f"{day['total_tokens']:,}".replace(",", " "))
+                        with ui.element("td"):
+                            ui.label(
+                                format_usd(day["cost_usd"])
+                                + (f" + {day['cost_unknown']} невідомо" if day["cost_unknown"]
+                                   else "")
+                            )  # fmt: skip
+            total = sum(d["cost_usd"] for d in days)
+            with ui.element("tfoot"), ui.element("tr"):
+                with ui.element("th").props('scope="row"'):
+                    ui.label("Разом")
+                with ui.element("td"):
+                    ui.label(str(sum(d["calls"] for d in days)))
+                with ui.element("td"):
+                    ui.label(f"{sum(d['total_tokens'] for d in days):,}".replace(",", " "))
+                with ui.element("td"):
+                    ui.label(format_usd(total))

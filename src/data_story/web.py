@@ -60,6 +60,7 @@ from .contracts import (
     ScatterView,
     StatisticsPage,
     StatisticsQuery,
+    StepwiseQuery,
     Success,
     SummarySave,
     TrainingQuery,
@@ -230,6 +231,10 @@ def router(service: ProjectService) -> APIRouter:
     @api.post("/projects/{project_id}/models", response_model=Success[dict] | Failure)
     def model_train(project_id: str, query: ModelTrainQuery):
         return response(service.model_train(project_id, query.model_dump(mode="json")))
+
+    @api.post("/projects/{project_id}/models/stepwise", response_model=Success[dict] | Failure)
+    def model_stepwise(project_id: str, query: StepwiseQuery):
+        return response(service.model_stepwise(project_id, query.model_dump(mode="json")))
 
     @api.get("/projects/{project_id}/models", response_model=Success[list[dict]] | Failure)
     def model_runs(project_id: str):

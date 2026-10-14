@@ -77,6 +77,7 @@ from .contracts import (
     StatisticsPage,
     StatisticsQuery,
     StatisticsRow,
+    StepwiseQuery,
     Success,
     SummarySave,
     TrainingQuery,
@@ -454,7 +455,19 @@ class ProjectService:
         def action() -> dict:
             validated = str(validate_input(ProjectId, {"id": project_id}).id)
             request = validate_input(ModelTrainQuery, raw)
-            return self.model_store.train(validated, str(request.training_run_id))
+            return self.model_store.train(validated, str(request.training_run_id), request.features)
+
+        return execute(action)
+
+    def model_stepwise(self, project_id: str, raw: object) -> Success[dict] | Failure:
+        """Stepwise choice of fields on the train part, then fit and save that model."""
+
+        def action() -> dict:
+            validated = str(validate_input(ProjectId, {"id": project_id}).id)
+            request = validate_input(StepwiseQuery, raw)
+            return self.model_store.stepwise(
+                validated, str(request.training_run_id), request.criterion
+            )
 
         return execute(action)
 
@@ -556,7 +569,13 @@ class ProjectService:
         )
 
     def ai_calls(self) -> Success[dict] | Failure:
-        return execute(lambda: {"calls": self.openai.calls(), "totals": self.openai.totals()})
+        return execute(
+            lambda: {
+                "calls": self.openai.calls(),
+                "totals": self.openai.totals(),
+                "daily": self.openai.daily(),
+            }
+        )
 
     def knowledge_documents(self) -> Success[list[dict]] | Failure:
         return execute(self.knowledge.documents)

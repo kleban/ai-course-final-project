@@ -263,7 +263,7 @@ class ConclusionTests(unittest.TestCase):
         ensure_schema(self.database)
         with connect(self.database) as c:
             self.assertEqual(c.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
-            self.assertEqual(SCHEMA_VERSION, 16)
+            self.assertEqual(SCHEMA_VERSION, 17)
             c.execute("SELECT count(*) FROM conclusions").fetchone()
             with self.assertRaises(sqlite3.IntegrityError):
                 c.execute(

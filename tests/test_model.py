@@ -394,6 +394,7 @@ class ModelStoreTests(unittest.TestCase):
                 "propose_eda_chart",
                 "list_training_runs",
                 "train_linear_regression",
+                "stepwise_linear_regression",
                 "explain_model_result",
                 "search_knowledge",
                 "build_model_chart",
@@ -406,7 +407,7 @@ class ModelStoreTests(unittest.TestCase):
         training_schema = next(s for s in schemas if s["name"] == "train_linear_regression")
         self.assertIn("training_run_id", training_schema["parameters"]["properties"])
         listed = run_tool(self.service, self.project.id, "list_training_runs", {}).data
-        self.assertIsNone(listed[0]["model_id"])
+        self.assertEqual(listed[0]["models"], [])
         trained = run_tool(
             self.service, self.project.id, "train_linear_regression", {"training_run_id": run_id}
         )

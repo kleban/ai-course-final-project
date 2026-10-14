@@ -78,10 +78,15 @@ def training_screen(service: ProjectService, active: ProjectView, dataset_id: st
             .classes("stat-dataset")
         )
         features = (
-            ui.select(available, multiple=True, label="Ознаки", value=[])
+            ui.select(available, multiple=True, label="Поля вибірок", value=list(available))
             .props("outlined square use-chips")
             .classes("stat-dataset")
         )
+
+    ui.label(
+        "Вибірки беруть усі поля, крім цілі; ознаки конкретної моделі обираються в блоці "
+        "«Модель» — вручну або методом stepwise."
+    ).classes("section-lead")
 
     def target_changed(e) -> None:
         features.set_options({name: title for name, title in available.items() if name != e.value})

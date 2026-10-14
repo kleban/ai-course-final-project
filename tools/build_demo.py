@@ -186,12 +186,20 @@ def stage_one(service: ProjectService, database: Path, ai: bool = True) -> dict:
             {
                 "dataset_id": clean.id,
                 "target": "Rented Bike Count",
+                # History 146: the split takes every usable field; models choose their own
+                # (by hand or stepwise). Date is a date; Functioning Day is constant here.
                 "features": [
                     "Hour",
                     "Temperature(°C)",
                     "Humidity(%)",
                     "Wind speed (m/s)",
+                    "Visibility (10m)",
+                    "Dew point temperature(°C)",
+                    "Solar Radiation (MJ/m2)",
+                    "Rainfall(mm)",
+                    "Snowfall (cm)",
                     "Seasons",
+                    "Holiday",
                 ],
                 "encoding": "onehot",
                 "test_percent": 30,
