@@ -14,6 +14,7 @@ from typing import Any
 from nicegui import app, ui
 
 from .analysis_blocks import EDA_TOOLS, block_link, blocks_for, eda_link
+from .config import ROOT
 from .contracts import (
     DatasetView,
     EventView,
@@ -533,6 +534,15 @@ def projects_screen(
             overview(service, shell)
 
 
+def storage_label(database: Path) -> str:
+    """The database the service really uses (history 134), relative to the repository."""
+    path = Path(database).resolve()
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def overview(service: ProjectService, shell: Shell) -> None:
     listing = service.list_projects()
     projects: list[ProjectView] = listing.data if isinstance(listing, Success) else []
@@ -554,7 +564,7 @@ def overview(service: ProjectService, shell: Shell) -> None:
             latest.name if latest else "—",
             date(latest.created_at) if latest else "ще немає",
         )
-        kpi("data", "Сховище", "SQLite", "runtime/data-story.sqlite3")
+        kpi("data", "Сховище", "SQLite", storage_label(service.store.database))
 
     with ui.element("div").classes("section-bar"):
         ui.label("Усі проєкти").classes("section-title")

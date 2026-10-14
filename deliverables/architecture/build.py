@@ -3,6 +3,8 @@ from pathlib import Path
 from shutil import copyfile
 import importlib.util
 
+# History 136: one Python process (uvicorn) split into frontend and backend; no bus — exact links in the
+# «module × storage» matrix under the diagram (see notes/architecture-links-135.md).
 # Architecture of Data Story as implemented (history 121): concrete blocks with icons, two buses
 # (analytic modules → DuckDB; chat and built-in AI → RAG / LLM), numbered flows 1–10.
 # Generates deliverables/architecture/{architecture.html, architecture.svg} and docs/ (GitHub Pages,
@@ -30,7 +32,7 @@ ICONS = dict(_icons.ICONS) | {
     "quarto": '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M10 12.5l-2 2 2 2M14 12.5l2 2-2 2"/>',
 }
 
-W, H = 1600, 960
+W, H = 1600, 1000
 parts = []
 def box(x, y, w, h, title, lines, cls="b", tcls="bt", lcls="bl", pad=14, icon=None, ic="ic"):
     parts.append(f'<rect class="{cls}" x="{x}" y="{y}" width="{w}" height="{h}"/>')
@@ -58,62 +60,64 @@ def bus(d, dots=(), ai=False):
     for x, y in dots:
         parts.append(f'<circle class="jn" cx="{x}" cy="{y}" r="3.5"/>')
 
-# zones: everything is local except the top-right corner (internet, OpenAI)
-parts.append('<path class="zone" d="M15 15 H1210 V205 H1590 V945 H15 Z"/>')
-parts.append('<text class="zl" x="30" y="932">Комп’ютер користувача (Windows) · розрахунки, дані, SQL, RAG і звіти — локально</text>')
-parts.append('<text class="zlo" x="1230" y="36">Інтернет · HTTPS</text>')
+# zones: everything is local except the right column (internet, OpenAI)
+parts.append('<path class="zone" d="M15 15 H1385 V985 H15 Z"/>')
+parts.append('<text class="zl" x="30" y="972">Комп’ютер користувача (Windows) · дані, розрахунки, SQL, RAG і звіти — локально</text>')
+parts.append('<path class="zone zo" d="M1395 15 H1590 V985 H1395 Z"/>')
+parts.append('<text class="zlo" x="1410" y="40">Інтернет · HTTPS</text>')
 
-box(30, 45, 240, 120, "Користувач у браузері", ["Chrome / Edge · Vue + Quasar", "формули MathJax", "усі ресурси локальні"], "b user", icon="user")
-box(325, 60, 850, 75, "Інтерфейс і API", ["NiceGUI 3 (сторінки) + FastAPI (HTTP /api, JSON) на uvicorn"], "b core", icon="api")
-box(325, 170, 850, 65, "Сервіс-оркестратор (ProjectService)", ["перевіряє дані й поточний проєкт, викликає модулі, пише журнал; спільний для сторінок, чату й API"], "b core", icon="settings")
+box(25, 60, 250, 120, "Користувач у браузері", ["Chrome / Edge · Vue + Quasar", "формули MathJax", "усі ресурси локальні"], "b user", icon="user")
 
-# analytic modules: two rows, a data bus between them leads to DuckDB and to the files
-box(325, 275, 530, 270, "Аналітичні модулі", [], "b grp", "bt")
-chips = [(340, 315, "Дані й\nстатистика", "pandas, NumPy", "data"), (513, 315, "Графіки", "SVG, спільна тема", "compare"),
-         (686, 315, "Підготовка\nй агрегація", "вибірки, з’єднання", "table"), (340, 445, "Модель", "scikit-learn, SciPy", "regression"),
-         (686, 445, "Звіти", "знімок → .qmd", "doc")]
+# one Python process: frontend and backend are logical parts of the same program
+parts.append('<rect class="proc" x="290" y="40" width="1090" height="660"/>')
+parts.append('<text class="procl" x="306" y="64">Один процес Python · uvicorn (Start.cmd)</text>')
+box(310, 80, 1050, 85, "Фронтенд · NiceGUI-сторінки", ["проєкти, дані, аналіз, модель, висновки, звіт, налаштування; панель AI-помічника — у браузер через WebSocket"], "b core", icon="api")
+box(310, 195, 1050, 495, "Бекенд", [], "b grp", "bt")
+box(330, 235, 220, 70, "FastAPI · /api", ["HTTP JSON: рядки, файли"], "b core", "btm", "bl", 12, icon="code")
+box(600, 235, 740, 70, "Сервіс-оркестратор (ProjectService)", ["перевіряє дані й проєкт, викликає модулі й AI, виконує інструменти чату"], "b core", "btm", "bl", 12, icon="settings")
+
+box(330, 335, 430, 290, "Аналітичні модулі", [], "b grp", "btm")
+chips = [(345, 375, "Дані й метадані", "pandas, NumPy", "data"), (550, 375, "Статистика\nй графіки", "SVG, спільна тема", "compare"),
+         (345, 455, "Підготовка\nй агрегація", "вибірки, з’єднання", "table"), (550, 455, "Модель", "scikit-learn, SciPy", "regression"),
+         (550, 535, "Звіти", "знімок → .qmd", "doc")]
 for x, y, t, l, i in chips:
-    box(x, y, 155, 80, t, [l], "b mod", "btm", "bl", 12, icon=i)
-parts.append('<text class="busl" x="426" y="414">шина даних</text>')
+    box(x, y, 195, 72, t, [l], "b mod", "btm", "bl", 12, icon=i)
 
-# AI group
-box(885, 275, 290, 345, "AI — лише явною дією", [], "b grp ai", "bt")
-box(900, 312, 260, 75, "Чат-помічник", ["Порадь · Виконай · Поясни"], "b mod modai", "btm", "bl", 12, icon="chat", ic="ic o")
-box(900, 445, 260, 80, "Вбудовані AI-функції", ["пояснення, висновки,", "чернетка звіту"], "b mod modai", "btm", "bl", 12, icon="spark", ic="ic o")
-box(900, 540, 260, 70, "SQL від LLM", ["перевірка: 1 SELECT, 5 с, 512 МБ"], "b mod", "btm", "bl", 12, icon="code")
+box(780, 335, 290, 335, "AI — лише явною дією", [], "b grp ai", "btm")
+box(795, 447, 260, 62, "Чат-помічник", ["Порадь · Виконай · Поясни"], "b mod modai", "btm", "bl", 12, icon="chat", ic="ic o")
+box(795, 519, 260, 62, "Висновки й чернетка звіту", ["тексти з фактів сервісу"], "b mod modai", "btm", "bl", 12, icon="spark", ic="ic o")
+box(795, 591, 260, 62, "SQL від LLM", ["1 SELECT, 5 с, 512 МБ"], "b mod", "btm", "bl", 12, icon="code")
+box(795, 375, 260, 62, "Клієнт OpenAI", ["повтори, рівні, журнал, вартість"], "b mod modai", "btm", "bl", 12, icon="bot", ic="ic o")
 
-box(686, 570, 155, 62, "Quarto 1.10", ["офлайн → HTML"], "b rep", "btm", "bl", 12, icon="quarto")
+box(1120, 335, 220, 150, "RAG · база знань", ["правила + 106 уривків", "TF-IDF + вектори", "→ 3–5 фрагментів"], "b rag", "btm", "bl", 12, icon="rag")
+box(1120, 505, 220, 165, "bge-m3 (ONNX)", ["у цьому ж процесі,", "з Hugging Face під час", "Setup (SHA-256), ~2,3 ГБ,", "текст → 1024 числа"], "b rag", "btm", "bl", 12, icon="vector")
 
-# storage: files under the analytic modules, DuckDB in the middle, SQLite under AI
-box(325, 650, 850, 215, "Сховища · runtime/", [], "b store grp2", "bt")
-box(340, 690, 240, 110, "Файли", ["CSV-оригінали з SHA-256, .npz,", "HTML звітів, книжки й вектори,", "файли моделі bge-m3"], "b", "btm", "bl", 12, icon="folder")
-box(595, 690, 250, 110, "Постійна DuckDB", ["набори й результати з версіями:", "статистика, дані графіків,", "метрики, прогнози, залишки"], "b", "btm", "bl", 12, icon="duckdb")
-box(900, 690, 260, 110, "SQLite (схема v16)", ["проєкти, метадані, налаштування,", "журнали подій і AI, правила RAG,", "тексти висновків і звітів"], "b", "btm", "bl", 12, icon="sqlite")
+# outside the process: Quarto CLI, files on disk, OpenAI
+box(40, 545, 210, 90, "Quarto 1.10", ["окремий процес (CLI)", "офлайн → HTML"], "b rep", "btm", "bl", 12, icon="quarto")
+box(310, 740, 1050, 150, "Диск · runtime/ (відкриваються з процесу напряму)", [], "b store grp2", "btm")
+box(330, 780, 320, 95, "SQLite (схема v16)", ["проєкти, набори, метадані, запуски,", "налаштування, журнали, правила RAG,", "висновки й звіти"], "b", "btm", "bl", 12, icon="sqlite")
+box(670, 780, 320, 95, "Постійна DuckDB", ["таблиці й результати з версіями:", "статистика, дані графіків,", "метрики, прогнози, залишки"], "b", "btm", "bl", 12, icon="duckdb")
+box(1010, 780, 330, 95, "Файли", ["CSV-оригінали з SHA-256, .npz,", "HTML і .qmd звітів, книжки,", "вектори, модель bge-m3"], "b", "btm", "bl", 12, icon="folder")
+box(1405, 560, 175, 130, "OpenAI", ["Responses API", "gpt-6-luna /", "gpt-6.1-sol", "ключ лише в .env"], "b llm", "btm", "bl", 12, icon="bot", ic="ic o")
 
-# right column: OpenAI on top (internet), RAG and bge-m3 below
-box(1230, 50, 340, 115, "LLM · OpenAI Responses API", ["gpt-6-luna / gpt-6.1-sol", "ключ лише в .env · через інтернет"], "b llm", icon="bot", ic="ic o")
-box(1230, 290, 340, 120, "RAG · база знань", ["правила (SQLite) + 106 уривків книжок", "гібридний пошук: TF-IDF + вектори", "→ 3–5 фрагментів із джерелами"], "b rag", icon="rag")
-box(1230, 460, 340, 125, "Модель embeddings BAAI/bge-m3", ["завантажена з Hugging Face (Setup, SHA-256)", "ONNX Runtime, локально, ~2,3 ГБ", "текст → вектор із 1024 чисел"], "b rag", icon="vector")
-
-line("M270 97 H325", "1", 297, 97)
-line("M750 135 V170", "2", 750, 152)
-line("M325 202 H300 V840 H1030 V800", "3", 300, 470)
-bus("M417 395 V445 M590 395 V420 M763 395 V445 M417 420 H763", [(417, 420), (504, 420), (590, 420), (620, 420), (763, 420)])
-line("M504 420 V690", "4", 504, 615, start=False)
-line("M620 420 V690", "4", 620, 615, start=False)
-line("M841 485 H900", "5", 870, 485)
-line("M763 525 V570", "6", 790, 552, start=False)
-bus("M1160 350 H1195 V485 M1160 485 H1195", [(1195, 350), (1195, 380), (1195, 485)])
-line("M1195 380 H1230", "7", 1212, 362, start=False)
-line("M1400 410 V460", "8", 1400, 435)
-line("M920 610 V641 H820 V690", "9", 870, 641)
-line("M1195 350 V108 H1230", "10", 1195, 230, ai=True, start=False)
-line("M1400 585 V895 H460 V848 a8 8 0 0 1 0 -16 V800", "11", 1400, 740)
-line("M1195 485 V745 H1160", "12", 1195, 640, start=False)
+line("M275 120 H310", "1", 292, 140)
+line("M140 180 V270 H330", "2", 140, 225)
+line("M965 165 V235", "3", 990, 182)
+line("M550 270 H600", "4", 575, 270)
+line("M700 305 V335", "5", 675, 320)
+line("M930 305 V335", "6", 955, 320)
+line("M745 571 H795", "7", 770, 571)
+line("M550 590 H250", "8", 270, 590, start=False)
+line("M1055 478 H1120", "9", 1088, 478)
+line("M1230 485 V505", "10", 1258, 495)
+line("M1055 406 H1095 V320 H1370 V625 H1405", "11", 1232, 320, ai=True, start=False)
+line("M450 625 V740", "12", 450, 705)
+line("M925 670 V740", "13", 925, 705)
+line("M1230 670 V740", "14", 1230, 705)
 
 svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="http://www.w3.org/2000/svg">
 <title id="t">Архітектура Data Story</title>
-<desc id="d">Браузер → інтерфейс → сервіс-оркестратор. Аналітичні модулі через шину даних пишуть і читають DuckDB та файли; сервіс веде службовий стан у SQLite. Звіти отримують чернетку від вбудованих AI-функцій і після затвердження передаються в Quarto. Чат і вбудовані AI-функції через спільну шину звертаються до RAG (з моделлю bge-m3, файли якої лежать локально), до OpenAI через інтернет і через сервіс до SQLite (контекст, журнал AI, чернетки); SQL від LLM виконується в DuckDB після перевірки. Стрілки 1–12 — потоки даних.</desc>
+<desc id="d">Увесь сервіс — один процес Python (uvicorn), логічно поділений на фронтенд (сторінки NiceGUI) і бекенд (FastAPI, сервіс-оркестратор, аналітичні модулі, AI, RAG з bge-m3). Браузер працює з фронтендом через WebSocket і з FastAPI через HTTP. Сервіс викликає аналітичні модулі й AI; чат повертає виклики інструментів, які виконує сервіс. Модулі, AI і RAG самі відкривають SQLite, DuckDB і файли на диску. Звіти передаються в окремий процес Quarto; до OpenAI звертається лише клієнт OpenAI через інтернет. Точні зв’язки — у таблиці «модуль × сховище».</desc>
 <defs>
 <marker id="ae" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="mh"/></marker>
 <marker id="as" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 z" class="mh"/></marker>
@@ -124,34 +128,54 @@ svg = f'''<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="t d" xmlns="htt
 </svg>'''
 
 flows = [
- ("1", "Браузер ⇄ Інтерфейс і API", "дія користувача: клік, форма, файл CSV, питання помічнику", "сторінка, таблиці, SVG-графіки, результат дії", "NiceGUI (WebSocket), FastAPI (HTTP, JSON)",
-  "NiceGUI дає повноцінний вебінтерфейс (Vue + Quasar) прямо з Python — для MVP не потрібен окремий фронтенд і окрема команда. FastAPI працює в тому ж процесі й автоматично перевіряє дані запитів, тож ті самі дії доступні сторінкам, чату й тестам."),
- ("2", "Інтерфейс ⇄ Сервіс", "виклик сервісу з даними форми або HTTP-запиту", "результат або зрозуміла помилка", "pydantic-контракти; один ProjectService для сторінок, чату й API",
-  "Одна точка правил: перевірки й журнал однакові для людини, API та AI. Це спрощує тестування MVP і не дає AI обійти обмеження."),
- ("3", "Сервіс ⇄ SQLite", "службовий стан: проєкти, метадані, налаштування, журнал подій, тексти висновків і звітів", "стан проєкту й журнали", "SQLite v16",
-  "SQLite — вбудована база в одному файлі: без сервера й налаштувань, з надійними транзакціями. Для локального MVP на одному комп’ютері цього достатньо."),
-
- ("4", "Аналітичні модулі ⇄ DuckDB і Файли", "нові версії таблиць і результатів (статистика, дані графіків, метрики, прогнози, залишки); оригінали CSV, матриці вибірок .npz, HTML звітів", "збережені таблиці й результати без повторного розрахунку; файли з перевіркою SHA-256", "DuckDB 1.5 з ключами джерела, метаданих і параметрів; файли в runtime/",
-  "DuckDB — вбудована аналітична (колонкова) база: швидкі групування, агрегації й з’єднання на SQL без окремого сервера. Результати зберігаються з версіями, тому після перезапуску їх не треба перераховувати; великі оригінали й матриці лишаються файлами."),
-
- ("5", "Звіти ⇄ Вбудовані AI-функції", "знімок звіту: факти моделі, статистика, затверджені висновки", "чернетка тексту звіту; автор редагує й затверджує", "ReportStore.ai_draft — один виклик OpenAI (завдання report_draft)",
-  "AI допомагає сформулювати текст, але числа бере лише з фактів сервісу. Остаточне рішення — за людиною: чернетку редагують і затверджують."),
- ("6", "Звіти → Quarto", "після затвердження: Markdown звіту (.qmd), знімок моделі, статистика, SVG-графіки", "HTML-звіт, що відкривається без інтернету", "ReportStore.render; Quarto CLI 1.10, MathJax, шрифти сервісу; без OpenAI",
-  "Quarto — відкритий стандарт відтворюваних звітів: Markdown + формули + графіки → самодостатній HTML. Джерело .qmd можна редагувати й перезібрати, а той самий інструмент у майбутньому дасть PDF, DOCX чи слайди."),
- ("7", "Чат і вбудовані AI ⇄ RAG", "питання користувача або факти моделі", "3–5 фрагментів правил і книжок із джерелом і сторінками", "гібридний пошук TF-IDF + вектори, локально",
-  "LLM не знає правил курсу й змісту обраних книжок. RAG підставляє перевірені фрагменти з джерелами, тож відповіді ближчі до методики, а посилання можна перевірити."),
- ("8", "RAG ⇄ bge-m3", "текст питання; уривки книжок під час побудови індексу", "вектор із 1024 чисел для порівняння схожості", "BAAI/bge-m3 з Hugging Face, ONNX Runtime на CPU, ~2,3 ГБ",
-  "Модель embeddings перетворює текст на вектор: близькі за змістом тексти мають близькі вектори, тому пошук іде за змістом, а не лише за словами. bge-m3 (ліцензія MIT) багатомовна, з українською; обрана порівнянням кількох моделей на контрольних питаннях. Завантажується один раз з Hugging Face під час Setup і далі працює офлайн; без неї — TF-IDF."),
- ("9", "SQL від LLM ⇄ DuckDB", "SQL, який склала LLM; згадані таблиці проєкту копіюються в окрему тимчасову DuckDB", "до 10 000 рядків і 2 МБ результату; новий набір — лише після «Застосувати»", "перевірка: один SELECT, лише таблиці поточного проєкту; 512 МБ, 5 с",
-  "LLM добре перекладає питання людською мовою в SQL, а виконує запит лише сервіс під обмеженнями. Користувач не пише SQL, а дані проєкту захищені від змін."),
- ("10", "Чат і вбудовані AI ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти RAG; чату — ще схема таблиць і список інструментів", "текст / JSON або виклик інструмента; інструмент і SQL виконує сервіс локально", "OpenAI Responses API, httpx",
-  "Сильні моделі з викликом інструментів і структурованими відповідями без власної інфраструктури моделей — оптимально для MVP. Модель обирається окремо для кожної задачі; кожен виклик і токени видно в журналі."), ("11", "RAG і bge-m3 ⇄ Файли", "кеш векторів уривків", "вибрані розділи книжок, кеш векторів .npy, файли моделі bge-m3 (ONNX)", "runtime/knowledge-sources, knowledge-index, dependencies/embeddings",
-  "Модель і книжки великі й не потрібні в базі даних: модель один раз завантажується з Hugging Face під час Setup з перевіркою SHA-256, а далі все працює офлайн."),
- ("12", "Чат і вбудовані AI ⇄ SQLite (через сервіс)", "журнал AI (запити, відповіді, токени), чернетки, висновки, тексти звітів", "контекст: проєкт, метадані, знімки моделей, запуски навчання, правила бази знань", "сервіс читає й пише SQLite; прямого доступу LLM немає",
-  "AI отримує лише потрібні факти проєкту, а кожен виклик і результат зберігаються й перевіряються. SQL від LLM виконується тільки в DuckDB, тому службовий стан захищений від змін."),
-
+ ("1", "Браузер ⇄ Фронтенд", "дії користувача: клік, форма, питання помічнику", "оновлення сторінки, таблиці, SVG-графіки", "NiceGUI (WebSocket), Vue + Quasar у браузері",
+  "NiceGUI дає вебінтерфейс прямо з Python — для MVP не потрібен окремий фронтенд-проєкт. Фронтенд і бекенд — частини однієї програми."),
+ ("2", "Браузер ⇄ FastAPI", "запит сторінки рядків таблиці, завантаження CSV, файли звітів", "JSON із рядками, файли", "FastAPI (HTTP /api) у тому ж процесі",
+  "Великі таблиці підвантажуються сторінками за HTTP, без передачі всього набору у WebSocket; той самий API використовують тести."),
+ ("3", "Фронтенд → Сервіс", "виклик методу сервісу з даними форми", "результат або зрозуміла помилка", "звичайний виклик Python, pydantic-контракти",
+  "Одна точка правил: перевірки однакові для сторінок, API та AI."),
+ ("4", "FastAPI → Сервіс", "HTTP-запит, перевірений за схемою", "результат або помилка з кодом", "pydantic-моделі запитів",
+  "Сторінки й API не мають власної логіки — лише передають дію сервісу."),
+ ("5", "Сервіс ⇄ Аналітичні модулі", "перевірені параметри: набір, поля, налаштування підготовки, модель, звіт", "таблиці, SVG, метрики, версія звіту", "Python-класи: pandas, NumPy, scikit-learn, SciPy",
+  "Розрахунки — лише в коді сервісу, без AI: результат відтворюваний і перевірений тестами."),
+ ("6", "Сервіс ⇄ AI", "задача AI: питання, режим, поточна сторінка, факти; чату — результати інструментів", "відповідь або виклик інструмента: LLM пропонує, сервіс виконує (навчання, SQL, чернетки, графіки)", "Assistant, ConclusionStore, ReportStore.ai_draft",
+  "Агентний цикл: модель лише обирає інструмент і параметри, а виконує їх сервіс з усіма перевірками. Зміни — після «Застосувати»."),
+ ("7", "Звіти ⇄ AI", "знімок звіту: факти моделі, статистика, затверджені висновки", "чернетка тексту розділів; автор редагує й затверджує", "ReportStore.ai_draft (задача report_draft)",
+  "AI формулює текст, але числа бере лише з фактів сервісу."),
+ ("8", "Звіти → Quarto", "після затвердження: .qmd, знімок моделі, статистика, SVG", "HTML-звіт, що відкривається без інтернету", "Quarto CLI 1.10 — окремий процес; без OpenAI",
+  "Відкритий стандарт відтворюваних звітів: Markdown + формули + графіки → самодостатній HTML."),
+ ("9", "AI ⇄ RAG", "питання користувача або факти моделі", "3–5 фрагментів правил і книжок із джерелами", "KnowledgeStore: гібридний пошук TF-IDF + вектори",
+  "LLM не знає правил курсу й змісту книжок; RAG підставляє перевірені фрагменти, тож посилання можна перевірити."),
+ ("10", "RAG ⇄ bge-m3", "текст питання; уривки книжок під час індексації", "вектор із 1024 чисел", "BAAI/bge-m3, ONNX Runtime у тому ж процесі, CPU",
+  "Пошук за змістом, а не лише за словами; багатомовна модель з українською, обрана порівнянням на контрольних питаннях; без неї — TF-IDF."),
+ ("11", "Клієнт OpenAI ⇄ OpenAI", "інструкції + факти (JSON) + фрагменти RAG; чату — схема таблиць та інструменти", "текст / JSON або виклик інструмента; usage токенів", "OpenAI Responses API, httpx, HTTPS",
+  "Єдиний вихід в інтернет. Модель — для кожної задачі окремо; повтори й запасні рівні; кожен виклик, токени й вартість — у журналі AI."),
+ ("12", "Аналітичні модулі ⇄ Диск", "реєстр, метадані, запуски (SQLite); таблиці й результати (DuckDB); CSV, .npz, звіти (файли)", "збережений стан і результати без повторного розрахунку", "sqlite3, duckdb, файли з SHA-256",
+  "Кожне сховище — для свого: транзакції службового стану, швидкі агрегації, великі оригінали й матриці."),
+ ("13", "AI ⇄ Диск", "журнал AI, висновки, події чату (SQLite); SQL від LLM — у тимчасовій копії таблиць DuckDB", "контекст проєкту, агрегації для висновків, результат SQL", "sqlite3, duckdb (ізольована копія)",
+  "Кожен виклик AI зберігається; SQL від LLM не може змінити дані проєкту."),
+ ("14", "RAG ⇄ Диск", "кеш векторів", "правила (SQLite), розділи книжок, вектори .npy, файли bge-m3", "sqlite3; runtime/knowledge-*, dependencies/embeddings",
+  "Правила редагуються в сервісі; великі книжки й модель — файлами, завантажуються один раз під час Setup."),
 ]
-rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="10" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td><td class="why">{e(w)}</td></tr>' for n,a,b,c,d,w in flows)
+MATRIX_COLS = ["SQLite", "DuckDB", "Файли", "RAG", "OpenAI", "Quarto"]
+# Checked against src/data_story (history 135–136): who opens which storage or service directly.
+MATRIX = [
+ ("Дані й метадані", "datasets, metadata, dataset_copy", "так", "так", "так", "", "", ""),
+ ("Статистика й графіки", "statistics, charts, chart_configuration", "так", "так", "", "", "", ""),
+ ("Підготовка й агрегація", "preparation_store, prepared_datasets, combine", "так", "так", "так", "", "", ""),
+ ("Модель", "training_store, model_store", "так", "так", "так", "", "", ""),
+ ("Звіти", "reports, quarto_runtime", "так", "", "так", "", "через клієнт (чернетка)", "так"),
+ ("Чат-помічник", "assistant", "так", "через інструменти", "", "так", "через клієнт", ""),
+ ("Висновки", "conclusions", "так", "так", "", "так", "через клієнт", ""),
+ ("SQL від LLM", "analytical_queries", "каталог", "тимчасова копія", "", "", "", ""),
+ ("Клієнт OpenAI", "openai_client, ai_settings", "журнал, налаштування", "", "", "", "так", ""),
+ ("RAG", "knowledge, embeddings", "правила", "", "так", "—", "", ""),
+ ("Моніторинг", "monitoring", "перевірка", "перевірка", "перевірка", "перевірка", "", "перевірка"),
+]
+matrix_rows = "".join(
+    f'<tr><td class="who">{e(n)}</td><td class="tech">{e(m)}</td>' + "".join(f"<td>{e(v)}</td>" for v in vals) + "</tr>"
+    for n, m, *vals in MATRIX)
+rows = "".join(f'<tr><td class="n"><span class="nb{" o" if n=="11" else ""}">{n}</span></td><td class="who">{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td class="tech">{e(d)}</td><td class="why">{e(w)}</td></tr>' for n,a,b,c,d,w in flows)
 
 page = f'''<!doctype html>
 <html lang="uk">
@@ -200,6 +224,9 @@ svg text {{ font-family:var(--sans); fill:var(--ink); }}
 .bt {{ font-size:16px; font-weight:700; }} .btm {{ font-size:14.5px; font-weight:700; }} .blm {{ font-size:12px; fill:var(--ink2) !important; }} .bl {{ font-size:13px; fill:var(--ink2) !important; }}
 .srv {{ fill:none; stroke:var(--primary); stroke-width:2.5; }}
 .srvl {{ font-size:14px; font-weight:600; fill:var(--primary) !important; }}
+.proc {{ fill:none; stroke:var(--primary); stroke-width:2.2; }}
+.procl {{ font-size:14px; font-weight:700; fill:var(--primary) !important; }}
+.zone.zo {{ stroke:var(--ai); }}
 .zone {{ fill:none; stroke:#9aa4b2; stroke-width:1.2; stroke-dasharray:3 5; }}
 .zl {{ font-size:13px; fill:var(--ink2) !important; font-style:italic; }} .zlo {{ font-size:13px; font-weight:600; fill:var(--ai) !important; }}
 .ln {{ fill:none; stroke:var(--primary); stroke-width:2; }} .ln.ai {{ stroke:var(--ai); stroke-dasharray:7 5; }}
@@ -286,11 +313,11 @@ td.why {{ min-width:280px; }}
   <span><i class="sw"></i>інтерфейс і ядро сервісу</span>
   <span><i class="sw c"></i>модулі розрахунків</span>
   <span><i class="sw l"></i>AI: чат, вбудовані функції, OpenAI</span>
-  <span><i class="sw r"></i>окремі локальні сервіси (RAG, bge-m3, Quarto)</span>
+  <span><i class="sw r"></i>RAG і bge-m3 (у процесі), Quarto (окремий процес)</span>
   <span><i class="sw s"></i>сховище</span>
   <span><i class="ln-s"></i>локальний запит і відповідь</span>
   <span><i class="ln-a"></i>запит через інтернет</span>
-  <span><i class="ln-b"></i>шина: кілька блоків користуються одним адресатом</span>
+  <span><i class="sw c" style="border-width:2.2px"></i>рамка «Один процес Python»: фронтенд і бекенд — частини однієї програми</span>
 </div>
 <section aria-labelledby="flows-title">
   <h2 id="flows-title">Потоки даних і вибір технологій</h2>
@@ -298,6 +325,14 @@ td.why {{ min-width:280px; }}
   <div class="tablewrap"><table>
     <thead><tr><th>№</th><th>Хто ⇄ кому</th><th>Що надсилає</th><th>Що отримує назад</th><th>Технологія</th><th>Чому саме ця технологія</th></tr></thead>
     <tbody>{rows}</tbody>
+  </table></div>
+</section>
+<section aria-labelledby="matrix-title">
+  <h2 id="matrix-title">Хто з чим працює напряму</h2>
+  <p class="lead">Модулі — класи в одному процесі; кожен сам відкриває потрібне сховище (без брокера чи окремого шару доступу). OpenAI викликається лише через клієнт OpenAI.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Блок</th><th>Модулі коду</th>{"".join(f"<th>{c}</th>" for c in MATRIX_COLS)}</tr></thead>
+    <tbody>{matrix_rows}</tbody>
   </table></div>
 </section>
 <section class="facts" aria-labelledby="assistant-title">

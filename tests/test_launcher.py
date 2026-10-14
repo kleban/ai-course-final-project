@@ -18,6 +18,16 @@ spec.loader.exec_module(launcher)
 
 
 class LauncherTests(unittest.TestCase):
+    def test_overview_shows_the_database_in_use(self):
+        from data_story.screen import storage_label
+
+        self.assertEqual(storage_label(ROOT / "runtime" / "data-story.sqlite3"),
+                         "runtime/data-story.sqlite3")  # fmt: skip
+        self.assertEqual(storage_label(ROOT / "tmp" / "demo" / "data.sqlite3"),
+                         "tmp/demo/data.sqlite3")  # fmt: skip
+        outside = Path(ROOT.anchor) / "elsewhere" / "data.sqlite3"
+        self.assertEqual(storage_label(outside), str(outside.resolve()))
+
     def test_same_database_has_stable_identity_and_other_database_differs(self):
         first = Settings(database=ROOT / "tmp/a.sqlite3")
         self.assertEqual(first.instance, Settings(database=first.database).instance)
